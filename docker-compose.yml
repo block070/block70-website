@@ -1,0 +1,51 @@
+services:
+  postgres:
+    image: postgres:16
+    container_name: block70-postgres
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-block70}
+      POSTGRES_USER: ${POSTGRES_USER:-block70}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-block70password}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  redis:
+    image: redis:7
+    container_name: block70-redis
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+
+  api:
+    build:
+      context: ./apps/api
+    container_name: block70-api
+    env_file:
+      - .env
+    environment:
+      POSTGRES_HOST: postgres
+      REDIS_HOST: redis
+      DATABASE_URL: postgresql+psycopg2://${POSTGRES_USER:-block70}:${POSTGRES_PASSWORD:-block70password}@postgres:${POSTGRES_PORT:-5432}/${POSTGRES_DB:-block70}
+    depends_on:
+      - postgres
+      - redis
+    ports:
+      - "${API_PORT:-8000}:8000"
+
+  web:
+    build:
+      context: ./apps/web
+    container_name: block70-web
+    env_file:
+      - .env
+    environment:
+      API_SERVER_URL: "http://block70-api:8000"
+    depends_on:
+      - api
+    ports:
+      - "${WEB_PORT:-3000}:3000"
+
+volumes:
+  postgres_data:
+

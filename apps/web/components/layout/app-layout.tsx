@@ -1,0 +1,69 @@
+"use client";
+
+import { useState, type ReactNode } from "react";
+import { TopNav } from "./top-nav";
+import { Sidebar } from "./sidebar";
+import { LegalFooter } from "@/components/legal/legal-footer";
+import { CookieConsentBanner } from "@/components/legal/cookie-consent-banner";
+
+type AppLayoutProps = {
+  children: ReactNode;
+  rightPanel?: ReactNode;
+};
+
+export function AppLayout({ children, rightPanel }: AppLayoutProps) {
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+
+  return (
+    <div className="flex min-h-screen flex-col bg-[var(--b70-bg)]">
+      <TopNav />
+
+      <div className="flex flex-1">
+        <button
+          type="button"
+          onClick={() => setSidebarOpen((o) => !o)}
+          className="fixed left-4 top-16 z-50 flex h-10 w-10 items-center justify-center rounded-lg border border-[var(--b70-border)] bg-[var(--b70-card)] text-[var(--b70-text-muted)] hover:bg-[var(--b70-border)] md:hidden"
+          aria-label="Toggle sidebar"
+        >
+          <MenuIcon />
+        </button>
+
+        <Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
+
+        <main className="min-w-0 flex-1 px-4 py-4 pl-4 md:pl-4">
+          <div className="mx-auto max-w-6xl">
+            {children}
+          </div>
+        </main>
+
+        {rightPanel ? (
+          <aside className="hidden w-72 shrink-0 border-l border-[var(--b70-border)] bg-[var(--b70-card)] xl:block">
+            <div className="sticky top-20 p-4">{rightPanel}</div>
+          </aside>
+        ) : null}
+      </div>
+
+      <LegalFooter />
+      <CookieConsentBanner />
+    </div>
+  );
+}
+
+function MenuIcon() {
+  return (
+    <svg
+      className="h-5 w-5"
+      fill="none"
+      stroke="currentColor"
+      viewBox="0 0 24 24"
+      aria-hidden
+    >
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth={2}
+        d="M4 6h16M4 12h16M4 18h16"
+      />
+    </svg>
+  );
+}

@@ -1,0 +1,101 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ---------------------------------------------------------------------------
+   Block70 design tokens – light mode (default)
+   --------------------------------------------------------------------------- */
+:root {
+  /* Primary palette */
+  --b70-crypto-blue: #2a7fff;
+  --b70-crypto-green: #00ffa3;
+  --b70-crypto-orange: #ff9f43;
+
+  /* Light mode semantic */
+  --b70-bg: #f8fafc;
+  --b70-card: #ffffff;
+  --b70-border: #e5e7eb;
+  --b70-text: #111827;
+  --b70-text-muted: #6b7280;
+}
+
+/* ---------------------------------------------------------------------------
+   Block70 design tokens – dark mode (class .dark on html)
+   --------------------------------------------------------------------------- */
+.dark {
+  --b70-bg: #0e1117;
+  --b70-card: #161b22;
+  --b70-border: #30363d;
+  --b70-text: #e6edf3;
+  --b70-text-muted: #8b949e;
+}
+
+/* ---------------------------------------------------------------------------
+   Base
+   --------------------------------------------------------------------------- */
+body {
+  background-color: var(--b70-bg);
+  color: var(--b70-text);
+  font-family: var(--font-inter), Inter, system-ui, sans-serif;
+  @apply antialiased;
+}
+
+*:focus-visible {
+  @apply outline-none ring-2 ring-[var(--b70-crypto-blue)] ring-offset-2;
+}
+.dark *:focus-visible {
+  @apply ring-offset-[var(--b70-bg)];
+}
+
+/* ---------------------------------------------------------------------------
+   Typography utilities (design system)
+   --------------------------------------------------------------------------- */
+@layer components {
+  .heading-xl {
+    @apply text-[2rem] font-semibold leading-10 tracking-tight;
+    color: var(--b70-text);
+  }
+  .heading-lg {
+    @apply text-2xl font-semibold leading-8 tracking-tight;
+    color: var(--b70-text);
+  }
+  .heading-md {
+    @apply text-lg font-semibold leading-7;
+    color: var(--b70-text);
+  }
+  .body {
+    @apply text-sm leading-5;
+    color: var(--b70-text);
+  }
+  .small {
+    @apply text-xs leading-4;
+    color: var(--b70-text-muted);
+  }
+  .numeric {
+    font-family: var(--font-jetbrains), JetBrains Mono, monospace;
+    @apply text-sm leading-5;
+    color: var(--b70-text);
+  }
+}
+
+/* ---------------------------------------------------------------------------
+   Touch-friendly (mobile)
+   --------------------------------------------------------------------------- */
+@media (pointer: coarse) {
+  button:not([aria-hidden]),
+  a[href]:not([aria-hidden]) {
+    min-height: 44px;
+    min-width: 44px;
+  }
+}
+
+/* ---------------------------------------------------------------------------
+   Scrollbar
+   --------------------------------------------------------------------------- */
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
