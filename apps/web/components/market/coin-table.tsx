@@ -1,4 +1,7 @@
+"use client";
+
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import type { Coin } from "@/lib/crypto-mock";
 
 type Props = {
@@ -6,6 +9,7 @@ type Props = {
 };
 
 export function CoinTable({ coins }: Props) {
+  const router = useRouter();
   return (
     <div className="overflow-hidden rounded-xl border border-slate-800 bg-slate-950/60">
       <table className="min-w-full text-left text-xs">
@@ -26,8 +30,7 @@ export function CoinTable({ coins }: Props) {
               key={coin.id}
               className="hover:bg-slate-900/60 cursor-pointer"
               onClick={() => {
-                // Table rows are not <Link>, so we use client-side navigation.
-                window.location.href = `/coins/${coin.slug}`;
+                router.push(`/coins/${coin.slug}`);
               }}
             >
               <td className="px-3 py-2 text-slate-500">{coin.rank}</td>
