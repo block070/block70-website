@@ -11,7 +11,7 @@ from app.db import get_db
 from app.models import NewsArticle
 
 
-router = APIRouter(prefix="/api/articles", tags=["articles"])
+router = APIRouter(prefix="/api/v1/articles", tags=["articles"])
 
 
 class ArticleCreate(BaseModel):

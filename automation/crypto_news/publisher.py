@@ -72,7 +72,7 @@ def publish_article(
         base_tags=infer_tags(title, content),
     )
 
-    url = api_base.rstrip("/") + "/api/articles"
+    url = api_base.rstrip("/") + "/api/v1/articles"
     try:
         resp = requests.post(url, json=payload, timeout=30)
         success = 200 <= resp.status_code < 300
