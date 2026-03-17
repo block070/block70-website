@@ -12,7 +12,7 @@ from contextlib import contextmanager
 from datetime import datetime, timezone
 from typing import Iterator
 
-from .config import CONFIG
+from automation.crypto_news.config import CONFIG
 
 
 def _get_connection() -> sqlite3.Connection:

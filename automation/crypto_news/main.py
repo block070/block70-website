@@ -10,13 +10,13 @@ Entry point:
 from datetime import datetime
 from typing import List
 
-from .config import CONFIG
-from .db import init_db
-from .deduper import is_duplicate, mark_processed
-from .scraper import ScrapedArticle, fetch_latest_articles
-from .utils import log, setup_logging
-from .writer import GeneratedArticle, OllamaWriter
-from .publisher import publish_article
+from automation.crypto_news.config import CONFIG
+from automation.crypto_news.db import init_db
+from automation.crypto_news.deduper import is_duplicate, mark_processed
+from automation.crypto_news.scraper import ScrapedArticle, fetch_latest_articles
+from automation.crypto_news.utils import log, setup_logging
+from automation.crypto_news.writer import GeneratedArticle, OllamaWriter
+from automation.crypto_news.publisher import publish_article
 
 
 def _filter_candidates(articles: List[ScrapedArticle], max_items: int = 10) -> List[ScrapedArticle]:

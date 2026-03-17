@@ -16,8 +16,8 @@ import os
 
 import requests
 
-from .config import CONFIG
-from .utils import infer_tags, log
+from automation.crypto_news.config import CONFIG
+from automation.crypto_news.utils import infer_tags, log
 
 
 @dataclass

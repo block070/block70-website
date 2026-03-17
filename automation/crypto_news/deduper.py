@@ -4,8 +4,8 @@ from __future__ import annotations
 Deduplication logic for processed RSS articles.
 """
 
-from .db import has_article, mark_article_processed
-from .utils import compute_hash, log
+from automation.crypto_news.db import has_article, mark_article_processed
+from automation.crypto_news.utils import compute_hash, log
 
 
 def is_duplicate(title: str, url: str) -> bool:

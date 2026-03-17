@@ -8,8 +8,8 @@ import hashlib
 import logging
 from typing import List
 
-from .config import CONFIG
-from .db import log_event
+from automation.crypto_news.config import CONFIG
+from automation.crypto_news.db import log_event
 
 
 def compute_hash(title: str, url: str) -> str:

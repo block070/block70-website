@@ -13,8 +13,8 @@ from typing import List
 
 import feedparser  # type: ignore[import]
 
-from .config import CONFIG
-from .utils import log
+from automation.crypto_news.config import CONFIG
+from automation.crypto_news.utils import log
 
 
 @dataclass
