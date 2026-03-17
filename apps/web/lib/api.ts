@@ -86,8 +86,13 @@ export async function getInsightsHighestRoi(): Promise<Opportunity[]> {
   return fetchJson<Opportunity[]>("/api/v1/insights/highest-roi");
 }
 
-export async function getWalletLeaderboard(): Promise<WalletLeaderboardEntry[]> {
-  return fetchJson<WalletLeaderboardEntry[]>("/api/v1/wallets/leaderboard");
+export async function getWalletLeaderboard(
+  init?: RequestInit,
+): Promise<WalletLeaderboardEntry[]> {
+  return fetchJson<WalletLeaderboardEntry[]>(
+    "/api/v1/wallets/leaderboard",
+    init,
+  );
 }
 
 export type CapitalFlowDto = {

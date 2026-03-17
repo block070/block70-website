@@ -15,6 +15,7 @@ import { QuickNav } from "@/components/home/quick-nav";
 import { NarrativesSection } from "@/components/home/narratives-section";
 import { NewsSection } from "@/components/home/news-section";
 import { UserDashboard } from "@/components/home/user-dashboard";
+import { SEEDED_NEWS } from "@/lib/news-seed";
 
 const SignalsFeed = dynamic(
   () =>
@@ -148,7 +149,7 @@ export default async function HomePage() {
     <div className="space-y-6">
       {/* Hero + Market stats */}
       <section className="grid gap-4 lg:grid-cols-1">
-        <HeroMarketOverview topTrendingCoin={{ symbol: "SOL", change24h: 8.2 }} />
+        <HeroMarketOverview />
         <MarketStatsBar />
       </section>
 
@@ -191,7 +192,7 @@ export default async function HomePage() {
       {/* Narratives + News */}
       <section className="grid gap-4 lg:grid-cols-2">
         <NarrativesSection />
-        <NewsSection />
+        <NewsSection items={SEEDED_NEWS} />
       </section>
     </div>
   );

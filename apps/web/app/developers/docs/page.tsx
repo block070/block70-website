@@ -4,7 +4,10 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader } from "@/components/ui/card";
 
-const BASE = "https://api.block70.com/api/v1/dev";
+const BASE =
+  (typeof window !== "undefined"
+    ? process.env.NEXT_PUBLIC_API_BASE_URL ?? ""
+    : "") + "/api/v1/dev";
 
 export default function DevelopersDocsPage() {
   return (
@@ -13,7 +16,7 @@ export default function DevelopersDocsPage() {
         <Link href="/developers">
           <Button variant="outline">← Dashboard</Button>
         </Link>
-        <h1 className="text-2xl font-bold text-slate-50">API documentation</h1>
+        <h1 className="text-2xl font-bold text-slate-50">Developer API</h1>
       </div>
 
       <Card>
@@ -23,7 +26,14 @@ export default function DevelopersDocsPage() {
           <pre className="overflow-x-auto rounded bg-slate-900 p-3 font-mono text-xs">
             {`X-API-Key: bk70_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx`}
           </pre>
-          <p className="text-slate-500">Rate limits apply by plan (Free: 100/day, Pro: 10,000/day, Enterprise: unlimited).</p>
+          <p className="text-slate-500">
+            Rate limits apply by plan (Free: 100/day, Pro: 10,000/day,
+            Enterprise: unlimited). Endpoints below are for the{" "}
+            <code className="rounded bg-slate-900 px-1 py-0.5 text-[11px]">
+              /api/v1/dev
+            </code>{" "}
+            developer API surface.
+          </p>
         </div>
       </Card>
 

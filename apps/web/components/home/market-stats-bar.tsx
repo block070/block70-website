@@ -50,20 +50,25 @@ export function MarketStatsBar({
         </Link>
       ))}
       <span className="h-4 w-px bg-slate-700" />
-      <span className="text-[10px] text-slate-500">Top gainer</span>
-      <Link
-        href={`/coins/${topGainer.toLowerCase()}`}
-        className="text-xs font-medium text-emerald-400 hover:underline"
-      >
-        {topGainer}
-      </Link>
-      <span className="text-[10px] text-slate-500">Top loser</span>
-      <Link
-        href={`/coins/${topLoser.toLowerCase()}`}
-        className="text-xs font-medium text-rose-400 hover:underline"
-      >
-        {topLoser}
-      </Link>
+      <div className="flex flex-wrap items-center gap-2 text-[10px] text-slate-500">
+        <span>Sample majors</span>
+        <span>·</span>
+        <span>Top gainer</span>
+        <Link
+          href={`/coins/${topGainer.toLowerCase()}`}
+          className="text-xs font-medium text-emerald-400 hover:underline"
+        >
+          {topGainer}
+        </Link>
+        <span>·</span>
+        <span>Top loser</span>
+        <Link
+          href={`/coins/${topLoser.toLowerCase()}`}
+          className="text-xs font-medium text-rose-400 hover:underline"
+        >
+          {topLoser}
+        </Link>
+      </div>
     </section>
   );
 }

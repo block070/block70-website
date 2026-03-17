@@ -33,14 +33,19 @@ export function WalletLeaderboard({ initialData }: Props) {
 
     async function load() {
       try {
-        const data = await getWalletLeaderboard();
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 8000);
+        const data = await getWalletLeaderboard({ signal: controller.signal });
+        clearTimeout(timeout);
         if (cancelled) return;
         setRows(data);
-      } catch {
+      } catch (err) {
         if (!cancelled) {
-          setError(
-            "Unable to load the smart wallet leaderboard from the backend.",
-          );
+          const message =
+            err instanceof DOMException && err.name === "AbortError"
+              ? "Timed out contacting the smart wallet leaderboard API."
+              : "Unable to load the smart wallet leaderboard from the backend.";
+          setError(message);
         }
       } finally {
         if (!cancelled) {
