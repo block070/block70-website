@@ -16,16 +16,24 @@ type HeroMarketOverviewProps = {
 };
 
 export function HeroMarketOverview({
-  totalMarketCap = 2_400_000_000_000,
-  volume24h = 80_000_000_000,
-  btcDominance = 52.5,
-  ethDominance = 17.2,
-  topTrendingCoin = { symbol: "SOL", change24h: 8.2 },
+  totalMarketCap,
+  volume24h,
+  btcDominance,
+  ethDominance,
+  topTrendingCoin,
 }: HeroMarketOverviewProps) {
   return (
     <section className="relative overflow-hidden rounded-2xl border border-slate-800 bg-gradient-to-br from-slate-900 to-slate-950 p-6 md:p-8">
       <div className="relative z-10">
-        <h2 className="text-xs font-semibold uppercase tracking-widest text-slate-400">
+        <h1 className="text-xl font-semibold tracking-tight text-slate-50 md:text-2xl">
+          Block70 is a crypto intelligence terminal for operators who care about
+          real edge, not noise.
+        </h1>
+        <p className="mt-2 text-sm text-slate-400 max-w-2xl">
+          One place to scan signals, opportunities, smart wallets, and narratives
+          across chains—built for desks that actually pull the trigger.
+        </p>
+        <h2 className="mt-4 text-xs font-semibold uppercase tracking-widest text-slate-400">
           Global crypto market
         </h2>
         <div className="mt-4 grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
@@ -34,7 +42,9 @@ export function HeroMarketOverview({
               Total market cap
             </p>
             <p className="mt-1 text-2xl font-bold text-slate-50 md:text-3xl">
-              {formatCompact(totalMarketCap)}
+              {typeof totalMarketCap === "number"
+                ? formatCompact(totalMarketCap)
+                : "—"}
             </p>
           </div>
           <div>
@@ -42,7 +52,7 @@ export function HeroMarketOverview({
               24h volume
             </p>
             <p className="mt-1 text-2xl font-bold text-slate-50 md:text-3xl">
-              {formatCompact(volume24h)}
+              {typeof volume24h === "number" ? formatCompact(volume24h) : "—"}
             </p>
           </div>
           <div>
@@ -50,7 +60,9 @@ export function HeroMarketOverview({
               BTC dominance
             </p>
             <p className="mt-1 text-2xl font-bold text-blue-400 md:text-3xl">
-              {btcDominance.toFixed(1)}%
+              {typeof btcDominance === "number"
+                ? `${btcDominance.toFixed(1)}%`
+                : "—"}
             </p>
           </div>
           <div>
@@ -58,11 +70,13 @@ export function HeroMarketOverview({
               ETH dominance
             </p>
             <p className="mt-1 text-2xl font-bold text-slate-200 md:text-3xl">
-              {ethDominance.toFixed(1)}%
+              {typeof ethDominance === "number"
+                ? `${ethDominance.toFixed(1)}%`
+                : "—"}
             </p>
           </div>
         </div>
-        {topTrendingCoin && (
+        {topTrendingCoin ? (
           <div className="mt-6 flex items-center gap-3 rounded-xl border border-slate-800 bg-slate-950/60 px-4 py-3">
             <p className="text-xs text-slate-400">Top trending</p>
             <Link
@@ -74,6 +88,13 @@ export function HeroMarketOverview({
             <span className="rounded-full bg-emerald-500/20 px-2 py-0.5 text-xs font-medium text-emerald-300">
               +{topTrendingCoin.change24h}% 24h
             </span>
+          </div>
+        ) : (
+          <div className="mt-6 rounded-xl border border-dashed border-slate-800 bg-slate-950/40 px-4 py-3">
+            <p className="text-xs text-slate-500">
+              Market-level stats will appear here once connected to a live
+              market data source.
+            </p>
           </div>
         )}
       </div>

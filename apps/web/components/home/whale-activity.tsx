@@ -33,7 +33,8 @@ export function WhaleActivity({ wallets }: WhaleActivityProps) {
       <ul className="mt-3 space-y-2">
         {wallets.length === 0 ? (
           <li className="text-xs text-slate-500">
-            No whale activity yet.
+            No whale activity surfaced yet. As Block70 observes repeat winners,
+            top addresses will be promoted into this view.
           </li>
         ) : (
           wallets.slice(0, 6).map((w, i) => (

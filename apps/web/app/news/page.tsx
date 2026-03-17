@@ -1,48 +1,31 @@
+import { SEEDED_NEWS } from "@/lib/news-seed";
+import { isDemoMode } from "@/lib/demo";
+
 export const metadata = {
-  title: "News · Block70 Crypto Data",
+  title: "News · Block70",
   description:
-    "Mock news surface that will later be ranked and summarized by Block70’s intelligence engine.",
+    "Curated macro and infrastructure stories that matter for Block70 operators.",
 };
 
-const MOCK_NEWS = [
-  {
-    id: 1,
-    title: "Flagship L2 announces incentive extension",
-    source: "Block70 Macro Feed",
-    timeAgo: "2h ago",
-    summary:
-      "An L2 chain extends ecosystem incentives, pulling in more TVL and on-chain activity.",
-  },
-  {
-    id: 2,
-    title: "New Solana perp DEX surpasses $1B daily volume",
-    source: "DEX Radar",
-    timeAgo: "5h ago",
-    summary:
-      "A high-performance Solana DEX quickly climbs the volume ranks, driven by perps.",
-  },
-  {
-    id: 3,
-    title: "Restaking primitive hits mainnet with guarded launch",
-    source: "Validator Watch",
-    timeAgo: "12h ago",
-    summary:
-      "A new restaking protocol deploys with caps, sparking early experimentation.",
-  },
-];
-
 export default function NewsPage() {
+  const demo = isDemoMode();
   return (
     <div className="space-y-6">
       <header className="space-y-2">
         <h1 className="text-2xl font-semibold tracking-tight">News</h1>
         <p className="text-sm text-slate-400">
-          A curated macro surface that will later be enriched by Block70&apos;s
-          AI summarization and opportunity tagging.
+          A curated macro surface for ecosystem moves, restaking, perps, and
+          infra shifts that Block70 tracks most closely.
         </p>
+        {demo && (
+          <p className="text-[11px] text-amber-300">
+            Demo dataset: headlines and summaries are seeded examples, not a
+            live news feed.
+          </p>
+        )}
       </header>
       <div className="space-y-3">
-        {MOCK_NEWS.map((item) => (
+        {SEEDED_NEWS.map((item) => (
           <article
             key={item.id}
             className="rounded-xl border border-slate-800 bg-slate-900/60 p-4 text-xs"
@@ -52,13 +35,21 @@ export default function NewsPage() {
                 {item.title}
               </h2>
               <span className="text-[11px] text-slate-500">
-                {item.timeAgo}
+                {new Date(item.published_at).toLocaleString()}
               </span>
             </div>
             <p className="mt-1 text-[11px] text-slate-400">
-              {item.source}
+              {item.source} · {item.category}
             </p>
             <p className="mt-2 text-slate-300">{item.summary}</p>
+            {item.tags && item.tags.length > 0 && (
+              <p className="mt-2 text-[10px] text-slate-500">
+                Tags:{" "}
+                <span className="font-mono text-slate-300">
+                  {item.tags.join(", ")}
+                </span>
+              </p>
+            )}
           </article>
         ))}
       </div>

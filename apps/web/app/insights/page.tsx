@@ -8,11 +8,34 @@ export const metadata = {
   description: "AI-generated insights from signals, wallet activity, radar, and capital flows.",
 };
 
+function dedupeInsights(
+  items: Awaited<ReturnType<typeof getAIInsightsLatest>>,
+): Awaited<ReturnType<typeof getAIInsightsLatest>> {
+  const seen = new Map<string, { first: (typeof items)[number]; ts: number }>();
+  for (const i of items) {
+    const keyTokens = (i.related_tokens ?? []).slice().sort().join("|");
+    const key = `${i.insight_type}::${i.title ?? ""}::${keyTokens}`;
+    const ts = i.created_at ? Date.parse(i.created_at) || 0 : 0;
+    const existing = seen.get(key);
+    if (!existing || ts > existing.ts) {
+      seen.set(key, { first: i, ts });
+    }
+  }
+  return Array.from(seen.values())
+    .map((v) => v.first)
+    .sort((a, b) => {
+      const ta = a.created_at ? Date.parse(a.created_at) || 0 : 0;
+      const tb = b.created_at ? Date.parse(b.created_at) || 0 : 0;
+      return tb - ta;
+    });
+}
+
 export default async function AIInsightsFeedPage() {
   let insights: Awaited<ReturnType<typeof getAIInsightsLatest>> = [];
 
   try {
-    insights = await getAIInsightsLatest(30);
+    const raw = await getAIInsightsLatest(50);
+    insights = dedupeInsights(raw);
   } catch {
     // use empty
   }

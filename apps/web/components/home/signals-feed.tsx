@@ -25,7 +25,10 @@ export function SignalsFeed({ signals }: SignalsFeedProps) {
       </div>
       <div className="mt-3 space-y-2">
         {signals.length === 0 ? (
-          <p className="text-xs text-slate-500">No signals yet.</p>
+          <p className="text-xs text-slate-500">
+            No signals in the stream yet. As Block70 ingests wallets, DEXs, and
+            radar, high-confidence events will land here first.
+          </p>
         ) : (
           signals.slice(0, 5).map((sig) => (
             <div key={sig.id} className="transition-opacity duration-300">

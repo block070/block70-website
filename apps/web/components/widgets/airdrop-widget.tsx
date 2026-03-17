@@ -50,7 +50,10 @@ export function AirdropWidget({
         {loading ? (
           <p className="text-xs text-slate-500">Loading…</p>
         ) : airdrops.length === 0 ? (
-          <p className="text-xs text-slate-500">No airdrops yet.</p>
+          <p className="text-xs text-slate-500">
+            No airdrop programs are live in this environment yet. As the
+            discovery engine flags quests and points, they&apos;ll show up here.
+          </p>
         ) : (
           <ul className="space-y-2">
             {airdrops.slice(0, settings?.limit ?? 5).map((a) => (

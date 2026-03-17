@@ -27,7 +27,10 @@ export function TopOpportunities({ opportunities }: TopOpportunitiesProps) {
       </div>
       <div className="mt-3 space-y-2">
         {opportunities.length === 0 ? (
-          <p className="text-xs text-slate-500">No opportunities yet.</p>
+          <p className="text-xs text-slate-500">
+            No ranked opportunities yet. Once the engines see enough flow, the
+            highest conviction plays will appear here.
+          </p>
         ) : (
           opportunities.slice(0, 4).map((opp) => (
             <div key={opp.id} className="transition-opacity duration-300">

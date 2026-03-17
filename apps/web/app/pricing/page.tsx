@@ -28,18 +28,18 @@ export default function PricingPage() {
     <div className="mx-auto max-w-4xl py-16">
       <h1 className="mb-4 text-3xl font-semibold tracking-tight">Pricing</h1>
       <p className="mb-10 text-sm text-slate-400">
-        Choose the plan that matches your operation. Upgrade or downgrade
-        anytime.
+        Start free, then scale into Pro or Elite when Block70 becomes part of
+        your daily routing and risk decisions.
       </p>
       <div className="grid gap-6 md:grid-cols-3">
         <PlanCard
           name="Free"
           price="$0"
-          description="Explore the Block70 opportunity feed."
+          description="Explore the Block70 app shell and get a feel for the workflows."
           features={[
-            "Basic opportunity feed",
-            "Dashboard overview",
-            "Airdrops & narratives",
+            "Read-only opportunity surface",
+            "Dashboard & news preview",
+            "Seeded demo data where noted",
           ]}
           ctaLabel="Get started"
           onClick={() => router.push("/register")}
@@ -47,12 +47,12 @@ export default function PricingPage() {
         <PlanCard
           name="Pro"
           price="$49/mo"
-          description="For active operators running multiple plays."
+          description="For active operators running structured plays in crypto."
           features={[
             "Everything in Free",
-            "Advanced filters",
-            "Strategy builder",
-            "Priority opportunity insights",
+            "Advanced filters & watchlists",
+            "Strategy builder & backtests",
+            "Higher limits on dev API",
           ]}
           highlighted
           ctaLabel={loadingPlan === "pro" ? "Redirecting..." : "Upgrade to Pro"}
@@ -62,12 +62,12 @@ export default function PricingPage() {
         <PlanCard
           name="Elite"
           price="$149/mo"
-          description="For desks that need real-time, AI-assisted alpha."
+          description="For desks that need real-time, AI-assisted alpha as core infra."
           features={[
             "Everything in Pro",
-            "Real-time premium alerts",
-            "AI research reports",
-            "Alpha radar & liquidity stream",
+            "Real-time premium alerts (where supported)",
+            "AI research-style reports",
+            "Priority access to new engines & feeds",
           ]}
           ctaLabel={loadingPlan === "elite" ? "Redirecting..." : "Upgrade to Elite"}
           disabled={loadingPlan !== null}

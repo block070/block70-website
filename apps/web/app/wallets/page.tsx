@@ -1,6 +1,18 @@
 import { WalletLeaderboard } from "@/components/wallets/wallet-leaderboard";
+import { getWalletLeaderboard } from "@/lib/api";
+import type { WalletLeaderboardEntry } from "@/lib/types";
 
-export default function WalletsPage() {
+export const revalidate = 60;
+
+export default async function WalletsPage() {
+  let initialData: WalletLeaderboardEntry[] = [];
+
+  try {
+    initialData = await getWalletLeaderboard();
+  } catch {
+    // If the API is unavailable, let the client component show its error/empty state.
+  }
+
   return (
     <div className="space-y-6">
       <section>
@@ -14,7 +26,7 @@ export default function WalletsPage() {
         </p>
       </section>
 
-      <WalletLeaderboard />
+      <WalletLeaderboard initialData={initialData} />
     </div>
   );
 }
