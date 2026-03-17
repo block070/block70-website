@@ -14,7 +14,6 @@ from dataclasses import dataclass
 from typing import List
 
 from automation.crypto_news.config import CONFIG
-from automation.crypto_news.utils import clean_text if False else None  # type: ignore
 
 
 @dataclass
