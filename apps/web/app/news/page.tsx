@@ -6,6 +6,19 @@ export const metadata = {
     "Curated macro and infrastructure stories that matter for Block70 operators.",
 };
 
+function stripHtml(input: string): string {
+  // Remove tags and collapse whitespace; keeps the UI clean when RSS summaries contain HTML.
+  const noTags = input.replace(/<[^>]*>/g, " ");
+  return noTags
+    .replace(/\s+/g, " ")
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .trim();
+}
+
 export default async function NewsPage() {
   let articles: Awaited<ReturnType<typeof getNewsArticles>> = [];
   let errorMessage: string | null = null;
@@ -43,7 +56,14 @@ export default async function NewsPage() {
             >
               <div className="flex items-center justify-between gap-2">
                 <h2 className="text-sm font-semibold text-slate-50">
-                  {item.title}
+                  <a
+                    href={item.url}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="hover:underline"
+                  >
+                    {item.title}
+                  </a>
                 </h2>
                 <span className="text-[11px] text-slate-500">
                   {item.published_at
@@ -56,9 +76,19 @@ export default async function NewsPage() {
               </p>
               {item.summary && (
                 <p className="mt-2 text-slate-300 line-clamp-4">
-                  {item.summary}
+                  {stripHtml(item.summary)}
                 </p>
               )}
+              <div className="mt-3">
+                <a
+                  href={item.url}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-[11px] font-medium text-blue-400 hover:text-blue-300"
+                >
+                  Open source →
+                </a>
+              </div>
             </article>
           ))}
         </div>

@@ -15,7 +15,9 @@ export default async function OpportunitiesPage() {
       getOpportunities(),
       getOpportunitiesTop({ limit: 10 }).catch(() => []),
     ]);
-    opportunities = data.sort((a, b) => b.total_score - a.total_score);
+    opportunities = data.sort(
+      (a, b) => (b.total_score ?? 0) - (a.total_score ?? 0),
+    );
     topScanner = top;
   } catch (error) {
     backendError =

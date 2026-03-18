@@ -18,7 +18,7 @@ from typing import Any, Dict, List, Optional
 
 from sqlalchemy.orm import Session
 
-from app.models import RadarSignal, Signal
+from app.models import RadarSignal, Signal, OpportunitySignal, Opportunity
 from app.services.signals.wallet_signals import WalletSignal
 from app.services.signals.social_signals import SocialActivitySignal
 
@@ -316,3 +316,57 @@ class SignalDetectionEngine:
             q = q.filter(RadarSignal.created_at >= since)
         radar_list: List[RadarSignal] = q.limit(limit).all()
         return self.from_radar_signals(db, radar_list, persist=True)
+
+    def run_from_opportunity_signals(
+        self,
+        db: Session,
+        since: Optional[datetime] = None,
+        *,
+        limit: int = 500,
+    ) -> List[Signal]:
+        """
+        Convert recent OpportunitySignal rows into normalized Signal rows.
+
+        This ensures /signals can show real data even when RadarSignal producers
+        are quiet, as long as real pipelines (wallet/arbitrage) are emitting
+        OpportunitySignal rows.
+        """
+        q = db.query(OpportunitySignal, Opportunity).outerjoin(
+            Opportunity, Opportunity.id == OpportunitySignal.opportunity_id
+        ).order_by(OpportunitySignal.created_at.desc())
+        if since is not None:
+            if since.tzinfo is None:
+                since = since.replace(tzinfo=timezone.utc)
+            q = q.filter(OpportunitySignal.created_at >= since)
+
+        rows = q.limit(limit).all()
+        out: List[Signal] = []
+        for sig_row, opp in rows:
+            payload = sig_row.payload or {}
+            token_symbol = None
+            if isinstance(payload, dict):
+                token_symbol = payload.get("token_symbol") or payload.get("pair")
+            if not token_symbol and opp is not None:
+                token_symbol = opp.base_symbol or opp.asset_symbol
+            token_symbol = str(token_symbol).split("/")[0] if token_symbol else None
+
+            s = Signal(
+                signal_type=sig_row.signal_type,
+                token_symbol=token_symbol,
+                token_address=None,
+                chain=(opp.chain if opp is not None else None),
+                title=_title_for_signal_type(sig_row.signal_type, token_symbol),
+                description=None,
+                signal_strength=min(1.0, float(sig_row.confidence or 0.0)),
+                confidence_score=float(sig_row.confidence or 0.0),
+                source=sig_row.source or (opp.source if opp is not None else None) or "opportunity_signals",
+                metadata_json={"opportunity_id": sig_row.opportunity_id, "value": sig_row.signal_value},
+            )
+            db.add(s)
+            out.append(s)
+
+        if out:
+            db.commit()
+            for s in out:
+                db.refresh(s)
+        return out

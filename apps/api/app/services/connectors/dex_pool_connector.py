@@ -53,13 +53,14 @@ class DexPoolConnector:
         """
         records: List[DexPoolRecord] = []
 
-        if self._use_live:
-            records.extend(self._fetch_raydium_pools())
-            records.extend(self._fetch_orca_pools())
+        # Strict real-data mode: never fall back to deterministic mocks.
+        # If live is disabled or providers fail, return an empty list so callers
+        # can show an explicit "Data temporarily unavailable" state.
+        if not self._use_live:
+            return []
 
-        if not records:
-            records = self._mock_pools()
-
+        records.extend(self._fetch_raydium_pools())
+        records.extend(self._fetch_orca_pools())
         return records
 
     def _fetch_raydium_pools(self) -> List[DexPoolRecord]:
@@ -166,64 +167,4 @@ class DexPoolConnector:
             return (str(token_a), str(token_b))
         return None
 
-    @staticmethod
-    def _mock_pools() -> List[DexPoolRecord]:
-        """Deterministic mock pool data for Raydium and Orca when live APIs are off."""
-        return [
-            # Raydium
-            DexPoolRecord(
-                dex="Raydium",
-                pair="SOL/USDC",
-                token_a="SOL",
-                token_b="USDC",
-                liquidity=750_000.0,
-                volume=2_100_000.0,
-                fees=0.25,
-            ),
-            DexPoolRecord(
-                dex="Raydium",
-                pair="BONK/USDC",
-                token_a="BONK",
-                token_b="USDC",
-                liquidity=220_000.0,
-                volume=480_000.0,
-                fees=0.30,
-            ),
-            DexPoolRecord(
-                dex="Raydium",
-                pair="JUP/USDC",
-                token_a="JUP",
-                token_b="USDC",
-                liquidity=600_000.0,
-                volume=950_000.0,
-                fees=0.25,
-            ),
-            # Orca
-            DexPoolRecord(
-                dex="Orca",
-                pair="SOL/USDC",
-                token_a="SOL",
-                token_b="USDC",
-                liquidity=650_000.0,
-                volume=1_800_000.0,
-                fees=0.30,
-            ),
-            DexPoolRecord(
-                dex="Orca",
-                pair="BONK/USDC",
-                token_a="BONK",
-                token_b="USDC",
-                liquidity=180_000.0,
-                volume=320_000.0,
-                fees=0.30,
-            ),
-            DexPoolRecord(
-                dex="Orca",
-                pair="JUP/USDC",
-                token_a="JUP",
-                token_b="USDC",
-                liquidity=500_000.0,
-                volume=720_000.0,
-                fees=0.25,
-            ),
-        ]
+    # _mock_pools removed in strict mode

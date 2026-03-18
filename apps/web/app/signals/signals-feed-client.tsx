@@ -52,10 +52,12 @@ export function SignalsFeedClient({ initialSignals }: Props) {
   const [filters, setFilters] = useState<SignalFiltersValue>(DEFAULT_FILTERS);
   const [loading, setLoading] = useState(false);
   const [polling, setPolling] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   const fetchSignals = useCallback(async () => {
     setLoading(true);
     try {
+      setError(null);
       const hasFilters =
         filters.chain || filters.signal_type || filters.token || filters.confidence_min;
       const params: SignalsFilter = { limit: 100 };
@@ -64,8 +66,8 @@ export function SignalsFeedClient({ initialSignals }: Props) {
       if (filters.token) params.token = filters.token;
       const data = hasFilters ? await getSignals(params) : await getSignalsLatest({ limit: 100 });
       setSignals(data);
-    } catch {
-      // keep previous data
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Data temporarily unavailable");
     } finally {
       setLoading(false);
     }
@@ -102,7 +104,12 @@ export function SignalsFeedClient({ initialSignals }: Props) {
         </label>
       </div>
 
-      {loading && signals.length === 0 ? (
+      {error ? (
+        <div className="rounded-xl border border-slate-800 bg-slate-950/60 p-4 text-center text-sm text-slate-400">
+          Data temporarily unavailable.{" "}
+          <span className="font-mono text-slate-500">{error}</span>
+        </div>
+      ) : loading && signals.length === 0 ? (
         <div className="space-y-3">
           {[1, 2, 3].map((i) => (
             <div

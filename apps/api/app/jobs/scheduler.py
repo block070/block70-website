@@ -263,6 +263,7 @@ def _run_signal_detection_job() -> None:
         engine = SignalDetectionEngine()
         since = datetime.utcnow() - timedelta(minutes=30)
         engine.run_from_radar(db, since=since, limit=500)
+        engine.run_from_opportunity_signals(db, since=since, limit=500)
 
     _with_db_session(_job)
 
