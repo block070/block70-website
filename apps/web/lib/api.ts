@@ -15,6 +15,7 @@ import type {
 // Client (browser): use NEXT_PUBLIC_API_BASE_URL. No hardcoded localhost.
 // Fallback to "" so the app can build when env is not set at build time (e.g. Docker build).
 // At runtime, set NEXT_PUBLIC_API_BASE_URL and API_SERVER_URL so requests hit your API.
+// (Do not throw here — build would fail when env is not available during docker build.)
 export const API_BASE_URL =
   typeof window === "undefined"
     ? process.env.API_SERVER_URL || process.env.NEXT_PUBLIC_API_BASE_URL || ""
