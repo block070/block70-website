@@ -20,8 +20,12 @@ function apiCoinsToMockShape(
     priceUsd: item.coin.price ?? item.latest_market_data?.price ?? 0,
     marketCapUsd: item.coin.market_cap ?? item.latest_market_data?.market_cap ?? 0,
     volume24hUsd: item.coin.volume_24h ?? item.latest_market_data?.volume_24h ?? 0,
-    change24hPct: item.latest_market_data?.price_change_24h ?? 0,
-    change7dPct: item.latest_market_data?.price_change_7d ?? 0,
+    change24hPct:
+      item.latest_market_data?.price_change_24h ??
+      Number.NaN,
+    change7dPct:
+      item.latest_market_data?.price_change_7d ??
+      Number.NaN,
     rank: i + 1,
     categoryIds: item.coin.category ? [item.coin.category] : [],
     chainIds: item.coin.chain ? [item.coin.chain] : [],

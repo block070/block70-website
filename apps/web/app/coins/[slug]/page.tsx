@@ -25,8 +25,12 @@ function coinToHeaderShape(coin: CoinInfoDto, latestMd?: MarketDataPointDto | nu
     priceUsd: coin.price ?? latestMd?.price ?? 0,
     marketCapUsd: coin.market_cap ?? latestMd?.market_cap ?? 0,
     volume24hUsd: coin.volume_24h ?? latestMd?.volume_24h ?? 0,
-    change24hPct: latestMd?.price_change_24h ?? 0,
-    change7dPct: latestMd?.price_change_7d ?? 0,
+    change24hPct:
+      latestMd?.price_change_24h ??
+      Number.NaN,
+    change7dPct:
+      latestMd?.price_change_7d ??
+      Number.NaN,
     rank: 0,
     categoryIds: coin.category ? [coin.category] : [],
     chainIds: coin.chain ? [coin.chain] : [],
