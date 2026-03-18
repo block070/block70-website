@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import datetime, timezone
 from typing import List
 
 from sqlalchemy.orm import Session
@@ -12,7 +13,7 @@ from app.services.connectors.defillama_airdrops_connector import (
 from app.services.pipeline.deduplication import upsert_opportunity_by_identity
 
 
-def run_airdrop_pipeline(db: Session, *, limit: int = 30) -> List[Opportunity]:
+def run_airdrop_pipeline(db: Session, *, limit: int = 200) -> List[Opportunity]:
     """
     Strict real-data airdrop pipeline.
 
@@ -26,7 +27,10 @@ def run_airdrop_pipeline(db: Session, *, limit: int = 30) -> List[Opportunity]:
     created: List[Opportunity] = []
 
     # 1) DefiLlama open dataset (existing source).
-    llama_items = DefiLlamaAirdropsConnector().fetch(active_only=True)[:limit]
+    now = datetime.now(timezone.utc)
+    # Pull the full dataset (active + inactive). We'll store inactive as upcoming
+    # (not expired) because the dataset contains many "watchlist" programs.
+    llama_items = DefiLlamaAirdropsConnector().fetch(active_only=False)[:limit]
     for item in llama_items:
         source_url = item.page or f"https://defillama.com/airdrops#{item.key}"
         summary_parts: list[str] = []
@@ -36,12 +40,13 @@ def run_airdrop_pipeline(db: Session, *, limit: int = 30) -> List[Opportunity]:
             summary_parts.append(f"Twitter: @{item.twitter}")
         summary = " ".join(summary_parts)[:2000] if summary_parts else None
 
+        status = "active" if item.is_active else "upcoming"
         opp = Opportunity(
             title=f"{item.name} airdrop candidate"[:255],
             slug=f"airdrop-{item.key}",
             type="airdrop",
             chain=None,
-            status="active",
+            status=status,
             summary=summary,
             thesis=None,
             asset_symbol=item.token_symbol,
@@ -62,9 +67,9 @@ def run_airdrop_pipeline(db: Session, *, limit: int = 30) -> List[Opportunity]:
             total_score=0.55,
             risk_level="medium",
             difficulty_level="medium",
-            detected_at=None,
+            detected_at=now,
             expires_at=None,
-            last_seen_at=None,
+            last_seen_at=now,
             raw_payload={
                 "defillama": {
                     "key": item.key,

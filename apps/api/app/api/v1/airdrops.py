@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import List
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from app.db import get_db
@@ -23,9 +23,10 @@ ALLOWED_AIRDROP_SOURCES = {
 @router.get("", response_model=List[OpportunityRead])
 def list_airdrops(
     db: Session = Depends(get_db),
+    limit: int = Query(200, ge=1, le=500),
 ) -> List[Opportunity]:
     """
-    List active airdrop opportunities.
+    List active + upcoming airdrop opportunities.
 
     Results are pulled from the shared Opportunity table where type = 'airdrop'
     and sorted by total_score descending.
@@ -34,10 +35,13 @@ def list_airdrops(
         db.query(Opportunity)
         .filter(
             Opportunity.type == "airdrop",
-            Opportunity.status == OpportunityStatus.ACTIVE.value,
+            Opportunity.status.in_(
+                [OpportunityStatus.ACTIVE.value, OpportunityStatus.UPCOMING.value]
+            ),
             Opportunity.source.in_(sorted(ALLOWED_AIRDROP_SOURCES)),
         )
         .order_by(Opportunity.total_score.desc())
+        .limit(limit)
     )
     return q.all()
 

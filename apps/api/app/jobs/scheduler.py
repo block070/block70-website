@@ -272,7 +272,7 @@ def _run_airdrop_job() -> None:
     """Fetch and persist airdrop opportunities from real RSS feeds."""
 
     def _job(db: Session) -> None:
-        run_airdrop_pipeline(db, limit=30)
+        run_airdrop_pipeline(db, limit=200)
 
     _with_db_session(_job)
 
