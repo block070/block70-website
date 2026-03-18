@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
+import { API_BASE_URL } from "@/lib/api";
 
 const TWITTER_URL = "https://twitter.com/intent/tweet";
 const TELEGRAM_URL = "https://t.me/share/url";
@@ -61,11 +62,10 @@ export function ShareButtons({
   const handleShare = async (platform: string) => {
     if (signalId && typeof window !== "undefined") {
       const token = window.localStorage.getItem("block70_access_token");
-      const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000";
       if (token) {
         try {
           await fetch(
-            `${API_BASE}/api/v1/signals/share/${signalId}?platform=${encodeURIComponent(platform)}`,
+            `${API_BASE_URL}/api/v1/signals/share/${signalId}?platform=${encodeURIComponent(platform)}`,
             { method: "POST", headers: { Authorization: `Bearer ${token}` } }
           );
         } catch {

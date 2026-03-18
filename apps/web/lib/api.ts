@@ -11,11 +11,18 @@ import type {
   WalletLeaderboardEntry,
 } from "./types";
 
-// Server (SSR): use API_SERVER_URL in Docker so the Next.js container can reach the API. Client: use NEXT_PUBLIC_API_BASE_URL or localhost.
+// Server (SSR): use API_SERVER_URL in Docker so the Next.js container can reach the API.
+// Client (browser): MUST use NEXT_PUBLIC_API_BASE_URL (no localhost fallback in production).
 export const API_BASE_URL =
-  typeof window === "undefined" && process.env.API_SERVER_URL
-    ? process.env.API_SERVER_URL
-    : (process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000");
+  typeof window === "undefined"
+    ? process.env.API_SERVER_URL || process.env.NEXT_PUBLIC_API_BASE_URL
+    : process.env.NEXT_PUBLIC_API_BASE_URL;
+
+if (!API_BASE_URL) {
+  throw new Error(
+    "API base URL is not configured. Set NEXT_PUBLIC_API_BASE_URL (and API_SERVER_URL for SSR in Docker).",
+  );
+}
 
 export async function fetchJson<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`${API_BASE_URL}${path}`, {

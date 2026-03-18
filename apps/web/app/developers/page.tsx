@@ -233,7 +233,7 @@ export default function DevelopersPage() {
         <div className="p-4">
           <code className="text-sm text-slate-400">
             {typeof window !== "undefined"
-              ? (process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000") + "/api/v1/dev"
+              ? (process.env.NEXT_PUBLIC_API_BASE_URL ?? "") + "/api/v1/dev"
               : "/api/v1/dev"}
           </code>
           <p className="mt-2 text-xs text-slate-500">

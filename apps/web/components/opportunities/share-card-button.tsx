@@ -3,6 +3,7 @@
 import { useState } from "react";
 
 import type { Opportunity } from "@/lib/types";
+import { API_BASE_URL } from "@/lib/api";
 
 type Props = {
   opportunity: Opportunity;
@@ -19,9 +20,7 @@ export function ShareCardButton({ opportunity }: Props) {
     setError(null);
 
     try {
-      const apiBase =
-        process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000";
-      const url = `${apiBase}/api/v1/opportunities/${opportunity.id}/share-card`;
+      const url = `${API_BASE_URL}/api/v1/opportunities/${opportunity.id}/share-card`;
 
       const res = await fetch(url);
       if (!res.ok) {
