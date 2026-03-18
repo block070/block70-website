@@ -23,9 +23,11 @@ from app.services.ai.daily_briefing_engine import DailyBriefingEngine
 from app.services.pipeline.opportunity_hunter_pipeline import OpportunityHunterPipeline
 from app.services.pipeline.liquidity_monitor import LiquidityMonitor
 from app.services.pipeline.signal_cluster_pipeline import run_signal_cluster_pipeline
+from app.services.pipeline.airdrop_pipeline import run_airdrop_pipeline
 from app.services.streaming.event_consumer import run_event_consumer
 from app.services.scrapers.news_scraper import run_news_scraper
 from app.services.bots.bot_dispatcher import run_signal_bot_dispatcher
+from app.services.signals.signal_detection_engine import SignalDetectionEngine
 import redis.exceptions
 from app.models import (
     Opportunity,
@@ -250,6 +252,30 @@ def _run_signal_cluster_job() -> None:
     _with_db_session(_job)
 
 
+def _run_signal_detection_job() -> None:
+    """
+    Convert recent RadarSignal rows into normalized Signal rows.
+
+    This is the primary producer for the /api/v1/signals feed.
+    """
+
+    def _job(db: Session) -> None:
+        engine = SignalDetectionEngine()
+        since = datetime.utcnow() - timedelta(minutes=30)
+        engine.run_from_radar(db, since=since, limit=500)
+
+    _with_db_session(_job)
+
+
+def _run_airdrop_job() -> None:
+    """Fetch and persist airdrop opportunities from real RSS feeds."""
+
+    def _job(db: Session) -> None:
+        run_airdrop_pipeline(db, limit=30)
+
+    _with_db_session(_job)
+
+
 def _run_event_consumer_job() -> None:
     """
     Background streaming consumer that continuously drains the Redis-backed
@@ -432,6 +458,22 @@ def create_scheduler() -> BackgroundScheduler:
         _run_signal_cluster_job,
         IntervalTrigger(minutes=10),
         id="signal_cluster",
+        replace_existing=True,
+        max_instances=1,
+    )
+
+    scheduler.add_job(
+        _run_signal_detection_job,
+        IntervalTrigger(minutes=5),
+        id="signal_detection",
+        replace_existing=True,
+        max_instances=1,
+    )
+
+    scheduler.add_job(
+        _run_airdrop_job,
+        IntervalTrigger(minutes=30),
+        id="airdrop_refresh",
         replace_existing=True,
         max_instances=1,
     )

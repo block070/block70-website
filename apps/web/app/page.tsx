@@ -15,7 +15,7 @@ import { QuickNav } from "@/components/home/quick-nav";
 import { NarrativesSection } from "@/components/home/narratives-section";
 import { NewsSection } from "@/components/home/news-section";
 import { UserDashboard } from "@/components/home/user-dashboard";
-import { SEEDED_NEWS } from "@/lib/news-seed";
+import { getNewsArticles } from "@/lib/api";
 
 const SignalsFeed = dynamic(
   () =>
@@ -128,21 +128,55 @@ export default async function HomePage() {
   let walletLeaderboard: Awaited<ReturnType<typeof getWalletLeaderboard>> = [];
   let trending: Awaited<ReturnType<typeof getSignalsTrending>> = [];
   let airdrops: Awaited<ReturnType<typeof getAirdrops>> = [];
+  let news: Awaited<ReturnType<typeof getNewsArticles>> = [];
+
+  let opportunitiesError: string | null = null;
+  let signalsError: string | null = null;
+  let walletsError: string | null = null;
+  let trendingError: string | null = null;
+  let airdropsError: string | null = null;
+  let newsError: string | null = null;
   try {
-    const [opps, sigs, wallets, trend, air] = await Promise.all([
-      getOpportunities(),
-      getSignalsLatest({ limit: 10 }),
-      getWalletLeaderboard(),
-      getSignalsTrending({ hours: 24, limit: 12 }),
-      getAirdrops(),
-    ]);
+    const opps = await getOpportunities();
     opportunities = opps.sort((a, b) => (b.total_score ?? 0) - (a.total_score ?? 0));
-    signals = sigs;
-    walletLeaderboard = wallets;
-    trending = trend;
-    airdrops = air;
-  } catch {
-    // use empty arrays
+  } catch (err) {
+    opportunitiesError = err instanceof Error ? err.message : "Unknown error";
+    opportunities = [];
+  }
+
+  try {
+    signals = await getSignalsLatest({ limit: 10 });
+  } catch (err) {
+    signalsError = err instanceof Error ? err.message : "Unknown error";
+    signals = [];
+  }
+
+  try {
+    walletLeaderboard = await getWalletLeaderboard();
+  } catch (err) {
+    walletsError = err instanceof Error ? err.message : "Unknown error";
+    walletLeaderboard = [];
+  }
+
+  try {
+    trending = await getSignalsTrending({ hours: 24, limit: 12 });
+  } catch (err) {
+    trendingError = err instanceof Error ? err.message : "Unknown error";
+    trending = [];
+  }
+
+  try {
+    airdrops = await getAirdrops();
+  } catch (err) {
+    airdropsError = err instanceof Error ? err.message : "Unknown error";
+    airdrops = [];
+  }
+
+  try {
+    news = await getNewsArticles({ limit: 8 });
+  } catch (err) {
+    newsError = err instanceof Error ? err.message : "Unknown error";
+    news = [];
   }
 
   return (
@@ -173,26 +207,29 @@ export default async function HomePage() {
 
       {/* Trending coins */}
       <section>
-        <TrendingCoins trending={trending} />
+        <TrendingCoins trending={trending} errorMessage={trendingError} />
       </section>
 
       {/* Two-column: Signals + Opportunities */}
       <section className="grid gap-4 lg:grid-cols-2">
-        <SignalsFeed signals={signals} />
-        <TopOpportunities opportunities={opportunities} />
+        <SignalsFeed signals={signals} errorMessage={signalsError} />
+        <TopOpportunities
+          opportunities={opportunities}
+          errorMessage={opportunitiesError}
+        />
       </section>
 
       {/* Whale + Airdrop + User dashboard */}
       <section className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-        <WhaleActivity wallets={walletLeaderboard} />
-        <AirdropHighlights airdrops={airdrops} />
+        <WhaleActivity wallets={walletLeaderboard} errorMessage={walletsError} />
+        <AirdropHighlights airdrops={airdrops} errorMessage={airdropsError} />
         <UserDashboard />
       </section>
 
       {/* Narratives + News */}
       <section className="grid gap-4 lg:grid-cols-2">
         <NarrativesSection />
-        <NewsSection items={SEEDED_NEWS} />
+        <NewsSection items={news} errorMessage={newsError} />
       </section>
     </div>
   );

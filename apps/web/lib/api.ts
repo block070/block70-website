@@ -95,6 +95,29 @@ export async function getWalletLeaderboard(
   );
 }
 
+export type NewsArticleSummary = {
+  id: number;
+  title: string;
+  source: string;
+  url: string;
+  summary?: string | null;
+  content?: string | null;
+  published_at?: string | null;
+};
+
+export async function getNewsArticles(params?: {
+  limit?: number;
+}): Promise<NewsArticleSummary[]> {
+  const search = new URLSearchParams();
+  if (params?.limit != null) {
+    search.set("limit", String(params.limit));
+  }
+  const query = search.toString();
+  return fetchJson<NewsArticleSummary[]>(
+    `/api/v1/articles${query ? `?${query}` : ""}`,
+  );
+}
+
 export type CapitalFlowDto = {
   id: number;
   source_asset: string;

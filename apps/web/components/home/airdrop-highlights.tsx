@@ -3,9 +3,13 @@ import type { Opportunity } from "@/lib/types";
 
 type AirdropHighlightsProps = {
   airdrops: Opportunity[];
+  errorMessage?: string | null;
 };
 
-export function AirdropHighlights({ airdrops }: AirdropHighlightsProps) {
+export function AirdropHighlights({
+  airdrops,
+  errorMessage = null,
+}: AirdropHighlightsProps) {
   const active = airdrops.filter((o) => o.status === "active");
   const byValue = [...active].sort(
     (a, b) => (b.estimated_upside ?? 0) - (a.estimated_upside ?? 0),
@@ -22,6 +26,12 @@ export function AirdropHighlights({ airdrops }: AirdropHighlightsProps) {
       <p className="mt-0.5 text-[11px] text-slate-400">
         Top active, highest value & easy farming
       </p>
+      {errorMessage ? (
+        <p className="mt-3 text-xs text-slate-500">
+          Data temporarily unavailable.{" "}
+          <span className="font-mono text-slate-400">{errorMessage}</span>
+        </p>
+      ) : null}
       <div className="mt-3 grid gap-3 sm:grid-cols-3">
         <div className="rounded-lg border border-slate-800 bg-slate-900/60 p-3">
           <p className="text-[10px] uppercase tracking-wide text-slate-500">

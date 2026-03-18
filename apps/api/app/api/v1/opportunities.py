@@ -6,7 +6,6 @@ from sqlalchemy.orm import Session
 from app.db import get_db
 from app.models import Opportunity, OpportunityStatus
 from app.schemas.opportunity_db import OpportunityRead
-from app.services.opportunities import OpportunityEngine
 
 
 router = APIRouter(prefix="/api/v1/opportunities", tags=["opportunities"])
@@ -19,21 +18,33 @@ def get_top_opportunities(
     min_alpha: float = Query(default=0.0, ge=0.0, le=1.0),
     min_confidence: float = Query(default=0.0, ge=0.0, le=1.0),
 ) -> List[dict]:
-    """Return highest-scoring market opportunities (alpha_score, confidence_score)."""
-    engine = OpportunityEngine()
-    opps = engine.top(db, limit=limit, min_alpha=min_alpha, min_confidence=min_confidence)
-    if not opps:
-        return []
+    """
+    Return highest-scoring real opportunities from the Opportunity table.
+
+    Frontend uses this for "Top scanner opportunities". We map:
+    - alpha_score -> total_score
+    - opportunity_type -> type
+    - token_symbol -> asset_symbol
+    """
+    q = (
+        db.query(Opportunity)
+        .filter(Opportunity.status == OpportunityStatus.ACTIVE.value)
+        .filter(Opportunity.total_score >= min_alpha)
+        .filter(Opportunity.confidence_score >= min_confidence)
+        .order_by(Opportunity.total_score.desc(), Opportunity.confidence_score.desc())
+        .limit(limit)
+    )
+    rows = list(q.all())
     return [
         {
             "id": o.id,
-            "token_symbol": o.token_symbol,
-            "opportunity_type": o.opportunity_type,
-            "alpha_score": o.alpha_score,
+            "token_symbol": o.asset_symbol,
+            "opportunity_type": o.type,
+            "alpha_score": o.total_score,
             "confidence_score": o.confidence_score,
-            "created_at": o.created_at.isoformat() if o.created_at else None,
+            "created_at": o.detected_at.isoformat() if o.detected_at else (o.created_at.isoformat() if getattr(o, "created_at", None) else None),
         }
-        for o in opps
+        for o in rows
     ]
 
 

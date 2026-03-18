@@ -4,9 +4,10 @@ import { SignalCard } from "@/components/signals/signal-card";
 
 type SignalsFeedProps = {
   signals: SignalDto[];
+  errorMessage?: string | null;
 };
 
-export function SignalsFeed({ signals }: SignalsFeedProps) {
+export function SignalsFeed({ signals, errorMessage = null }: SignalsFeedProps) {
   return (
     <section className="rounded-xl border border-slate-800 bg-slate-950/70 p-4">
       <div className="flex items-center justify-between">
@@ -24,7 +25,12 @@ export function SignalsFeed({ signals }: SignalsFeedProps) {
         </Link>
       </div>
       <div className="mt-3 space-y-2">
-        {signals.length === 0 ? (
+        {errorMessage ? (
+          <p className="text-xs text-slate-500">
+            Data temporarily unavailable.{" "}
+            <span className="font-mono text-slate-400">{errorMessage}</span>
+          </p>
+        ) : signals.length === 0 ? (
           <p className="text-xs text-slate-500">
             No signals in the stream yet. As Block70 ingests wallets, DEXs, and
             radar, high-confidence events will land here first.

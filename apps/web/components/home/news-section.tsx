@@ -1,14 +1,13 @@
 import Link from "next/link";
-import type { SeedNewsItem } from "@/lib/news-seed";
-import { isDemoMode } from "@/lib/demo";
+import type { NewsArticleSummary } from "@/lib/api";
 
 type NewsSectionProps = {
-  items?: SeedNewsItem[];
+  items?: NewsArticleSummary[];
+  errorMessage?: string | null;
 };
 
-export function NewsSection({ items = [] }: NewsSectionProps) {
+export function NewsSection({ items = [], errorMessage = null }: NewsSectionProps) {
   const hasNews = items.length > 0;
-  const demo = isDemoMode();
 
   return (
     <section className="rounded-xl border border-slate-800 bg-slate-950/70 p-4">
@@ -18,11 +17,6 @@ export function NewsSection({ items = [] }: NewsSectionProps) {
           <p className="mt-0.5 text-[11px] text-slate-400">
             Macro and infra stories Block70 is watching right now.
           </p>
-          {demo && (
-            <p className="mt-1 text-[10px] text-amber-300">
-              Demo headlines for illustration; not a live feed.
-            </p>
-          )}
         </div>
         <Link
           href="/news"
@@ -31,7 +25,12 @@ export function NewsSection({ items = [] }: NewsSectionProps) {
           View all
         </Link>
       </div>
-      {hasNews ? (
+      {errorMessage ? (
+        <p className="mt-3 text-xs text-slate-500">
+          Data temporarily unavailable.{" "}
+          <span className="font-mono text-slate-400">{errorMessage}</span>
+        </p>
+      ) : hasNews ? (
         <ul className="mt-3 space-y-2">
           {items.slice(0, 5).map((article) => (
             <li key={article.id}>
@@ -45,8 +44,10 @@ export function NewsSection({ items = [] }: NewsSectionProps) {
                   {article.title}
                 </p>
                 <p className="mt-1 text-[10px] text-slate-500">
-                  {article.source} · {article.category} ·{" "}
-                  {new Date(article.published_at).toLocaleDateString()}
+                  {article.source} ·{" "}
+                  {article.published_at
+                    ? new Date(article.published_at).toLocaleDateString()
+                    : "—"}
                 </p>
               </a>
             </li>
@@ -54,8 +55,7 @@ export function NewsSection({ items = [] }: NewsSectionProps) {
         </ul>
       ) : (
         <p className="mt-3 text-xs text-slate-500">
-          No news articles yet. This section will populate once the news engine
-          is connected to live feeds.
+          No live news articles yet.
         </p>
       )}
     </section>

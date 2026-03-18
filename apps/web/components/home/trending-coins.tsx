@@ -3,9 +3,10 @@ import type { TrendingSignalTokenDto } from "@/lib/types";
 
 type TrendingCoinsProps = {
   trending: TrendingSignalTokenDto[];
+  errorMessage?: string | null;
 };
 
-export function TrendingCoins({ trending }: TrendingCoinsProps) {
+export function TrendingCoins({ trending, errorMessage = null }: TrendingCoinsProps) {
   return (
     <section className="rounded-xl border border-slate-800 bg-slate-950/70 p-4">
       <div className="flex items-center justify-between">
@@ -23,7 +24,12 @@ export function TrendingCoins({ trending }: TrendingCoinsProps) {
         </Link>
       </div>
       <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-        {trending.length === 0 ? (
+        {errorMessage ? (
+          <p className="col-span-full text-xs text-slate-500">
+            Data temporarily unavailable.{" "}
+            <span className="font-mono text-slate-400">{errorMessage}</span>
+          </p>
+        ) : trending.length === 0 ? (
           <p className="col-span-full text-xs text-slate-500">
             No trending data yet.
           </p>

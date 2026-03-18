@@ -1,5 +1,4 @@
-import { SEEDED_NEWS } from "@/lib/news-seed";
-import { isDemoMode } from "@/lib/demo";
+import { getNewsArticles } from "@/lib/api";
 
 export const metadata = {
   title: "News · Block70",
@@ -7,8 +6,16 @@ export const metadata = {
     "Curated macro and infrastructure stories that matter for Block70 operators.",
 };
 
-export default function NewsPage() {
-  const demo = isDemoMode();
+export default async function NewsPage() {
+  let articles: Awaited<ReturnType<typeof getNewsArticles>> = [];
+  let errorMessage: string | null = null;
+  try {
+    articles = await getNewsArticles({ limit: 100 });
+  } catch (err) {
+    errorMessage = err instanceof Error ? err.message : "Unknown error";
+  }
+
+  const hasArticles = articles.length > 0;
   return (
     <div className="space-y-6">
       <header className="space-y-2">
@@ -17,42 +24,45 @@ export default function NewsPage() {
           A curated macro surface for ecosystem moves, restaking, perps, and
           infra shifts that Block70 tracks most closely.
         </p>
-        {demo && (
-          <p className="text-[11px] text-amber-300">
-            Demo dataset: headlines and summaries are seeded examples, not a
-            live news feed.
-          </p>
-        )}
       </header>
-      <div className="space-y-3">
-        {SEEDED_NEWS.map((item) => (
-          <article
-            key={item.id}
-            className="rounded-xl border border-slate-800 bg-slate-900/60 p-4 text-xs"
-          >
-            <div className="flex items-center justify-between gap-2">
-              <h2 className="text-sm font-semibold text-slate-50">
-                {item.title}
-              </h2>
-              <span className="text-[11px] text-slate-500">
-                {new Date(item.published_at).toLocaleString()}
-              </span>
-            </div>
-            <p className="mt-1 text-[11px] text-slate-400">
-              {item.source} · {item.category}
-            </p>
-            <p className="mt-2 text-slate-300">{item.summary}</p>
-            {item.tags && item.tags.length > 0 && (
-              <p className="mt-2 text-[10px] text-slate-500">
-                Tags:{" "}
-                <span className="font-mono text-slate-300">
-                  {item.tags.join(", ")}
+      {errorMessage ? (
+        <div className="rounded-xl border border-slate-800 bg-slate-900/40 p-4 text-sm text-slate-300">
+          <p className="font-medium text-slate-100">Data temporarily unavailable</p>
+          <p className="mt-1 text-xs text-slate-500">
+            {errorMessage}
+          </p>
+        </div>
+      ) : !hasArticles ? (
+        <p className="mt-4 text-sm text-slate-500">No live news articles yet.</p>
+      ) : (
+        <div className="space-y-3">
+          {articles.map((item) => (
+            <article
+              key={item.id}
+              className="rounded-xl border border-slate-800 bg-slate-900/60 p-4 text-xs"
+            >
+              <div className="flex items-center justify-between gap-2">
+                <h2 className="text-sm font-semibold text-slate-50">
+                  {item.title}
+                </h2>
+                <span className="text-[11px] text-slate-500">
+                  {item.published_at
+                    ? new Date(item.published_at).toLocaleString()
+                    : "—"}
                 </span>
+              </div>
+              <p className="mt-1 text-[11px] text-slate-400">
+                {item.source} · Live article
               </p>
-            )}
-          </article>
-        ))}
-      </div>
+              {item.summary && (
+                <p className="mt-2 text-slate-300 line-clamp-4">
+                  {item.summary}
+                </p>
+              )}
+            </article>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

@@ -4,9 +4,13 @@ import { OpportunityCard } from "@/components/opportunities/opportunity-card";
 
 type TopOpportunitiesProps = {
   opportunities: Opportunity[];
+  errorMessage?: string | null;
 };
 
-export function TopOpportunities({ opportunities }: TopOpportunitiesProps) {
+export function TopOpportunities({
+  opportunities,
+  errorMessage = null,
+}: TopOpportunitiesProps) {
   return (
     <section className="rounded-xl border border-slate-800 bg-slate-950/70 p-4">
       <div className="flex items-center justify-between">
@@ -26,7 +30,12 @@ export function TopOpportunities({ opportunities }: TopOpportunitiesProps) {
         </Link>
       </div>
       <div className="mt-3 space-y-2">
-        {opportunities.length === 0 ? (
+        {errorMessage ? (
+          <p className="text-xs text-slate-500">
+            Data temporarily unavailable.{" "}
+            <span className="font-mono text-slate-400">{errorMessage}</span>
+          </p>
+        ) : opportunities.length === 0 ? (
           <p className="text-xs text-slate-500">
             No ranked opportunities yet. Once the engines see enough flow, the
             highest conviction plays will appear here.

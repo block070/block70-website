@@ -3,6 +3,7 @@ import type { WalletLeaderboardEntry } from "@/lib/types";
 
 type WhaleActivityProps = {
   wallets: WalletLeaderboardEntry[];
+  errorMessage?: string | null;
 };
 
 function formatUsd(n: number): string {
@@ -11,7 +12,7 @@ function formatUsd(n: number): string {
   return `$${n.toFixed(0)}`;
 }
 
-export function WhaleActivity({ wallets }: WhaleActivityProps) {
+export function WhaleActivity({ wallets, errorMessage = null }: WhaleActivityProps) {
   return (
     <section className="rounded-xl border border-slate-800 bg-slate-950/70 p-4">
       <div className="flex items-center justify-between">
@@ -31,7 +32,12 @@ export function WhaleActivity({ wallets }: WhaleActivityProps) {
         </Link>
       </div>
       <ul className="mt-3 space-y-2">
-        {wallets.length === 0 ? (
+        {errorMessage ? (
+          <li className="text-xs text-slate-500">
+            Data temporarily unavailable.{" "}
+            <span className="font-mono text-slate-400">{errorMessage}</span>
+          </li>
+        ) : wallets.length === 0 ? (
           <li className="text-xs text-slate-500">
             No whale activity surfaced yet. As Block70 observes repeat winners,
             top addresses will be promoted into this view.

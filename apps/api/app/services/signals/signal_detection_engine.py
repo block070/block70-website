@@ -23,6 +23,39 @@ from app.services.signals.wallet_signals import WalletSignal
 from app.services.signals.social_signals import SocialActivitySignal
 
 
+def _signal_already_persisted_for_radar(db: Session, radar: RadarSignal) -> bool:
+    """
+    Best-effort dedupe to avoid re-inserting the same signal every scheduler tick.
+
+    We match on core dimensions and a tight created_at window around the radar signal.
+    This avoids adding schema/migrations while keeping inserts bounded.
+    """
+    if radar.created_at is None:
+        return False
+    source = radar.source or "radar"
+    window_start = radar.created_at.replace()  # keep tzinfo
+    window_end = radar.created_at.replace()
+    from datetime import timedelta
+
+    window_start = radar.created_at - timedelta(minutes=2)
+    window_end = radar.created_at + timedelta(minutes=2)
+
+    q = (
+        db.query(Signal)
+        .filter(Signal.signal_type == radar.signal_type)
+        .filter(Signal.chain == radar.chain)
+        .filter(Signal.source == source)
+    )
+    # token_symbol can be null; keep the match symmetric
+    if radar.token_symbol is None:
+        q = q.filter(Signal.token_symbol.is_(None))
+    else:
+        q = q.filter(Signal.token_symbol == radar.token_symbol)
+
+    q = q.filter(Signal.created_at >= window_start).filter(Signal.created_at <= window_end)
+    return q.first() is not None
+
+
 def _radar_to_signal(radar: RadarSignal) -> Signal:
     """Convert a RadarSignal to a normalized Signal (in-memory, not persisted)."""
     title = _title_for_signal_type(radar.signal_type, radar.token_symbol)
@@ -125,6 +158,8 @@ class SignalDetectionEngine:
             return []
         out: List[Signal] = []
         for r in radar_signals:
+            if persist and _signal_already_persisted_for_radar(db, r):
+                continue
             sig = _radar_to_signal(r)
             if r.created_at:
                 # Signal.created_at is server_default; for in-memory copy we keep radar time

@@ -5,7 +5,7 @@ from typing import Dict, Iterable, List, Tuple
 
 import requests
 
-from app.services.connectors.arbitrage_mock_connector import ArbitrageQuote, ArbitrageMockConnector
+from app.services.connectors.arbitrage_mock_connector import ArbitrageQuote
 
 
 class JupiterConnector:
@@ -139,10 +139,11 @@ class JupiterConnector:
         return results
 
 
-def fetch_or_mock(pairs: Iterable[str] | None = None) -> List[ArbitrageQuote]:
+def fetch_live(pairs: Iterable[str] | None = None) -> List[ArbitrageQuote]:
     """
-    Convenience helper that tries live Jupiter quotes first and falls back
-    to the mock connector when necessary.
+    Convenience helper that fetches live Jupiter quotes only.
+
+    Strict mode: if the Jupiter API is unavailable, return an empty list.
     """
     connector = JupiterConnector()
     live = connector.fetch_quotes(pairs)
@@ -159,5 +160,5 @@ def fetch_or_mock(pairs: Iterable[str] | None = None) -> List[ArbitrageQuote]:
             for q in live
         ]
 
-    return ArbitrageMockConnector().fetch_quotes()
+    return []
 
