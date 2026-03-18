@@ -12,6 +12,13 @@ from app.schemas.opportunity_db import OpportunityRead
 
 router = APIRouter(prefix="/api/v1/airdrops", tags=["airdrops"])
 
+ALLOWED_AIRDROP_SOURCES = {
+    "DefiLlama Airdrops",
+    "Airdrops.io",
+    "DappRadar",
+    "ICO Drops",
+}
+
 
 @router.get("", response_model=List[OpportunityRead])
 def list_airdrops(
@@ -28,6 +35,7 @@ def list_airdrops(
         .filter(
             Opportunity.type == "airdrop",
             Opportunity.status == OpportunityStatus.ACTIVE.value,
+            Opportunity.source.in_(sorted(ALLOWED_AIRDROP_SOURCES)),
         )
         .order_by(Opportunity.total_score.desc())
     )
