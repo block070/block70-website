@@ -36,11 +36,13 @@ services:
   web:
     build:
       context: ./apps/web
+      args:
+        NEXT_PUBLIC_API_BASE_URL: ${NEXT_PUBLIC_API_BASE_URL}
     container_name: block70-web
     env_file:
       - .env
     environment:
-      API_SERVER_URL: "http://block70-api:8000"
+      API_SERVER_URL: "http://api:8000"
     depends_on:
       - api
     ports:
