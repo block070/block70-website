@@ -118,7 +118,6 @@ export default function TrendingPage() {
         </div>
       }
     >
-      {/* @ts-expect-error Async Server Component */}
       <TrendingContent />
     </Suspense>
   );
