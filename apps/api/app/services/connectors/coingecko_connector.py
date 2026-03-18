@@ -124,3 +124,43 @@ def normalize_coin_detail(raw: Dict[str, Any], vs_currency: str = "usd") -> Dict
         },
     }
 
+
+def fetch_trending_coins() -> List[Dict[str, Any]]:
+    """
+    Fetch trending coins from CoinGecko's /search/trending endpoint.
+
+    Maps CoinGecko's schema into a simplified shape suitable for the
+    /api/v1/market/trending endpoint:
+
+    {
+      name,
+      symbol,
+      rank,
+      price,   # CoinGecko's price_btc field (denominated in BTC)
+      image,
+      coingecko_id,
+      score
+    }
+    """
+    data = _get("/search/trending")
+    coins = data.get("coins") or []
+    out: List[Dict[str, Any]] = []
+    for idx, entry in enumerate(coins):
+        item = entry.get("item") or {}
+        name = item.get("name")
+        symbol = item.get("symbol")
+        if not name or not symbol:
+            continue
+        out.append(
+            {
+                "name": name,
+                "symbol": symbol.upper(),
+                "rank": item.get("market_cap_rank") or (idx + 1),
+                "price": item.get("price_btc"),  # BTC-denominated price
+                "image": item.get("large") or item.get("small") or item.get("thumb"),
+                "coingecko_id": item.get("id"),
+                "score": item.get("score"),
+            }
+        )
+    return out
+
