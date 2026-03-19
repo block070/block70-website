@@ -232,9 +232,14 @@ export default async function HomePage() {
       volume24h: c.volume ?? 0,
       marketCap: c.market_cap ?? 0,
     }));
-  const heatmapTokens = validMarket.slice(0, 24).map((c) => ({
+  const heatmapCoins = validMarket.slice(0, 50).map((c) => ({
     symbol: c.symbol,
+    name: c.name,
+    slug: c.slug,
+    price: c.price ?? 0,
     change24h: c.change_24h ?? 0,
+    marketCap: c.market_cap ?? 0,
+    volume24h: c.volume ?? 0,
   }));
   const topGainer = gainers[0]?.symbol;
   const topLoser = losers[0]?.symbol;
@@ -282,7 +287,7 @@ export default async function HomePage() {
         <h2 className="mb-3 text-sm font-semibold text-slate-50">
           Market heatmap
         </h2>
-        <MarketHeatmap tokens={heatmapTokens} />
+        <MarketHeatmap coins={heatmapCoins} />
       </section>
 
       {/* Trending coins */}
