@@ -10,7 +10,7 @@ export function NewsSection({ items = [], errorMessage = null }: NewsSectionProp
   const hasNews = items.length > 0;
 
   return (
-    <section className="flex h-full flex-col rounded-xl border border-slate-800 bg-slate-950/70 p-4">
+    <section className="flex h-full min-h-[460px] flex-col rounded-xl border border-slate-800 bg-slate-950/70 p-4">
       <div className="flex items-center justify-between">
         <div>
           <h3 className="text-sm font-semibold text-slate-50">Crypto news</h3>
