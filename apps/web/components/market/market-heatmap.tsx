@@ -1,8 +1,8 @@
 "use client";
 
-import { useMemo } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ResponsiveContainer, Tooltip, Treemap } from "recharts";
+import { Tooltip, Treemap } from "recharts";
 
 export type HeatmapCoin = {
   symbol: string;
@@ -83,6 +83,25 @@ function TileContent(props: any) {
 
 export function MarketHeatmap({ coins = [] }: MarketHeatmapProps) {
   const router = useRouter();
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  const [containerWidth, setContainerWidth] = useState(0);
+  const chartHeight = 430;
+
+  useEffect(() => {
+    const node = containerRef.current;
+    if (!node) return;
+
+    const update = () => {
+      const width = Math.floor(node.getBoundingClientRect().width);
+      setContainerWidth(width > 0 ? width : 0);
+    };
+
+    update();
+    const observer = new ResizeObserver(update);
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, []);
+
   const data = useMemo<TreemapNode[]>(
     () =>
       coins.slice(0, 50).map((coin) => ({
@@ -103,9 +122,14 @@ export function MarketHeatmap({ coins = [] }: MarketHeatmapProps) {
           Live heatmap data temporarily unavailable.
         </p>
       ) : (
-        <div className="mt-3 h-[430px] w-full overflow-hidden rounded-lg border border-slate-800 bg-slate-900/50">
-          <ResponsiveContainer width="100%" height="100%">
+        <div
+          ref={containerRef}
+          className="mt-3 h-[430px] w-full overflow-hidden rounded-lg border border-slate-800 bg-slate-900/50"
+        >
+          {containerWidth > 0 ? (
             <Treemap
+              width={containerWidth}
+              height={chartHeight}
               data={data}
               dataKey="size"
               stroke="#0f172a"
@@ -134,7 +158,11 @@ export function MarketHeatmap({ coins = [] }: MarketHeatmapProps) {
                 }}
               />
             </Treemap>
-          </ResponsiveContainer>
+          ) : (
+            <div className="flex h-full items-center justify-center text-xs text-slate-500">
+              Loading heatmap…
+            </div>
+          )}
         </div>
       )}
     </section>
