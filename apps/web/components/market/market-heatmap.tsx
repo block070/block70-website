@@ -61,7 +61,7 @@ export function MarketHeatmap({ coins = [] }: MarketHeatmapProps) {
   const router = useRouter();
   const containerRef = useRef<HTMLDivElement | null>(null);
   const [containerWidth, setContainerWidth] = useState(0);
-  const chartHeight = 430;
+  const chartHeight = 560;
 
   useEffect(() => {
     const node = containerRef.current;
@@ -82,7 +82,8 @@ export function MarketHeatmap({ coins = [] }: MarketHeatmapProps) {
     () =>
       coins.slice(0, 50).map((coin) => ({
         ...coin,
-        size: Math.max(coin.marketCap, 1),
+        // Size by move magnitude so similarly large +/- moves look similarly sized.
+        size: Math.max(Math.abs(coin.change24h), 0.2),
       })),
     [coins],
   );
@@ -102,7 +103,7 @@ export function MarketHeatmap({ coins = [] }: MarketHeatmapProps) {
     <section className="rounded-xl border border-slate-800 bg-slate-950/70 p-4">
       <h3 className="text-sm font-semibold text-slate-50">Crypto market heatmap</h3>
       <p className="mt-0.5 text-[11px] text-slate-400">
-        Treemap sized by market cap, colored by 24h price change
+        Treemap sized by 24h move magnitude, colored by 24h price change
       </p>
       {data.length === 0 ? (
         <p className="mt-3 text-xs text-slate-500">
@@ -111,7 +112,7 @@ export function MarketHeatmap({ coins = [] }: MarketHeatmapProps) {
       ) : (
         <div
           ref={containerRef}
-          className="mt-3 h-[430px] w-full overflow-hidden rounded-lg border border-slate-800 bg-slate-900/50"
+          className="mt-3 h-[560px] w-full overflow-hidden rounded-lg border border-slate-800 bg-slate-900/50"
         >
           {containerWidth > 0 ? (
             <svg width={containerWidth} height={chartHeight} viewBox={`0 0 ${containerWidth} ${chartHeight}`}>
@@ -122,8 +123,13 @@ export function MarketHeatmap({ coins = [] }: MarketHeatmapProps) {
                 const y = leaf.y0;
                 const w = Math.max(0, leaf.x1 - leaf.x0);
                 const h = Math.max(0, leaf.y1 - leaf.y0);
-                const showDetails = w > 100 && h > 58;
+                const showPrice = w > 90 && h > 45;
+                const showChange = w > 90 && h > 58;
                 const changeTxt = `${d.change24h >= 0 ? "+" : ""}${d.change24h.toFixed(2)}%`;
+                const symbolFontSize = Math.max(
+                  7,
+                  Math.min(12, Math.floor(((w - 8) / Math.max(d.symbol.length, 3)) * 1.8)),
+                );
                 return (
                   <g
                     key={d.slug}
@@ -141,23 +147,25 @@ export function MarketHeatmap({ coins = [] }: MarketHeatmapProps) {
                       strokeWidth={1}
                       rx={2}
                     />
-                    {showDetails ? (
-                      <>
-                        <text x={x + 6} y={y + 16} fill="#ffffff" fontSize={12} fontWeight={700}>
-                          {d.symbol}
-                        </text>
-                        <text x={x + 6} y={y + 31} fill="#e2e8f0" fontSize={11}>
-                          {formatPrice(d.price)}
-                        </text>
-                        <text x={x + 6} y={y + 46} fill="#f8fafc" fontSize={11}>
-                          {changeTxt}
-                        </text>
-                      </>
-                    ) : (
-                      <text x={x + 5} y={y + 14} fill="#ffffff" fontSize={11} fontWeight={700}>
-                        {d.symbol}
+                    <text
+                      x={x + 4}
+                      y={y + 14}
+                      fill="#ffffff"
+                      fontSize={symbolFontSize}
+                      fontWeight={700}
+                    >
+                      {d.symbol}
+                    </text>
+                    {showPrice ? (
+                      <text x={x + 4} y={y + 29} fill="#e2e8f0" fontSize={11}>
+                        {formatPrice(d.price)}
                       </text>
-                    )}
+                    ) : null}
+                    {showChange ? (
+                      <text x={x + 4} y={y + 44} fill="#f8fafc" fontSize={11}>
+                        {changeTxt}
+                      </text>
+                    ) : null}
                   </g>
                 );
               })}
