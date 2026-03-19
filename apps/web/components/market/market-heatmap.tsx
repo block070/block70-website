@@ -1,6 +1,6 @@
 "use client";
 
-import { hierarchy, treemap } from "d3-hierarchy";
+import { hierarchy, treemap, type HierarchyRectangularNode } from "d3-hierarchy";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 
@@ -86,7 +86,7 @@ export function MarketHeatmap({ coins = [] }: MarketHeatmapProps) {
       })),
     [coins],
   );
-  const positioned = useMemo(() => {
+  const positioned = useMemo<HierarchyRectangularNode<TreemapNode>[]>(() => {
     if (containerWidth <= 0 || data.length === 0) return [];
     const root = hierarchy<{ children: TreemapNode[] }>({ children: data })
       .sum((d: any) => d.size || 0)
@@ -95,7 +95,7 @@ export function MarketHeatmap({ coins = [] }: MarketHeatmapProps) {
       .size([containerWidth, chartHeight])
       .paddingInner(2)
       .round(true)(root);
-    return root.leaves();
+    return root.leaves() as HierarchyRectangularNode<TreemapNode>[];
   }, [containerWidth, data]);
 
   return (
