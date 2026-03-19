@@ -1,8 +1,8 @@
 "use client";
 
+import { hierarchy, treemap } from "d3-hierarchy";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Tooltip, Treemap } from "recharts";
 
 export type HeatmapCoin = {
   symbol: string;
@@ -43,51 +43,6 @@ function colorForChange(change: number): string {
   return "#dc2626"; // strong red
 }
 
-function TileContent(props: any) {
-  const { x, y, width, height, payload } = props;
-  if (!payload) return null;
-  const coin = payload as Partial<TreemapNode>;
-  // Render only leaf-like payloads that contain a symbol/price/change.
-  if (!coin.symbol || typeof coin.price !== "number" || typeof coin.change24h !== "number") {
-    return null;
-  }
-  const safeW = Math.max(0, width);
-  const safeH = Math.max(0, height);
-  const showDetails = safeW > 100 && safeH > 58;
-
-  return (
-    <g>
-      <rect
-        x={x}
-        y={y}
-        width={safeW}
-        height={safeH}
-        fill={colorForChange(coin.change24h)}
-        stroke="#0f172a"
-        strokeWidth={1}
-      />
-      {showDetails ? (
-        <>
-          <text x={x + 6} y={y + 16} fill="#ffffff" fontSize={12} fontWeight={700}>
-            {coin.symbol}
-          </text>
-          <text x={x + 6} y={y + 31} fill="#e2e8f0" fontSize={11}>
-            {formatPrice(coin.price)}
-          </text>
-          <text x={x + 6} y={y + 46} fill="#f8fafc" fontSize={11}>
-            {coin.change24h >= 0 ? "+" : ""}
-            {coin.change24h.toFixed(2)}%
-          </text>
-        </>
-      ) : (
-        <text x={x + 5} y={y + 14} fill="#ffffff" fontSize={11} fontWeight={700}>
-          {coin.symbol}
-        </text>
-      )}
-    </g>
-  );
-}
-
 export function MarketHeatmap({ coins = [] }: MarketHeatmapProps) {
   const router = useRouter();
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -117,6 +72,17 @@ export function MarketHeatmap({ coins = [] }: MarketHeatmapProps) {
       })),
     [coins],
   );
+  const positioned = useMemo(() => {
+    if (containerWidth <= 0 || data.length === 0) return [];
+    const root = hierarchy<{ children: TreemapNode[] }>({ children: data })
+      .sum((d: any) => d.size || 0)
+      .sort((a, b) => (b.value || 0) - (a.value || 0));
+    treemap<{ children: TreemapNode[] }>()
+      .size([containerWidth, chartHeight])
+      .paddingInner(2)
+      .round(true)(root);
+    return root.leaves();
+  }, [containerWidth, data]);
 
   return (
     <section className="rounded-xl border border-slate-800 bg-slate-950/70 p-4">
@@ -134,39 +100,53 @@ export function MarketHeatmap({ coins = [] }: MarketHeatmapProps) {
           className="mt-3 h-[430px] w-full overflow-hidden rounded-lg border border-slate-800 bg-slate-900/50"
         >
           {containerWidth > 0 ? (
-            <Treemap
-              width={containerWidth}
-              height={chartHeight}
-              data={data}
-              dataKey="size"
-              nameKey="symbol"
-              stroke="#0f172a"
-              content={<TileContent />}
-              isAnimationActive={false}
-              onClick={(node: any) => {
-                const slug = node?.payload?.slug as string | undefined;
-                if (slug) router.push(`/coins/${slug}`);
-              }}
-            >
-              <Tooltip
-                content={({ active, payload }) => {
-                  if (!active || !payload || payload.length === 0) return null;
-                  const coin = payload[0].payload as TreemapNode;
-                  return (
-                    <div className="rounded-md border border-slate-700 bg-slate-900/95 px-3 py-2 text-xs text-slate-100 shadow-lg">
-                      <p className="font-semibold">{coin.name} ({coin.symbol})</p>
-                      <p>Price: {formatPrice(coin.price)}</p>
-                      <p>
-                        24h: {coin.change24h >= 0 ? "+" : ""}
-                        {coin.change24h.toFixed(2)}%
-                      </p>
-                      <p>24h Volume: {formatMarketCap(coin.volume24h)}</p>
-                      <p>Market Cap: {formatMarketCap(coin.marketCap)}</p>
-                    </div>
-                  );
-                }}
-              />
-            </Treemap>
+            <svg width={containerWidth} height={chartHeight} viewBox={`0 0 ${containerWidth} ${chartHeight}`}>
+              {positioned.map((leaf) => {
+                const d = leaf.data as TreemapNode;
+                const x = leaf.x0;
+                const y = leaf.y0;
+                const w = Math.max(0, leaf.x1 - leaf.x0);
+                const h = Math.max(0, leaf.y1 - leaf.y0);
+                const showDetails = w > 100 && h > 58;
+                const changeTxt = `${d.change24h >= 0 ? "+" : ""}${d.change24h.toFixed(2)}%`;
+                return (
+                  <g
+                    key={d.slug}
+                    onClick={() => router.push(`/coins/${d.slug}`)}
+                    style={{ cursor: "pointer" }}
+                  >
+                    <title>{`${d.name} (${d.symbol})\nPrice: ${formatPrice(d.price)}\n24h: ${changeTxt}\n24h Volume: ${formatMarketCap(d.volume24h)}\nMarket Cap: ${formatMarketCap(d.marketCap)}`}</title>
+                    <rect
+                      x={x}
+                      y={y}
+                      width={w}
+                      height={h}
+                      fill={colorForChange(d.change24h)}
+                      stroke="#0f172a"
+                      strokeWidth={1}
+                      rx={2}
+                    />
+                    {showDetails ? (
+                      <>
+                        <text x={x + 6} y={y + 16} fill="#ffffff" fontSize={12} fontWeight={700}>
+                          {d.symbol}
+                        </text>
+                        <text x={x + 6} y={y + 31} fill="#e2e8f0" fontSize={11}>
+                          {formatPrice(d.price)}
+                        </text>
+                        <text x={x + 6} y={y + 46} fill="#f8fafc" fontSize={11}>
+                          {changeTxt}
+                        </text>
+                      </>
+                    ) : (
+                      <text x={x + 5} y={y + 14} fill="#ffffff" fontSize={11} fontWeight={700}>
+                        {d.symbol}
+                      </text>
+                    )}
+                  </g>
+                );
+              })}
+            </svg>
           ) : (
             <div className="flex h-full items-center justify-center text-xs text-slate-500">
               Loading heatmap…
