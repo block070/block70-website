@@ -12,6 +12,7 @@ function mergeSeedWithLive(seed: SmartMoneyWallet, live: NormalizedWalletActivit
     lastActivity: live.lastActivity,
     inflow24h: live.inflow24h,
     outflow24h: live.outflow24h,
+    fetchError: live.fetchError,
   };
 }
 
@@ -22,7 +23,8 @@ export async function getLiveSmartMoneyWallets(): Promise<SmartMoneyWallet[]> {
     const live = await getLiveWallet(seed.chain, seed.address);
     results.push(mergeSeedWithLive(seed, live));
   }
-  return results;
+  // SOL leaderboard exclusion: if balance==0 and txCount==0, omit.
+  return results.filter((w) => !(w.chain === "solana" && w.balance === 0 && w.txCount === 0));
 }
 
 export async function getLiveSmartMoneyWalletsWithLimit(limit: number): Promise<SmartMoneyWallet[]> {
@@ -33,7 +35,8 @@ export async function getLiveSmartMoneyWalletsWithLimit(limit: number): Promise<
     const live = await getLiveWallet(seed.chain, seed.address);
     results.push(mergeSeedWithLive(seed, live));
   }
-  return results;
+  // SOL leaderboard exclusion: if balance==0 and txCount==0, omit.
+  return results.filter((w) => !(w.chain === "solana" && w.balance === 0 && w.txCount === 0));
 }
 
 export async function getLiveWallet(

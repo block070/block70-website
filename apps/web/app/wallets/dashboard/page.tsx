@@ -9,6 +9,9 @@ export const metadata = {
   description: "Premium smart wallet leaderboard, token flows, and whale alerts.",
 };
 
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
 export default async function WalletsDashboardPage() {
   let wallets = smartMoneyWallets;
   try {

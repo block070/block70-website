@@ -58,35 +58,16 @@ export async function getSolWalletActivity(address: string): Promise<NormalizedW
 
       const txCount = inWindow.length;
 
-      let inflowLamports = 0;
-      let outflowLamports = 0;
-
-      const toProcess = inWindow.slice(0, 30); // cap to avoid RPC spam
-      for (const s of toProcess) {
-        const tx = await retry(() => connection.getTransaction(s.signature, { commitment: "confirmed" }));
-        const meta = tx?.meta;
-        if (!meta?.preBalances || !meta?.postBalances) continue;
-        const accountKeys = tx?.transaction?.message?.accountKeys ?? [];
-        const idx = accountKeys.findIndex((k) => k.toString() === address);
-        if (idx < 0) continue;
-        const pre = meta.preBalances[idx];
-        const post = meta.postBalances[idx];
-        const diff = post - pre;
-        if (diff > 0) inflowLamports += diff;
-        if (diff < 0) outflowLamports += Math.abs(diff);
-      }
-
-      const inflow24h = lamportsToSol(inflowLamports);
-      const outflow24h = lamportsToSol(outflowLamports);
-
       return {
         address,
         chain: CHAIN,
         balance,
         txCount,
         lastActivity,
-        inflow24h,
-        outflow24h,
+        // Netflow temporarily disabled due to accuracy concerns.
+        inflow24h: null,
+        outflow24h: null,
+        fetchError: null,
       };
     } catch (err) {
       console.error("SOL wallet fetch failed", { address, err: String(err) });
@@ -98,6 +79,7 @@ export async function getSolWalletActivity(address: string): Promise<NormalizedW
         lastActivity: null,
         inflow24h: null,
         outflow24h: null,
+        fetchError: String(err ?? "SOL wallet fetch failed"),
       };
     }
   });

@@ -13,6 +13,9 @@ export const metadata = {
     "Track smart money wallets across BTC, ETH, and SOL. Preview live whale intelligence and unlock premium wallet analytics on Block70.",
 };
 
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
 export default async function WalletsPage() {
   const cookieStore = cookies();
   const plan = cookieStore.get("block70_plan")?.value ?? "free";

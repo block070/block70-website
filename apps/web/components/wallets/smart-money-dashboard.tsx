@@ -34,8 +34,8 @@ export function SmartMoneyDashboard({ wallets, alerts, tokens }: Props) {
       .filter((w) => w.chain === chainForTab)
       .sort((a, b) => {
         if (sortBy === "roi") {
-          const an = a.inflow24h == null || a.outflow24h == null ? -Infinity : a.inflow24h - a.outflow24h;
-          const bn = b.inflow24h == null || b.outflow24h == null ? -Infinity : b.inflow24h - b.outflow24h;
+          const an = a.inflow24h == null || a.outflow24h == null ? 0 : a.inflow24h - a.outflow24h;
+          const bn = b.inflow24h == null || b.outflow24h == null ? 0 : b.inflow24h - b.outflow24h;
           return bn - an;
         }
         if (sortBy === "activity") return (b.txCount ?? -Infinity) - (a.txCount ?? -Infinity);
@@ -124,8 +124,10 @@ export function SmartMoneyDashboard({ wallets, alerts, tokens }: Props) {
               <li key={wallet.id} className="flex items-center justify-between rounded-lg border border-slate-800 bg-slate-900/50 px-3 py-2">
                 <span className="font-mono text-slate-300">{wallet.address.slice(0, 6)}...{wallet.address.slice(-4)}</span>
                 <span className="text-emerald-300">
-                  {wallet.inflow24h == null || wallet.outflow24h == null
-                    ? "—"
+                  {wallet.fetchError
+                    ? wallet.fetchError
+                    : wallet.inflow24h == null || wallet.outflow24h == null
+                      ? "--"
                     : (() => {
                         const net = wallet.inflow24h - wallet.outflow24h;
                         const sign = net >= 0 ? "+" : "";

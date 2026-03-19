@@ -9,6 +9,7 @@ export type SmartMoneyWallet = {
   lastActivity: string | null; // ISO
   inflow24h: number | null; // native coin units
   outflow24h: number | null; // native coin units
+  fetchError: string | null;
 };
 
 export const smartMoneyWallets: SmartMoneyWallet[] = [
@@ -23,6 +24,7 @@ export const smartMoneyWallets: SmartMoneyWallet[] = [
     lastActivity: null,
     inflow24h: null,
     outflow24h: null,
+    fetchError: null,
   },
   {
     id: "eth-001",
@@ -35,11 +37,12 @@ export const smartMoneyWallets: SmartMoneyWallet[] = [
     lastActivity: null,
     inflow24h: null,
     outflow24h: null,
+    fetchError: null,
   },
   {
     id: "sol-001",
     chain: "solana",
-    address: "7YF2WmAm4m9xWkS6W8Y3L9q2k9J2nqz9r9x6nK8Yp4mP",
+    address: "SysvarRent111111111111111111111111111111111",
     walletType: "whale",
     score: 92,
     balance: null,
@@ -47,6 +50,7 @@ export const smartMoneyWallets: SmartMoneyWallet[] = [
     lastActivity: null,
     inflow24h: null,
     outflow24h: null,
+    fetchError: null,
   },
   {
     id: "btc-002",
@@ -59,6 +63,7 @@ export const smartMoneyWallets: SmartMoneyWallet[] = [
     lastActivity: null,
     inflow24h: null,
     outflow24h: null,
+    fetchError: null,
   },
   {
     id: "eth-002",
@@ -71,11 +76,12 @@ export const smartMoneyWallets: SmartMoneyWallet[] = [
     lastActivity: null,
     inflow24h: null,
     outflow24h: null,
+    fetchError: null,
   },
   {
     id: "sol-002",
     chain: "solana",
-    address: "2ix3U4Wzu8w8fL8w5dF3iFYs6RwwxS8qfCHxj2Qbb4Q2",
+    address: "Vote111111111111111111111111111111111111111",
     walletType: "market-maker",
     score: 88,
     balance: null,
@@ -83,6 +89,7 @@ export const smartMoneyWallets: SmartMoneyWallet[] = [
     lastActivity: null,
     inflow24h: null,
     outflow24h: null,
+    fetchError: null,
   },
 ];
 

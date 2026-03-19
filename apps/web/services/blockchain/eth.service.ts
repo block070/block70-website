@@ -38,10 +38,13 @@ export async function getEthWalletActivity(address: string): Promise<NormalizedW
         lastActivity: null,
         inflow24h: null,
         outflow24h: null,
+        fetchError: "ETHERSCAN_API_KEY missing",
       };
     }
 
     try {
+      // Debug logging for data accuracy issues.
+      console.log(process.env.ETHERSCAN_API_KEY);
       const base = "https://api.etherscan.io/api";
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), 9000);
@@ -50,8 +53,13 @@ export async function getEthWalletActivity(address: string): Promise<NormalizedW
         { cache: "no-store", signal: controller.signal },
       );
       if (!balanceRes.ok) throw new Error(`balance HTTP ${balanceRes.status}`);
-      const balanceJson = await balanceRes.json();
-      const balanceWei = balanceJson?.result;
+      const data = await balanceRes.json();
+      console.log("ETH RESPONSE:", data);
+
+      if (String(data?.status ?? "0") !== "1") {
+        throw new Error(`Etherscan balance error: ${data?.message ?? "unknown"} (${data?.result ?? ""})`);
+      }
+      const balanceWei = data?.result;
       const balance = weiToEthNumber(String(balanceWei ?? "0"));
 
       // txlist (recent transactions)
@@ -60,8 +68,19 @@ export async function getEthWalletActivity(address: string): Promise<NormalizedW
         { cache: "no-store", signal: controller.signal },
       );
       if (!txRes.ok) throw new Error(`txlist HTTP ${txRes.status}`);
-      const txJson = await txRes.json();
-      const txs: any[] = Array.isArray(txJson?.result) ? txJson.result : [];
+      const dataTx = await txRes.json();
+      console.log("ETH RESPONSE:", dataTx);
+      const txs: any[] = Array.isArray(dataTx?.result) ? dataTx.result : [];
+
+      if (String(dataTx?.status ?? "0") !== "1") {
+        // Some wallets may return status=0 with message="No transactions found"
+        // Treat as no activity (0 tx) but still not as an upstream failure.
+        // If it isn't No transactions, we throw to surface error.
+        const msg = String(dataTx?.message ?? "");
+        if (msg && !msg.toLowerCase().includes("no transactions")) {
+          throw new Error(`Etherscan txlist error: ${msg} (${dataTx?.result ?? ""})`);
+        }
+      }
       clearTimeout(timeout);
 
       const nowMs = Date.now();
@@ -69,24 +88,6 @@ export async function getEthWalletActivity(address: string): Promise<NormalizedW
 
       const txCount = txs.length;
       const lastActivity = toIso(txs[0]?.timeStamp ?? null);
-      let inflowWei = 0n;
-      let outflowWei = 0n;
-
-      for (const tx of txs) {
-        const iso = toIso(tx?.timeStamp);
-        if (!iso) continue;
-        const txMs = new Date(iso).getTime();
-        if (txMs < cutoffMs) continue;
-        const valueWei = BigInt(tx?.value ?? "0");
-        const from = String(tx?.from ?? "").toLowerCase();
-        const to = String(tx?.to ?? "").toLowerCase();
-        const addrLower = address.toLowerCase();
-        if (to === addrLower) inflowWei += valueWei;
-        if (from === addrLower) outflowWei += valueWei;
-      }
-
-      const inflow24h = weiToEthNumber(inflowWei.toString());
-      const outflow24h = weiToEthNumber(outflowWei.toString());
 
       return {
         address,
@@ -94,11 +95,12 @@ export async function getEthWalletActivity(address: string): Promise<NormalizedW
         balance,
         txCount,
         lastActivity,
-        inflow24h,
-        outflow24h,
+        // Netflow temporarily disabled due to accuracy concerns.
+        inflow24h: null,
+        outflow24h: null,
+        fetchError: null,
       };
     } catch (err) {
-      // Swallow upstream errors so UI can show "data unavailable".
       console.error("ETH wallet fetch failed", { address, err: String(err) });
       return {
         address,
@@ -108,6 +110,7 @@ export async function getEthWalletActivity(address: string): Promise<NormalizedW
         lastActivity: null,
         inflow24h: null,
         outflow24h: null,
+        fetchError: String(err ?? "ETH wallet fetch failed"),
       };
     }
   });

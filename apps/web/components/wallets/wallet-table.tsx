@@ -34,6 +34,7 @@ function formatCoin(chain: SmartMoneyWallet["chain"], v: number | null): string 
 }
 
 function formatNetflow(wallet: SmartMoneyWallet): string {
+  if (wallet.fetchError) return wallet.fetchError;
   if (wallet.inflow24h == null || wallet.outflow24h == null) return "--";
   const net = wallet.inflow24h - wallet.outflow24h;
   const decimals = wallet.chain === "bitcoin" ? 8 : wallet.chain === "solana" ? 4 : 6;
@@ -74,22 +75,28 @@ export function WalletTable({
               <td className="px-3 py-2">
                 <ScoreBadge score={wallet.score} />
               </td>
-              <td className="px-3 py-2 text-slate-300">{timeAgo(wallet.lastActivity)}</td>
+              <td className="px-3 py-2 text-slate-300">
+                {wallet.fetchError ? wallet.fetchError : timeAgo(wallet.lastActivity)}
+              </td>
               <td className="px-3 py-2 text-slate-300">
                 <BlurData locked={previewLocked} tooltip="Unlock to view">
-                  {wallet.txCount == null ? "--" : wallet.txCount}
+                  {wallet.fetchError ? wallet.fetchError : wallet.txCount == null ? "--" : wallet.txCount}
                 </BlurData>
               </td>
               <td className="px-3 py-2 text-slate-300">
                 <BlurData locked={previewLocked} tooltip="Unlock to view">
-                  {formatCoin(wallet.chain, wallet.balance)}
+                  {wallet.fetchError ? wallet.fetchError : formatCoin(wallet.chain, wallet.balance)}
                 </BlurData>
               </td>
               <td className="px-3 py-2">
                 <BlurData locked={previewLocked} tooltip="Unlock to view">
-                  <span className={wallet.inflow24h && wallet.outflow24h && wallet.inflow24h - wallet.outflow24h >= 0 ? "text-emerald-300" : "text-rose-300"}>
-                    {formatNetflow(wallet)}
-                  </span>
+                  {(() => {
+                    if (wallet.fetchError) return <span className="text-rose-300">{wallet.fetchError}</span>;
+                    if (wallet.inflow24h == null || wallet.outflow24h == null) return <span className="text-slate-400">--</span>;
+                    const net = wallet.inflow24h - wallet.outflow24h;
+                    const cls = net >= 0 ? "text-emerald-300" : "text-rose-300";
+                    return <span className={cls}>{formatNetflow(wallet)}</span>;
+                  })()}
                 </BlurData>
               </td>
             </tr>
