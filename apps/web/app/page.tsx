@@ -272,7 +272,7 @@ export default async function HomePage() {
       {/* Gainers / Losers + Heatmap */}
       <section>
         <h2 className="mb-3 text-sm font-semibold text-slate-50">
-          Top gainers & losers
+          Top Gainers & Losers
         </h2>
         <GainersLosers gainers={gainers} losers={losers} />
         {marketError ? (
