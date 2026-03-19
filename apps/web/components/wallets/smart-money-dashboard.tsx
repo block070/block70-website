@@ -129,7 +129,7 @@ export function SmartMoneyDashboard({ wallets, alerts, tokens }: Props) {
                     : (() => {
                         const net = wallet.inflow24h - wallet.outflow24h;
                         const sign = net >= 0 ? "+" : "";
-                        const decimals = wallet.chain === "bitcoin" ? 6 : wallet.chain === "solana" ? 4 : 4;
+                        const decimals = wallet.chain === "bitcoin" ? 8 : wallet.chain === "solana" ? 4 : 6;
                         return `${sign}${net.toFixed(decimals)}`;
                       })()}
                 </span>

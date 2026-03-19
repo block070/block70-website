@@ -16,20 +16,24 @@ function mergeSeedWithLive(seed: SmartMoneyWallet, live: NormalizedWalletActivit
 }
 
 export async function getLiveSmartMoneyWallets(): Promise<SmartMoneyWallet[]> {
-  const tasks = smartMoneyWallets.map(async (seed) => {
+  // Fetch sequentially to avoid rate limits from external RPC providers.
+  const results: SmartMoneyWallet[] = [];
+  for (const seed of smartMoneyWallets) {
     const live = await getLiveWallet(seed.chain, seed.address);
-    return mergeSeedWithLive(seed, live);
-  });
-  return Promise.all(tasks);
+    results.push(mergeSeedWithLive(seed, live));
+  }
+  return results;
 }
 
 export async function getLiveSmartMoneyWalletsWithLimit(limit: number): Promise<SmartMoneyWallet[]> {
   const ordered = smartMoneyWallets.slice().sort((a, b) => b.score - a.score).slice(0, limit);
-  const tasks = ordered.map(async (seed) => {
+  // Fetch sequentially to avoid rate limits from external RPC providers.
+  const results: SmartMoneyWallet[] = [];
+  for (const seed of ordered) {
     const live = await getLiveWallet(seed.chain, seed.address);
-    return mergeSeedWithLive(seed, live);
-  });
-  return Promise.all(tasks);
+    results.push(mergeSeedWithLive(seed, live));
+  }
+  return results;
 }
 
 export async function getLiveWallet(

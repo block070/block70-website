@@ -15,9 +15,9 @@ function shortAddress(address: string): string {
 }
 
 function timeAgo(iso: string | null): string {
-  if (!iso) return "Data unavailable";
+  if (!iso) return "--";
   const parsed = new Date(iso).getTime();
-  if (!Number.isFinite(parsed)) return "Data unavailable";
+  if (!Number.isFinite(parsed)) return "--";
   const diff = Date.now() - parsed;
   const mins = Math.max(1, Math.floor(diff / 60000));
   if (mins < 60) return `${mins}m ago`;
@@ -27,15 +27,16 @@ function timeAgo(iso: string | null): string {
 }
 
 function formatCoin(chain: SmartMoneyWallet["chain"], v: number | null): string {
-  if (v == null || Number.isNaN(v)) return "Data unavailable";
-  const decimals = chain === "bitcoin" ? 6 : chain === "solana" ? 4 : 4;
+  if (v == null || Number.isNaN(v)) return "--";
+  // Native coin precision for readability (not exact, but aligned with unit conversions).
+  const decimals = chain === "bitcoin" ? 8 : chain === "solana" ? 4 : 6;
   return v.toFixed(decimals);
 }
 
 function formatNetflow(wallet: SmartMoneyWallet): string {
-  if (wallet.inflow24h == null || wallet.outflow24h == null) return "Data unavailable";
+  if (wallet.inflow24h == null || wallet.outflow24h == null) return "--";
   const net = wallet.inflow24h - wallet.outflow24h;
-  const decimals = wallet.chain === "bitcoin" ? 6 : wallet.chain === "solana" ? 4 : 4;
+  const decimals = wallet.chain === "bitcoin" ? 8 : wallet.chain === "solana" ? 4 : 6;
   const sign = net >= 0 ? "+" : "";
   return `${sign}${net.toFixed(decimals)}`;
 }
@@ -76,7 +77,7 @@ export function WalletTable({
               <td className="px-3 py-2 text-slate-300">{timeAgo(wallet.lastActivity)}</td>
               <td className="px-3 py-2 text-slate-300">
                 <BlurData locked={previewLocked} tooltip="Unlock to view">
-                  {wallet.txCount == null ? "Data unavailable" : wallet.txCount}
+                  {wallet.txCount == null ? "--" : wallet.txCount}
                 </BlurData>
               </td>
               <td className="px-3 py-2 text-slate-300">

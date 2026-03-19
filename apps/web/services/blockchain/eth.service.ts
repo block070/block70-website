@@ -29,6 +29,7 @@ export async function getEthWalletActivity(address: string): Promise<NormalizedW
   return cached(cacheKey, 180, async () => {
     const apiKey = process.env.ETHERSCAN_API_KEY;
     if (!apiKey) {
+      console.error("ETHERSCAN_API_KEY missing");
       return {
         address,
         chain: CHAIN,
@@ -66,21 +67,16 @@ export async function getEthWalletActivity(address: string): Promise<NormalizedW
       const nowMs = Date.now();
       const cutoffMs = nowMs - 24 * 60 * 60 * 1000;
 
-      let lastActivity: string | null = null;
-      let txCount = 0;
+      const txCount = txs.length;
+      const lastActivity = toIso(txs[0]?.timeStamp ?? null);
       let inflowWei = 0n;
       let outflowWei = 0n;
 
       for (const tx of txs) {
-        const timeStamp = tx?.timeStamp;
-        const iso = toIso(timeStamp);
-        const txMs = iso ? new Date(iso).getTime() : null;
-        if (!txMs) continue;
-        if (!lastActivity && txMs) {
-          lastActivity = iso;
-        }
+        const iso = toIso(tx?.timeStamp);
+        if (!iso) continue;
+        const txMs = new Date(iso).getTime();
         if (txMs < cutoffMs) continue;
-        txCount += 1;
         const valueWei = BigInt(tx?.value ?? "0");
         const from = String(tx?.from ?? "").toLowerCase();
         const to = String(tx?.to ?? "").toLowerCase();
@@ -89,20 +85,21 @@ export async function getEthWalletActivity(address: string): Promise<NormalizedW
         if (from === addrLower) outflowWei += valueWei;
       }
 
-      const inflow24h = txCount > 0 ? weiToEthNumber(inflowWei.toString()) : null;
-      const outflow24h = txCount > 0 ? weiToEthNumber(outflowWei.toString()) : null;
+      const inflow24h = weiToEthNumber(inflowWei.toString());
+      const outflow24h = weiToEthNumber(outflowWei.toString());
 
       return {
         address,
         chain: CHAIN,
         balance,
-        txCount: txCount || null,
+        txCount,
         lastActivity,
         inflow24h,
         outflow24h,
       };
-    } catch {
+    } catch (err) {
       // Swallow upstream errors so UI can show "data unavailable".
+      console.error("ETH wallet fetch failed", { address, err: String(err) });
       return {
         address,
         chain: CHAIN,

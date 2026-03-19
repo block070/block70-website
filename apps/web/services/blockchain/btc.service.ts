@@ -8,7 +8,8 @@ const SATOSHI_BI = 100_000_000n;
 function satsToBtcNumber(sats: bigint): number {
   const whole = sats / SATOSHI_BI;
   const frac = sats % SATOSHI_BI;
-  return Number(whole) + Number(frac) / 1e8;
+  const btc = Number(whole) + Number(frac) / 1e8;
+  return Number.isFinite(btc) ? btc : 0;
 }
 
 function formatIsoFromBlockTime(blockTime?: number | null): string | null {
@@ -17,13 +18,26 @@ function formatIsoFromBlockTime(blockTime?: number | null): string | null {
   return new Date(blockTime * 1000).toISOString();
 }
 
-async function fetchJson(url: string) {
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 8000);
-  const res = await fetch(url, { cache: "no-store", signal: controller.signal });
-  clearTimeout(timeout);
-  if (!res.ok) throw new Error(`HTTP ${res.status}`);
-  return (await res.json()) as any;
+async function fetchJson(url: string, attempts = 3) {
+  let lastErr: unknown = null;
+  for (let attempt = 0; attempt < attempts; attempt++) {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 8000);
+    try {
+      const res = await fetch(url, { cache: "no-store", signal: controller.signal });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      return (await res.json()) as any;
+    } catch (err) {
+      lastErr = err;
+      const isRetryable = String(err).includes("HTTP 429") || String(err).includes("HTTP 5");
+      if (attempt >= attempts - 1 || !isRetryable) throw err;
+      const waitMs = 500 * (attempt + 1);
+      await new Promise((r) => setTimeout(r, waitMs));
+    } finally {
+      clearTimeout(timeout);
+    }
+  }
+  throw lastErr;
 }
 
 export async function getBtcWalletActivity(address: string): Promise<NormalizedWalletActivity> {
@@ -37,7 +51,7 @@ export async function getBtcWalletActivity(address: string): Promise<NormalizedW
         Number(addrInfo?.chain_stats?.tx_count ?? 0) +
         Number(addrInfo?.mempool_stats?.tx_count ?? 0);
       const balanceSats = funded - spent;
-      const balance = satsToBtcNumber(balanceSats);
+      const balance = satsToBtcNumber(balanceSats < 0n ? 0n : balanceSats);
 
       // Last activity
       const latestTxs = await fetchJson(
@@ -78,8 +92,8 @@ export async function getBtcWalletActivity(address: string): Promise<NormalizedW
         }
       }
 
-      const inflow24h = inflowSats > 0n ? satsToBtcNumber(inflowSats) : null;
-      const outflow24h = outflowSats > 0n ? satsToBtcNumber(outflowSats) : null;
+      const inflow24h = satsToBtcNumber(inflowSats);
+      const outflow24h = satsToBtcNumber(outflowSats);
 
       return {
         address,
@@ -90,7 +104,8 @@ export async function getBtcWalletActivity(address: string): Promise<NormalizedW
         inflow24h,
         outflow24h,
       };
-    } catch {
+    } catch (err) {
+      console.error("BTC wallet fetch failed", { address, err: String(err) });
       return {
         address,
         chain: CHAIN,
