@@ -2,8 +2,10 @@ import Link from "next/link";
 
 export type GainersLosersRow = {
   symbol: string;
+  name: string;
   price: number;
   change24h: number;
+  volume24h: number;
   marketCap: number;
 };
 
@@ -14,6 +16,12 @@ function formatPrice(n: number): string {
 }
 
 function formatMcap(n: number): string {
+  if (n >= 1e9) return `$${(n / 1e9).toFixed(1)}B`;
+  if (n >= 1e6) return `$${(n / 1e6).toFixed(0)}M`;
+  return `$${n.toFixed(0)}`;
+}
+
+function formatVolume(n: number): string {
   if (n >= 1e9) return `$${(n / 1e9).toFixed(1)}B`;
   if (n >= 1e6) return `$${(n / 1e6).toFixed(0)}M`;
   return `$${n.toFixed(0)}`;
@@ -31,14 +39,18 @@ function Row({
       href={`/coins/${row.symbol.toLowerCase()}`}
       className="rounded-lg px-3 py-2 text-sm transition-colors hover:bg-slate-800/60"
     >
-      <div className="flex items-center gap-4">
-        <span className="w-14 font-medium text-slate-100">{row.symbol}</span>
-        <span className="w-24 text-slate-300">{formatPrice(row.price)}</span>
-        <span className={isGainer ? "w-16 text-emerald-400" : "w-16 text-rose-400"}>
+      <div className="grid grid-cols-6 items-center gap-3">
+        <span className="font-medium text-slate-100">{row.symbol}</span>
+        <span className="truncate text-slate-300">{row.name}</span>
+        <span className="text-slate-300">{formatPrice(row.price)}</span>
+        <span className={isGainer ? "text-emerald-400" : "text-rose-400"}>
           {row.change24h >= 0 ? "+" : ""}
           {row.change24h}%
         </span>
-        <span className="hidden text-slate-500 sm:inline">
+        <span className="text-slate-500">
+          {formatVolume(row.volume24h)}
+        </span>
+        <span className="text-slate-500">
           {formatMcap(row.marketCap)}
         </span>
       </div>
@@ -60,14 +72,22 @@ export function GainersLosers({
       <div className="rounded-xl border border-slate-800 bg-slate-950/70 p-4">
         <h3 className="text-sm font-semibold text-slate-50">Top 10 gainers</h3>
         <p className="mt-0.5 text-[11px] text-slate-400">24h price change</p>
+        <div className="mt-3 grid grid-cols-6 gap-3 border-b border-slate-800 px-3 pb-2 text-[10px] uppercase tracking-wide text-slate-500">
+          <span>Symbol</span>
+          <span>Coin</span>
+          <span>Price</span>
+          <span>24h Change</span>
+          <span>24h Volume</span>
+          <span>Market Cap</span>
+        </div>
         {gainers.length === 0 ? (
-          <p className="mt-3 text-xs text-slate-500">
+          <p className="mt-3 px-3 text-xs text-slate-500">
             Live market data temporarily unavailable.
           </p>
         ) : (
-          <ul className="mt-3 space-y-0.5">
+          <ul className="mt-1 space-y-0.5">
             {gainers.slice(0, 10).map((row) => (
-              <li key={row.symbol}>
+              <li key={`${row.symbol}-g`}>
                 <Row row={row} isGainer={true} />
               </li>
             ))}
@@ -77,14 +97,22 @@ export function GainersLosers({
       <div className="rounded-xl border border-slate-800 bg-slate-950/70 p-4">
         <h3 className="text-sm font-semibold text-slate-50">Top 10 losers</h3>
         <p className="mt-0.5 text-[11px] text-slate-400">24h price change</p>
+        <div className="mt-3 grid grid-cols-6 gap-3 border-b border-slate-800 px-3 pb-2 text-[10px] uppercase tracking-wide text-slate-500">
+          <span>Symbol</span>
+          <span>Coin</span>
+          <span>Price</span>
+          <span>24h Change</span>
+          <span>24h Volume</span>
+          <span>Market Cap</span>
+        </div>
         {losers.length === 0 ? (
-          <p className="mt-3 text-xs text-slate-500">
+          <p className="mt-3 px-3 text-xs text-slate-500">
             Live market data temporarily unavailable.
           </p>
         ) : (
-          <ul className="mt-3 space-y-0.5">
+          <ul className="mt-1 space-y-0.5">
             {losers.slice(0, 10).map((row) => (
-              <li key={row.symbol}>
+              <li key={`${row.symbol}-l`}>
                 <Row row={row} isGainer={false} />
               </li>
             ))}

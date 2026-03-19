@@ -215,8 +215,10 @@ export default async function HomePage() {
     .slice(0, 10)
     .map((c) => ({
       symbol: c.symbol,
+      name: c.name,
       price: c.price ?? 0,
       change24h: c.change_24h ?? 0,
+      volume24h: c.volume ?? 0,
       marketCap: c.market_cap ?? 0,
     }));
   const losers = [...validMarket]
@@ -224,8 +226,10 @@ export default async function HomePage() {
     .slice(0, 10)
     .map((c) => ({
       symbol: c.symbol,
+      name: c.name,
       price: c.price ?? 0,
       change24h: c.change_24h ?? 0,
+      volume24h: c.volume ?? 0,
       marketCap: c.market_cap ?? 0,
     }));
   const heatmapTokens = validMarket.slice(0, 24).map((c) => ({
