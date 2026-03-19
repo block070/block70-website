@@ -54,7 +54,7 @@ export default async function SmartWalletsPage() {
             {topWallets.map((w, i) => (
               <li key={w.wallet_address}>
                 <Link
-                  href={`/wallets/${encodeURIComponent(w.wallet_address)}`}
+                  href={`/wallets/solana/${encodeURIComponent(w.wallet_address)}`}
                   className="flex items-center justify-between rounded-lg border border-slate-800 bg-slate-900/50 px-3 py-2 text-xs hover:bg-slate-800"
                 >
                   <span className="font-mono text-slate-300 truncate max-w-[180px]">

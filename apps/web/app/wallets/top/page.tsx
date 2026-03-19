@@ -65,7 +65,7 @@ export default async function WalletsTopPage() {
                   </td>
                   <td className="px-4 py-2">
                     <Link
-                      href={`/wallets/${encodeURIComponent(w.wallet_address)}`}
+                      href={`/wallets/solana/${encodeURIComponent(w.wallet_address)}`}
                       className="font-mono text-xs text-crypto-blue hover:underline"
                     >
                       {w.wallet_address.slice(0, 8)}…{w.wallet_address.slice(-6)}

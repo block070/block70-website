@@ -26,11 +26,13 @@ export function getToken(): string | null {
 export function setToken(token: string) {
   if (typeof window === "undefined") return;
   window.localStorage.setItem(TOKEN_KEY, token);
+  document.cookie = `block70_session=${encodeURIComponent(token)}; path=/; max-age=2592000; SameSite=Lax`;
 }
 
 export function clearToken() {
   if (typeof window === "undefined") return;
   window.localStorage.removeItem(TOKEN_KEY);
+  document.cookie = "block70_session=; path=/; max-age=0; SameSite=Lax";
 }
 
 export async function login(params: {

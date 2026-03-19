@@ -1,0 +1,27 @@
+import { NextResponse } from "next/server";
+import type { NextRequest } from "next/server";
+
+const PROTECTED_PATTERNS = [
+  /^\/wallets\/dashboard(?:\/.*)?$/,
+  /^\/wallets\/tokens\/[^/]+(?:\/.*)?$/,
+  /^\/wallets\/(bitcoin|ethereum|solana)\/[^/]+(?:\/.*)?$/,
+];
+
+export function middleware(request: NextRequest) {
+  const { pathname } = request.nextUrl;
+  const isProtected = PROTECTED_PATTERNS.some((pattern) => pattern.test(pathname));
+  if (!isProtected) return NextResponse.next();
+
+  const session = request.cookies.get("block70_session")?.value;
+  if (session) return NextResponse.next();
+
+  const url = request.nextUrl.clone();
+  url.pathname = "/wallets";
+  url.searchParams.set("locked", "1");
+  return NextResponse.redirect(url);
+}
+
+export const config = {
+  matcher: ["/wallets/:path*"],
+};
+
