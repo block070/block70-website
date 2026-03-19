@@ -38,6 +38,73 @@ export async function fetchJson<T>(path: string, init?: RequestInit): Promise<T>
   return (await res.json()) as T;
 }
 
+function decodeHtmlEntities(input: string): string {
+  return input
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'");
+}
+
+function stripHtmlTags(input: string): string {
+  return input.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
+}
+
+function parseRssItems(
+  xml: string,
+  source: string,
+  startId: number,
+  maxItems: number,
+): NewsArticleSummary[] {
+  const items: NewsArticleSummary[] = [];
+  const itemRegex = /<item[\s\S]*?<\/item>/gi;
+  const blocks = xml.match(itemRegex) ?? [];
+  for (const block of blocks) {
+    const title = block.match(/<title>([\s\S]*?)<\/title>/i)?.[1]?.trim();
+    const link = block.match(/<link>([\s\S]*?)<\/link>/i)?.[1]?.trim();
+    const description = block.match(/<description>([\s\S]*?)<\/description>/i)?.[1]?.trim();
+    const pubDate = block.match(/<pubDate>([\s\S]*?)<\/pubDate>/i)?.[1]?.trim();
+    if (!title || !link) continue;
+    items.push({
+      id: startId + items.length,
+      title: stripHtmlTags(decodeHtmlEntities(title)),
+      source,
+      url: decodeHtmlEntities(link),
+      summary: description ? stripHtmlTags(decodeHtmlEntities(description)) : null,
+      published_at: pubDate ? new Date(pubDate).toISOString() : null,
+    });
+    if (items.length >= maxItems) break;
+  }
+  return items;
+}
+
+async function getDirectRssFallback(limit = 50): Promise<NewsArticleSummary[]> {
+  const feeds = [
+    { source: "CoinDesk", url: "https://www.coindesk.com/arc/outboundfeeds/rss/?outputType=xml" },
+    { source: "Cointelegraph", url: "https://cointelegraph.com/rss" },
+    { source: "Decrypt", url: "https://decrypt.co/feed" },
+  ];
+
+  const results = await Promise.allSettled(
+    feeds.map(async (feed, idx) => {
+      const res = await fetch(feed.url, { cache: "no-store" });
+      if (!res.ok) throw new Error(`rss fetch failed: ${feed.source}`);
+      const xml = await res.text();
+      return parseRssItems(xml, feed.source, (idx + 1) * 10000, Math.max(5, Math.ceil(limit / 2)));
+    }),
+  );
+
+  const merged = results.flatMap((result) => (result.status === "fulfilled" ? result.value : []));
+  return merged
+    .sort((a, b) => {
+      const ta = a.published_at ? new Date(a.published_at).getTime() : 0;
+      const tb = b.published_at ? new Date(b.published_at).getTime() : 0;
+      return tb - ta;
+    })
+    .slice(0, limit);
+}
+
 export async function getOpportunities(
   params?: OpportunityFilter,
 ): Promise<Opportunity[]> {
@@ -157,10 +224,14 @@ export async function getNewsArticles(params?: {
     );
     return result.items ?? [];
   } catch {
-    // Fallback to legacy endpoint so homepage/news stay available during backend migration hiccups.
-    return fetchJson<NewsArticleSummary[]>(
-      `/api/v1/articles${query ? `?${query}` : ""}`,
-    );
+    try {
+      // Fallback to legacy endpoint so homepage/news stay available during backend migration hiccups.
+      return await fetchJson<NewsArticleSummary[]>(
+        `/api/v1/articles${query ? `?${query}` : ""}`,
+      );
+    } catch {
+      return getDirectRssFallback(params?.limit ?? 20);
+    }
   }
 }
 
@@ -178,9 +249,13 @@ export async function getLatestNews(params?: {
     );
     return result.items ?? [];
   } catch {
-    return fetchJson<NewsArticleSummary[]>(
-      `/api/v1/articles${query ? `?${query}` : ""}`,
-    );
+    try {
+      return await fetchJson<NewsArticleSummary[]>(
+        `/api/v1/articles${query ? `?${query}` : ""}`,
+      );
+    } catch {
+      return getDirectRssFallback(params?.limit ?? 50);
+    }
   }
 }
 
