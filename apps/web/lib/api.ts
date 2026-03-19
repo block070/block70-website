@@ -151,10 +151,17 @@ export async function getNewsArticles(params?: {
     search.set("limit", String(params.limit));
   }
   const query = search.toString();
-  const result = await fetchJson<{ items: NewsArticleSummary[] }>(
-    `/api/news/trending${query ? `?${query}` : ""}`,
-  );
-  return result.items ?? [];
+  try {
+    const result = await fetchJson<{ items: NewsArticleSummary[] }>(
+      `/api/news/trending${query ? `?${query}` : ""}`,
+    );
+    return result.items ?? [];
+  } catch {
+    // Fallback to legacy endpoint so homepage/news stay available during backend migration hiccups.
+    return fetchJson<NewsArticleSummary[]>(
+      `/api/v1/articles${query ? `?${query}` : ""}`,
+    );
+  }
 }
 
 export async function getLatestNews(params?: {
@@ -165,10 +172,16 @@ export async function getLatestNews(params?: {
     search.set("limit", String(params.limit));
   }
   const query = search.toString();
-  const result = await fetchJson<{ items: NewsArticleSummary[] }>(
-    `/api/news/latest${query ? `?${query}` : ""}`,
-  );
-  return result.items ?? [];
+  try {
+    const result = await fetchJson<{ items: NewsArticleSummary[] }>(
+      `/api/news/latest${query ? `?${query}` : ""}`,
+    );
+    return result.items ?? [];
+  } catch {
+    return fetchJson<NewsArticleSummary[]>(
+      `/api/v1/articles${query ? `?${query}` : ""}`,
+    );
+  }
 }
 
 export async function getNewsForCoin(
@@ -180,10 +193,15 @@ export async function getNewsForCoin(
     search.set("limit", String(params.limit));
   }
   const query = search.toString();
-  const result = await fetchJson<{ items: NewsArticleSummary[] }>(
-    `/api/news/coin/${encodeURIComponent(symbol)}${query ? `?${query}` : ""}`,
-  );
-  return result.items ?? [];
+  try {
+    const result = await fetchJson<{ items: NewsArticleSummary[] }>(
+      `/api/news/coin/${encodeURIComponent(symbol)}${query ? `?${query}` : ""}`,
+    );
+    return result.items ?? [];
+  } catch {
+    // Coin endpoint may be unavailable; caller can use existing coin detail fallback data.
+    return [];
+  }
 }
 
 export type CapitalFlowDto = {
