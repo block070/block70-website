@@ -109,6 +109,29 @@ export type NewsArticleSummary = {
   published_at?: string | null;
 };
 
+export type MarketCoin = {
+  name: string;
+  symbol: string;
+  price: number | null;
+  change_24h: number | null;
+  change_7d: number | null;
+  market_cap: number | null;
+  volume: number | null;
+  slug: string;
+  logo_url?: string | null;
+};
+
+export async function getMarketCoins(params?: {
+  limit?: number;
+  page?: number;
+}): Promise<MarketCoin[]> {
+  const search = new URLSearchParams();
+  if (params?.limit != null) search.set("limit", String(params.limit));
+  if (params?.page != null) search.set("page", String(params.page));
+  const query = search.toString();
+  return fetchJson<MarketCoin[]>(`/api/v1/market/coins${query ? `?${query}` : ""}`);
+}
+
 export async function getNewsArticles(params?: {
   limit?: number;
 }): Promise<NewsArticleSummary[]> {
