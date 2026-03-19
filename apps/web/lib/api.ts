@@ -187,6 +187,25 @@ export type NewsArticleSummary = {
   published_at?: string | null;
 };
 
+function sanitizeNewsItems(items: NewsArticleSummary[]): NewsArticleSummary[] {
+  return items
+    .map((item) => {
+      const title = (item.title ?? "").replace(/\]\]>/g, "").trim();
+      const url = (item.url ?? "").trim();
+      const summary = (item.summary ?? "")
+        .replace(/\]\]>/g, "")
+        .replace(/\s+/g, " ")
+        .trim();
+      return {
+        ...item,
+        title,
+        url,
+        summary: summary || null,
+      };
+    })
+    .filter((item) => item.title.length > 0 && item.url.length > 0);
+}
+
 export type MarketCoin = {
   name: string;
   symbol: string;
@@ -222,15 +241,16 @@ export async function getNewsArticles(params?: {
     const result = await fetchJson<{ items: NewsArticleSummary[] }>(
       `/api/news/trending${query ? `?${query}` : ""}`,
     );
-    return result.items ?? [];
+    return sanitizeNewsItems(result.items ?? []);
   } catch {
     try {
       // Fallback to legacy endpoint so homepage/news stay available during backend migration hiccups.
-      return await fetchJson<NewsArticleSummary[]>(
+      const legacy = await fetchJson<NewsArticleSummary[]>(
         `/api/v1/articles${query ? `?${query}` : ""}`,
       );
+      return sanitizeNewsItems(legacy);
     } catch {
-      return getDirectRssFallback(params?.limit ?? 20);
+      return sanitizeNewsItems(await getDirectRssFallback(params?.limit ?? 20));
     }
   }
 }
@@ -247,14 +267,15 @@ export async function getLatestNews(params?: {
     const result = await fetchJson<{ items: NewsArticleSummary[] }>(
       `/api/news/latest${query ? `?${query}` : ""}`,
     );
-    return result.items ?? [];
+    return sanitizeNewsItems(result.items ?? []);
   } catch {
     try {
-      return await fetchJson<NewsArticleSummary[]>(
+      const legacy = await fetchJson<NewsArticleSummary[]>(
         `/api/v1/articles${query ? `?${query}` : ""}`,
       );
+      return sanitizeNewsItems(legacy);
     } catch {
-      return getDirectRssFallback(params?.limit ?? 50);
+      return sanitizeNewsItems(await getDirectRssFallback(params?.limit ?? 50));
     }
   }
 }
@@ -272,7 +293,7 @@ export async function getNewsForCoin(
     const result = await fetchJson<{ items: NewsArticleSummary[] }>(
       `/api/news/coin/${encodeURIComponent(symbol)}${query ? `?${query}` : ""}`,
     );
-    return result.items ?? [];
+    return sanitizeNewsItems(result.items ?? []);
   } catch {
     // Coin endpoint may be unavailable; caller can use existing coin detail fallback data.
     return [];
