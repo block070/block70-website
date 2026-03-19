@@ -95,7 +95,7 @@ export function MarketHeatmap({ coins = [] }: MarketHeatmapProps) {
       .size([containerWidth, chartHeight])
       .paddingInner(2)
       .round(true)(root);
-    return root.leaves() as HierarchyRectangularNode<TreemapNode>[];
+    return root.leaves() as unknown as HierarchyRectangularNode<TreemapNode>[];
   }, [containerWidth, data]);
 
   return (
