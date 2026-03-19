@@ -1,15 +1,17 @@
 import { NextResponse } from "next/server";
-import { smartMoneyWallets } from "@/data/smartMoneyWallets";
+import { getLiveWallet } from "@/lib/smart-money-live";
 
 type RouteContext = { params: { chain: string; address: string } };
 
 export async function GET(_: Request, { params }: RouteContext) {
-  const row = smartMoneyWallets.find(
-    (w) => w.chain === params.chain && w.address.toLowerCase() === params.address.toLowerCase(),
-  );
-  if (!row) {
-    return NextResponse.json({ detail: "Wallet not found" }, { status: 404 });
+  const chain = params.chain as "bitcoin" | "ethereum" | "solana";
+  if (chain !== "bitcoin" && chain !== "ethereum" && chain !== "solana") {
+    return NextResponse.json({ detail: "Invalid chain" }, { status: 400 });
   }
-  return NextResponse.json(row);
+
+  const live = await getLiveWallet(chain, params.address);
+  return NextResponse.json({
+    ...live,
+  });
 }
 

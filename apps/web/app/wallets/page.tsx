@@ -5,6 +5,7 @@ import { UpgradeToProButton } from "@/components/wallets/upgrade-to-pro-button";
 import { WalletTable } from "@/components/wallets/wallet-table";
 import { smartAlerts } from "@/data/alerts";
 import { smartMoneyWallets } from "@/data/smartMoneyWallets";
+import { getLiveSmartMoneyWallets, getLiveSmartMoneyWalletsWithLimit } from "@/lib/smart-money-live";
 
 export const metadata = {
   title: "Crypto Whale Tracker – Smart Money Wallets | Block70",
@@ -16,6 +17,13 @@ export default async function WalletsPage() {
   const cookieStore = cookies();
   const plan = cookieStore.get("block70_plan")?.value ?? "free";
   const isPro = plan === "pro" || plan === "admin";
+
+  let wallets = smartMoneyWallets;
+  try {
+    wallets = isPro ? await getLiveSmartMoneyWallets() : await getLiveSmartMoneyWalletsWithLimit(5);
+  } catch {
+    // WalletTable will show "data unavailable" if live fetch fails.
+  }
 
   return (
     <div className="space-y-8 pb-20">
@@ -38,7 +46,7 @@ export default async function WalletsPage() {
           <span className="text-xs text-slate-500">Top 5 wallets visible</span>
         </div>
         <WalletTable
-          wallets={smartMoneyWallets}
+          wallets={wallets}
           previewLocked={!isPro}
           previewCount={5}
           showLockedRows={!isPro}

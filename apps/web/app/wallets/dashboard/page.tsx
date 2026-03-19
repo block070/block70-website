@@ -2,13 +2,20 @@ import { smartAlerts } from "@/data/alerts";
 import { smartMoneyWallets } from "@/data/smartMoneyWallets";
 import { smartTokens } from "@/data/tokens";
 import { SmartMoneyDashboard } from "@/components/wallets/smart-money-dashboard";
+import { getLiveSmartMoneyWallets } from "@/lib/smart-money-live";
 
 export const metadata = {
   title: "Smart Money Dashboard | Block70",
   description: "Premium smart wallet leaderboard, token flows, and whale alerts.",
 };
 
-export default function WalletsDashboardPage() {
+export default async function WalletsDashboardPage() {
+  let wallets = smartMoneyWallets;
+  try {
+    wallets = await getLiveSmartMoneyWallets();
+  } catch {
+    // If upstream providers fail, components show "data unavailable".
+  }
   return (
     <div className="space-y-4">
       <section>
@@ -17,7 +24,7 @@ export default function WalletsDashboardPage() {
           Track conviction wallets across BTC, ETH, and SOL with high-signal alerts.
         </p>
       </section>
-      <SmartMoneyDashboard wallets={smartMoneyWallets} alerts={smartAlerts} tokens={smartTokens} />
+      <SmartMoneyDashboard wallets={wallets} alerts={smartAlerts} tokens={smartTokens} />
     </div>
   );
 }

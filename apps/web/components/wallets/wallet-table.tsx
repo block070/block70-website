@@ -2,7 +2,6 @@ import Link from "next/link";
 import type { SmartMoneyWallet } from "@/data/smartMoneyWallets";
 import { BlurData } from "./blur-data";
 import { ScoreBadge } from "./score-badge";
-import { TokenChip } from "./token-chip";
 
 type WalletTableProps = {
   wallets: SmartMoneyWallet[];
@@ -15,8 +14,11 @@ function shortAddress(address: string): string {
   return `${address.slice(0, 6)}...${address.slice(-4)}`;
 }
 
-function timeAgo(iso: string): string {
-  const diff = Date.now() - new Date(iso).getTime();
+function timeAgo(iso: string | null): string {
+  if (!iso) return "Data unavailable";
+  const parsed = new Date(iso).getTime();
+  if (!Number.isFinite(parsed)) return "Data unavailable";
+  const diff = Date.now() - parsed;
   const mins = Math.max(1, Math.floor(diff / 60000));
   if (mins < 60) return `${mins}m ago`;
   const hours = Math.floor(mins / 60);
@@ -24,14 +26,18 @@ function timeAgo(iso: string): string {
   return `${Math.floor(hours / 24)}d ago`;
 }
 
-function formatPct(n: number): string {
-  return `${n >= 0 ? "+" : ""}${(n * 100).toFixed(1)}%`;
+function formatCoin(chain: SmartMoneyWallet["chain"], v: number | null): string {
+  if (v == null || Number.isNaN(v)) return "Data unavailable";
+  const decimals = chain === "bitcoin" ? 6 : chain === "solana" ? 4 : 4;
+  return v.toFixed(decimals);
 }
 
-function formatUsd(n: number): string {
-  if (n >= 1e9) return `$${(n / 1e9).toFixed(2)}B`;
-  if (n >= 1e6) return `$${(n / 1e6).toFixed(2)}M`;
-  return `$${(n / 1e3).toFixed(1)}K`;
+function formatNetflow(wallet: SmartMoneyWallet): string {
+  if (wallet.inflow24h == null || wallet.outflow24h == null) return "Data unavailable";
+  const net = wallet.inflow24h - wallet.outflow24h;
+  const decimals = wallet.chain === "bitcoin" ? 6 : wallet.chain === "solana" ? 4 : 4;
+  const sign = net >= 0 ? "+" : "";
+  return `${sign}${net.toFixed(decimals)}`;
 }
 
 export function WalletTable({
@@ -51,9 +57,9 @@ export function WalletTable({
             <th className="px-3 py-2">Address</th>
             <th className="px-3 py-2">Score</th>
             <th className="px-3 py-2">Last Activity</th>
-            <th className="px-3 py-2">ROI (30D)</th>
-            <th className="px-3 py-2">Holdings</th>
-            <th className="px-3 py-2">Top Tokens</th>
+            <th className="px-3 py-2">Tx Count</th>
+            <th className="px-3 py-2">Balance</th>
+            <th className="px-3 py-2">Netflow (24H)</th>
           </tr>
         </thead>
         <tbody>
@@ -67,24 +73,22 @@ export function WalletTable({
               <td className="px-3 py-2">
                 <ScoreBadge score={wallet.score} />
               </td>
-              <td className="px-3 py-2 text-slate-300">{timeAgo(wallet.lastActivityIso)}</td>
-              <td className="px-3 py-2 text-emerald-300">
+              <td className="px-3 py-2 text-slate-300">{timeAgo(wallet.lastActivity)}</td>
+              <td className="px-3 py-2 text-slate-300">
                 <BlurData locked={previewLocked} tooltip="Unlock to view">
-                  {formatPct(wallet.roi30d)}
+                  {wallet.txCount == null ? "Data unavailable" : wallet.txCount}
                 </BlurData>
               </td>
               <td className="px-3 py-2 text-slate-300">
                 <BlurData locked={previewLocked} tooltip="Unlock to view">
-                  {formatUsd(wallet.holdingsUsd)}
+                  {formatCoin(wallet.chain, wallet.balance)}
                 </BlurData>
               </td>
               <td className="px-3 py-2">
                 <BlurData locked={previewLocked} tooltip="Unlock to view">
-                  <div className="flex gap-1">
-                    {wallet.topTokens.slice(0, 2).map((symbol) => (
-                      <TokenChip key={symbol} symbol={symbol} />
-                    ))}
-                  </div>
+                  <span className={wallet.inflow24h && wallet.outflow24h && wallet.inflow24h - wallet.outflow24h >= 0 ? "text-emerald-300" : "text-rose-300"}>
+                    {formatNetflow(wallet)}
+                  </span>
                 </BlurData>
               </td>
             </tr>

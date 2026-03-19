@@ -33,8 +33,12 @@ export function SmartMoneyDashboard({ wallets, alerts, tokens }: Props) {
       .filter((w) => w.score >= minScore)
       .filter((w) => w.chain === chainForTab)
       .sort((a, b) => {
-        if (sortBy === "roi") return b.roi30d - a.roi30d;
-        if (sortBy === "activity") return b.activityCount7d - a.activityCount7d;
+        if (sortBy === "roi") {
+          const an = a.inflow24h == null || a.outflow24h == null ? -Infinity : a.inflow24h - a.outflow24h;
+          const bn = b.inflow24h == null || b.outflow24h == null ? -Infinity : b.inflow24h - b.outflow24h;
+          return bn - an;
+        }
+        if (sortBy === "activity") return (b.txCount ?? -Infinity) - (a.txCount ?? -Infinity);
         return b.score - a.score;
       });
   }, [wallets, chain, walletType, minScore, sortBy, tab]);
@@ -62,7 +66,7 @@ export function SmartMoneyDashboard({ wallets, alerts, tokens }: Props) {
         <div className="inline-flex rounded-lg border border-slate-700 bg-slate-900/60 p-1 text-xs">
           {([
             ["score", "Sort: Score"],
-            ["roi", "Sort: ROI"],
+            ["roi", "Sort: Netflow"],
             ["activity", "Sort: Activity"],
           ] as const).map(([key, label]) => (
             <button
@@ -119,7 +123,16 @@ export function SmartMoneyDashboard({ wallets, alerts, tokens }: Props) {
             {filtered.slice(0, 5).map((wallet) => (
               <li key={wallet.id} className="flex items-center justify-between rounded-lg border border-slate-800 bg-slate-900/50 px-3 py-2">
                 <span className="font-mono text-slate-300">{wallet.address.slice(0, 6)}...{wallet.address.slice(-4)}</span>
-                <span className="text-emerald-300">+{(wallet.roi30d * 100).toFixed(1)}%</span>
+                <span className="text-emerald-300">
+                  {wallet.inflow24h == null || wallet.outflow24h == null
+                    ? "—"
+                    : (() => {
+                        const net = wallet.inflow24h - wallet.outflow24h;
+                        const sign = net >= 0 ? "+" : "";
+                        const decimals = wallet.chain === "bitcoin" ? 6 : wallet.chain === "solana" ? 4 : 4;
+                        return `${sign}${net.toFixed(decimals)}`;
+                      })()}
+                </span>
               </li>
             ))}
           </ul>
