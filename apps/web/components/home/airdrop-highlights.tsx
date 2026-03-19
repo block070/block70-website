@@ -18,18 +18,21 @@ export function AirdropHighlights({
     (o) => (o.difficulty_level || "").toLowerCase() === "low",
   );
 
+  const hasError = !!errorMessage;
+  const hasData = airdrops.length > 0;
+
   return (
     <section className="rounded-xl border border-slate-800 bg-slate-950/70 p-4">
       <h3 className="text-sm font-semibold text-slate-50">
-        Airdrop highlights
+        Airdrop Highlights
       </h3>
       <p className="mt-0.5 text-[11px] text-slate-400">
         Top active, highest value & easy farming
       </p>
-      {errorMessage ? (
+      {hasError ? (
         <p className="mt-3 text-xs text-slate-500">
-          Data temporarily unavailable.{" "}
-          <span className="font-mono text-slate-400">{errorMessage}</span>
+          Live airdrop data temporarily unavailable. Showing{" "}
+          {hasData ? "latest available numbers." : "placeholder values."}
         </p>
       ) : null}
       <div className="mt-3 grid gap-3 sm:grid-cols-3">
@@ -38,7 +41,7 @@ export function AirdropHighlights({
             Active
           </p>
           <p className="mt-1 text-lg font-semibold text-slate-100">
-            {active.length}
+            {hasData ? active.length : hasError ? "—" : 0}
           </p>
           <Link href="/airdrops" className="mt-1 block text-xs text-blue-400 hover:underline">
             View airdrops
@@ -48,7 +51,7 @@ export function AirdropHighlights({
           <p className="text-[10px] uppercase tracking-wide text-slate-500">
             Highest value
           </p>
-          {byValue[0] ? (
+          {hasData && byValue[0] ? (
             <>
               <p className="mt-1 truncate text-sm font-medium text-slate-100">
                 {byValue[0].title}
@@ -61,7 +64,9 @@ export function AirdropHighlights({
               </Link>
             </>
           ) : (
-            <p className="mt-1 text-xs text-slate-500">—</p>
+            <p className="mt-1 text-xs text-slate-500">
+              {hasError ? "Temporarily unavailable." : "—"}
+            </p>
           )}
         </div>
         <div className="rounded-lg border border-slate-800 bg-slate-900/60 p-3">
@@ -69,7 +74,7 @@ export function AirdropHighlights({
             Easy farming
           </p>
           <p className="mt-1 text-lg font-semibold text-emerald-400">
-            {easyFarming.length}
+            {hasData ? easyFarming.length : hasError ? "—" : 0}
           </p>
           <Link href="/airdrops" className="mt-1 block text-xs text-blue-400 hover:underline">
             View low difficulty

@@ -295,9 +295,9 @@ export default async function HomePage() {
         <TrendingCoins trending={trending} errorMessage={trendingError} />
       </section>
 
-      {/* Two-column: Signals + Opportunities */}
+      {/* Two-column: News + Opportunities */}
       <section className="grid gap-4 lg:grid-cols-2">
-        <SignalsFeed signals={signals} errorMessage={signalsError} />
+        <NewsSection items={news} errorMessage={newsError} />
         <TopOpportunities
           opportunities={opportunities}
           errorMessage={opportunitiesError}
@@ -311,10 +311,10 @@ export default async function HomePage() {
         <UserDashboard />
       </section>
 
-      {/* Narratives + News */}
+      {/* Narratives + Signals */}
       <section className="grid gap-4 lg:grid-cols-2">
         <NarrativesSection />
-        <NewsSection items={news} errorMessage={newsError} />
+        <SignalsFeed signals={signals} errorMessage={signalsError} />
       </section>
     </div>
   );
