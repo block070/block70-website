@@ -16,8 +16,8 @@ export function middleware(request: NextRequest) {
   if (session) return NextResponse.next();
 
   const url = request.nextUrl.clone();
-  url.pathname = "/wallets";
-  url.searchParams.set("locked", "1");
+  url.pathname = "/login";
+  url.searchParams.set("next", pathname);
   return NextResponse.redirect(url);
 }
 

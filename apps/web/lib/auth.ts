@@ -1,5 +1,3 @@
-import { API_BASE_URL } from "./api";
-
 const TOKEN_KEY = "block70_access_token";
 
 type User = {
@@ -39,13 +37,12 @@ export async function login(params: {
   email: string;
   password: string;
 }): Promise<User> {
-  const res = await fetch(`${API_BASE_URL}/api/v1/auth/login?email=${encodeURIComponent(
-    params.email,
-  )}&password=${encodeURIComponent(params.password)}`, {
+  const res = await fetch(`/api/auth/login`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
     },
+    body: JSON.stringify(params),
   });
 
   if (!res.ok) {
@@ -61,24 +58,24 @@ export async function login(params: {
 export async function register(params: {
   email: string;
   password: string;
-  name: string;
+  name?: string;
   ref_code?: string | null;
   ref_source?: string | null;
-  accept_terms: boolean;
-  accept_privacy: boolean;
-  accept_disclaimer: boolean;
+  accept_terms?: boolean;
+  accept_privacy?: boolean;
+  accept_disclaimer?: boolean;
 }): Promise<User> {
-  const body: Record<string, string | boolean> = {
+  const body: Record<string, string | boolean | null | undefined> = {
     email: params.email,
     password: params.password,
     name: params.name,
+    ref_code: params.ref_code,
+    ref_source: params.ref_source,
     accept_terms: params.accept_terms,
     accept_privacy: params.accept_privacy,
     accept_disclaimer: params.accept_disclaimer,
   };
-  if (params.ref_code) body.ref_code = params.ref_code;
-  if (params.ref_source) body.ref_source = params.ref_source;
-  const res = await fetch(`${API_BASE_URL}/api/v1/auth/register`, {
+  const res = await fetch(`/api/auth/register`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -94,13 +91,21 @@ export async function register(params: {
   return login({ email: params.email, password: params.password });
 }
 
+export async function logout(): Promise<void> {
+  try {
+    await fetch("/api/auth/logout", { method: "POST" });
+  } finally {
+    clearToken();
+  }
+}
+
 export async function getCurrentUser(): Promise<User> {
   const token = getToken();
   if (!token) {
     throw new Error("Not authenticated");
   }
 
-  const res = await fetch(`${API_BASE_URL}/api/v1/auth/me`, {
+  const res = await fetch(`/api/auth/me`, {
     headers: {
       Authorization: `Bearer ${token}`,
     },

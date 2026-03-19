@@ -39,7 +39,7 @@ export function RegisterForm() {
         accept_privacy: acceptPrivacy,
         accept_disclaimer: acceptDisclaimer,
       });
-      router.push("/dashboard");
+      router.push("/wallets/dashboard");
     } catch (err) {
       setError((err as Error).message || "Registration failed");
     } finally {
