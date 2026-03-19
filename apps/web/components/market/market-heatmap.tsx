@@ -18,6 +18,8 @@ type MarketHeatmapProps = {
   coins?: HeatmapCoin[];
 };
 
+type HeatmapFilter = "all" | "gainers" | "losers";
+
 type TreemapNode = HeatmapCoin & {
   size: number;
 };
@@ -61,6 +63,7 @@ export function MarketHeatmap({ coins = [] }: MarketHeatmapProps) {
   const router = useRouter();
   const containerRef = useRef<HTMLDivElement | null>(null);
   const [containerWidth, setContainerWidth] = useState(0);
+  const [filter, setFilter] = useState<HeatmapFilter>("all");
   const chartHeight = 560;
 
   useEffect(() => {
@@ -78,14 +81,20 @@ export function MarketHeatmap({ coins = [] }: MarketHeatmapProps) {
     return () => observer.disconnect();
   }, []);
 
+  const filteredCoins = useMemo(() => {
+    if (filter === "gainers") return coins.filter((c) => c.change24h > 0);
+    if (filter === "losers") return coins.filter((c) => c.change24h < 0);
+    return coins;
+  }, [coins, filter]);
+
   const data = useMemo<TreemapNode[]>(
     () =>
-      coins.slice(0, 50).map((coin) => ({
+      filteredCoins.slice(0, 50).map((coin) => ({
         ...coin,
         // Size by move magnitude so similarly large +/- moves look similarly sized.
         size: Math.max(Math.abs(coin.change24h), 0.2),
       })),
-    [coins],
+    [filteredCoins],
   );
   const positioned = useMemo<HierarchyRectangularNode<TreemapNode>[]>(() => {
     if (containerWidth <= 0 || data.length === 0) return [];
@@ -102,12 +111,49 @@ export function MarketHeatmap({ coins = [] }: MarketHeatmapProps) {
   return (
     <section className="rounded-xl border border-slate-800 bg-slate-950/70 p-4">
       <h3 className="text-sm font-semibold text-slate-50">Crypto market heatmap</h3>
-      <p className="mt-0.5 text-[11px] text-slate-400">
-        Treemap sized by 24h move magnitude, colored by 24h price change
-      </p>
+      <div className="mt-0.5 flex flex-wrap items-center justify-between gap-2">
+        <p className="text-[11px] text-slate-400">
+          Treemap sized by 24h move magnitude, colored by 24h price change
+        </p>
+        <div className="inline-flex items-center rounded-md border border-slate-700 bg-slate-900/70 p-0.5 text-[11px]">
+          <button
+            type="button"
+            onClick={() => setFilter("all")}
+            className={`rounded px-2 py-1 ${
+              filter === "all"
+                ? "bg-slate-700 text-slate-100"
+                : "text-slate-400 hover:text-slate-200"
+            }`}
+          >
+            All
+          </button>
+          <button
+            type="button"
+            onClick={() => setFilter("gainers")}
+            className={`rounded px-2 py-1 ${
+              filter === "gainers"
+                ? "bg-emerald-700/70 text-emerald-100"
+                : "text-slate-400 hover:text-slate-200"
+            }`}
+          >
+            Gainers
+          </button>
+          <button
+            type="button"
+            onClick={() => setFilter("losers")}
+            className={`rounded px-2 py-1 ${
+              filter === "losers"
+                ? "bg-rose-700/70 text-rose-100"
+                : "text-slate-400 hover:text-slate-200"
+            }`}
+          >
+            Losers
+          </button>
+        </div>
+      </div>
       {data.length === 0 ? (
         <p className="mt-3 text-xs text-slate-500">
-          Live heatmap data temporarily unavailable.
+          No coins in this filter right now.
         </p>
       ) : (
         <div
