@@ -1,4 +1,4 @@
-import { getNewsArticles } from "@/lib/api";
+import { getLatestNews } from "@/lib/api";
 
 export const metadata = {
   title: "News · Block70",
@@ -20,10 +20,10 @@ function stripHtml(input: string): string {
 }
 
 export default async function NewsPage() {
-  let articles: Awaited<ReturnType<typeof getNewsArticles>> = [];
+  let articles: Awaited<ReturnType<typeof getLatestNews>> = [];
   let errorMessage: string | null = null;
   try {
-    articles = await getNewsArticles({ limit: 100 });
+    articles = await getLatestNews({ limit: 100 });
   } catch (err) {
     errorMessage = err instanceof Error ? err.message : "Unknown error";
   }

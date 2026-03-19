@@ -101,11 +101,22 @@ export async function getWalletLeaderboard(
 
 export type NewsArticleSummary = {
   id: number;
+  source_type?: string;
   title: string;
   source: string;
   url: string;
+  author?: string | null;
   summary?: string | null;
-  content?: string | null;
+  body_text?: string | null;
+  image_url?: string | null;
+  tags?: string[];
+  tickers?: string[];
+  entities?: Array<Record<string, unknown>>;
+  source_count?: number;
+  dedupe_count?: number;
+  rank_explanation?: Record<string, unknown>;
+  homepage_score?: number | null;
+  coin_scores?: Record<string, number>;
   published_at?: string | null;
 };
 
@@ -140,9 +151,39 @@ export async function getNewsArticles(params?: {
     search.set("limit", String(params.limit));
   }
   const query = search.toString();
-  return fetchJson<NewsArticleSummary[]>(
-    `/api/v1/articles${query ? `?${query}` : ""}`,
+  const result = await fetchJson<{ items: NewsArticleSummary[] }>(
+    `/api/news/trending${query ? `?${query}` : ""}`,
   );
+  return result.items ?? [];
+}
+
+export async function getLatestNews(params?: {
+  limit?: number;
+}): Promise<NewsArticleSummary[]> {
+  const search = new URLSearchParams();
+  if (params?.limit != null) {
+    search.set("limit", String(params.limit));
+  }
+  const query = search.toString();
+  const result = await fetchJson<{ items: NewsArticleSummary[] }>(
+    `/api/news/latest${query ? `?${query}` : ""}`,
+  );
+  return result.items ?? [];
+}
+
+export async function getNewsForCoin(
+  symbol: string,
+  params?: { limit?: number },
+): Promise<NewsArticleSummary[]> {
+  const search = new URLSearchParams();
+  if (params?.limit != null) {
+    search.set("limit", String(params.limit));
+  }
+  const query = search.toString();
+  const result = await fetchJson<{ items: NewsArticleSummary[] }>(
+    `/api/news/coin/${encodeURIComponent(symbol)}${query ? `?${query}` : ""}`,
+  );
+  return result.items ?? [];
 }
 
 export type CapitalFlowDto = {

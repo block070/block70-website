@@ -28,7 +28,7 @@ from .subscription import Subscription
 from .usage_metric import UsageMetric
 from .coin import Coin
 from .market_data import MarketData
-from .news_article import NewsArticle
+from .news_article import NewsArticle, NewsCluster, NewsRawEvent, NewsEntity
 from .narrative import Narrative, CoinNarrative
 from .trending_coin import TrendingCoin
 from .coin_summary import CoinSummary
@@ -114,6 +114,9 @@ __all__ = [
     "Coin",
     "MarketData",
     "NewsArticle",
+    "NewsCluster",
+    "NewsRawEvent",
+    "NewsEntity",
     "Narrative",
     "CoinNarrative",
     "TrendingCoin",

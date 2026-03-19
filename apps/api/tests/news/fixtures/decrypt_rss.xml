@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<rss version="2.0">
+  <channel>
+    <title>Decrypt</title>
+    <item>
+      <title>Solana stablecoin volume spikes</title>
+      <link>https://decrypt.co/12345/solana-stablecoin-volume</link>
+      <pubDate>Thu, 19 Mar 2026 11:00:00 GMT</pubDate>
+      <description>USDC transfer volume on Solana surges.</description>
+      <author>Decrypt Desk</author>
+    </item>
+  </channel>
+</rss>

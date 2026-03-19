@@ -8,12 +8,19 @@ type NewsSectionProps = {
 
 export function NewsSection({ items = [], errorMessage = null }: NewsSectionProps) {
   const hasNews = items.length > 0;
+  const whyTrending = (item: NewsArticleSummary) => {
+    const explanation = item.rank_explanation ?? {};
+    const sourceCount = Number(explanation.source_count ?? item.source_count ?? 1);
+    const recency = Number(explanation.recency ?? 0);
+    const relevance = Number(explanation.relevance ?? explanation.coin_relevance ?? 0);
+    return `${sourceCount} sources · Recency ${Math.round(recency)} · Relevance ${Math.round(relevance)}`;
+  };
 
   return (
     <section className="flex h-full min-h-[460px] flex-col rounded-xl border border-slate-800 bg-slate-950/70 p-4">
       <div className="flex items-center justify-between">
         <div>
-          <h3 className="text-sm font-semibold text-slate-50">Crypto news</h3>
+          <h3 className="text-sm font-semibold text-slate-50">Crypto News</h3>
           <p className="mt-0.5 text-[11px] text-slate-400">
             Macro and infra stories Block70 is watching right now.
           </p>
@@ -45,10 +52,16 @@ export function NewsSection({ items = [], errorMessage = null }: NewsSectionProp
                     {article.title}
                   </p>
                   <p className="mt-1 text-[10px] text-slate-500">
-                    {article.source} ·{" "}
+                    <span className="mr-1 rounded border border-slate-700 px-1 py-0.5 text-[9px] uppercase text-slate-300">
+                      {article.source}
+                    </span>
+                    {" · "}
                     {article.published_at
                       ? new Date(article.published_at).toLocaleDateString()
                       : "—"}
+                  </p>
+                  <p className="mt-1 text-[10px] text-emerald-300/80">
+                    Why Trending: {whyTrending(article)}
                   </p>
                 </a>
               </li>

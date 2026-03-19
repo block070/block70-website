@@ -13,7 +13,7 @@ import { SentimentPanel } from "@/components/sentiment/sentiment-panel";
 import { AISentimentSummary } from "@/components/sentiment/ai-sentiment-summary";
 import type { Coin } from "@/lib/crypto-mock";
 import { getCoinBySlugOrMock, type CoinInfoDto, type MarketDataPointDto } from "@/lib/coins";
-import { getSignalsForToken } from "@/lib/api";
+import { getNewsForCoin, getSignalsForToken } from "@/lib/api";
 import { getSentiment } from "@/lib/sentiment-api";
 
 function coinToHeaderShape(coin: CoinInfoDto, latestMd?: MarketDataPointDto | null): Coin {
@@ -63,7 +63,7 @@ export default async function CoinDetailPage({ params }: { params: Params }) {
   }
   if (!data) notFound();
 
-  const { coin, market_data: series, narratives, news } = data;
+  const { coin, market_data: series, narratives, news: fallbackNews } = data;
 
   const prices = series.map((p) => ({
     timestamp: p.timestamp,
@@ -74,12 +74,21 @@ export default async function CoinDetailPage({ params }: { params: Params }) {
   const symbol = coin.symbol.toUpperCase();
 
   let signals: Awaited<ReturnType<typeof getSignalsForToken>> = [];
+  let coinNews: Awaited<ReturnType<typeof getNewsForCoin>> = [];
   let sentiment: Awaited<ReturnType<typeof getSentiment>> | null = null;
   try {
     signals = await getSignalsForToken(symbol, { limit: 5 });
   } catch {
     // ignore
   }
+  try {
+    coinNews = await getNewsForCoin(symbol, { limit: 10 });
+  } catch {
+    coinNews = [];
+  }
+  const renderedNews = coinNews.length > 0 ? coinNews : fallbackNews;
+
+  return (
   try {
     sentiment = await getSentiment(symbol);
   } catch {
@@ -194,9 +203,9 @@ export default async function CoinDetailPage({ params }: { params: Params }) {
             <p className="text-[11px] uppercase tracking-wide text-slate-400">
               Related news
             </p>
-            {news.length ? (
+            {renderedNews.length ? (
               <ul className="space-y-1.5">
-                {news.map((article) => (
+                {renderedNews.map((article) => (
                   <li key={article.url}>
                     <a
                       href={article.url}
@@ -207,7 +216,11 @@ export default async function CoinDetailPage({ params }: { params: Params }) {
                       {article.title}
                     </a>
                     <p className="text-[11px] text-slate-500">
-                      {article.source}{" "}
+                      {article.source}
+                      {"rank_explanation" in article && article.rank_explanation
+                        ? " · Ranked for coin relevance"
+                        : ""}
+                      {" "}
                       {article.published_at
                         ? `· ${new Date(
                             article.published_at,

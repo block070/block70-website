@@ -1,0 +1,16 @@
+{
+  "Data": {
+    "LIST": [
+      {
+        "TITLE": "SEC reviews new Bitcoin ETF filing",
+        "URL": "https://www.coindesk.com/policy/2026/03/19/sec-reviews-new-bitcoin-etf-filing/",
+        "PUBLISHED_ON": 1773910800,
+        "AUTHOR": "Policy Desk",
+        "SUMMARY": "The SEC acknowledged a fresh ETF application.",
+        "BODY": "The filing could accelerate institutional bitcoin access.",
+        "IMAGE_URL": "https://images.coindesk.com/example.jpg",
+        "CATEGORY_DATA": ["Policy", "ETF"]
+      }
+    ]
+  }
+}
