@@ -29,21 +29,19 @@ function Row({
   return (
     <Link
       href={`/coins/${row.symbol.toLowerCase()}`}
-      className="flex items-center justify-between gap-4 rounded-lg px-3 py-2 text-sm transition-colors hover:bg-slate-800/60"
+      className="rounded-lg px-3 py-2 text-sm transition-colors hover:bg-slate-800/60"
     >
-      <span className="font-medium text-slate-100">{row.symbol}</span>
-      <span className="text-slate-300">{formatPrice(row.price)}</span>
-      <span
-        className={
-          isGainer ? "text-emerald-400" : "text-rose-400"
-        }
-      >
-        {row.change24h >= 0 ? "+" : ""}
-        {row.change24h}%
-      </span>
-      <span className="hidden text-slate-500 sm:inline">
-        {formatMcap(row.marketCap)}
-      </span>
+      <div className="flex items-center gap-4">
+        <span className="w-14 font-medium text-slate-100">{row.symbol}</span>
+        <span className="w-24 text-slate-300">{formatPrice(row.price)}</span>
+        <span className={isGainer ? "w-16 text-emerald-400" : "w-16 text-rose-400"}>
+          {row.change24h >= 0 ? "+" : ""}
+          {row.change24h}%
+        </span>
+        <span className="hidden text-slate-500 sm:inline">
+          {formatMcap(row.marketCap)}
+        </span>
+      </div>
     </Link>
   );
 }
