@@ -44,12 +44,13 @@ function colorForChange(change: number): string {
 }
 
 function TileContent(props: any) {
-  const { x, y, width, height, depth, payload } = props;
+  const { x, y, width, height, payload } = props;
   if (!payload) return null;
-  // For a flat list, leaves are depth 1 in Recharts treemap.
-  if (depth !== 1) return null;
-
-  const coin = payload as TreemapNode;
+  const coin = payload as Partial<TreemapNode>;
+  // Render only leaf-like payloads that contain a symbol/price/change.
+  if (!coin.symbol || typeof coin.price !== "number" || typeof coin.change24h !== "number") {
+    return null;
+  }
   const safeW = Math.max(0, width);
   const safeH = Math.max(0, height);
   const showDetails = safeW > 100 && safeH > 58;
