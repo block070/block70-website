@@ -8,6 +8,7 @@ from pydantic import BaseModel, ConfigDict, EmailStr
 
 RoleLiteral = Literal["admin", "user"]
 PlanTypeLiteral = Literal["free", "pro", "elite"]
+PlanLiteral = Literal["free", "pro", "admin"]
 
 
 class UserBase(BaseModel):
@@ -35,6 +36,7 @@ class UserRead(BaseModel):
     name: str
     role: RoleLiteral
     plan_type: PlanTypeLiteral
+    plan: PlanLiteral
     is_active: bool
     created_at: datetime
     updated_at: datetime

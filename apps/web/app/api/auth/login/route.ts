@@ -24,9 +24,16 @@ export async function POST(request: NextRequest) {
   }
 
   const token = data?.access_token as string | undefined;
+  const plan = (data?.user?.plan as string | undefined) || "free";
   const res = NextResponse.json(data);
   if (token) {
     res.cookies.set("block70_session", token, {
+      httpOnly: false,
+      sameSite: "lax",
+      path: "/",
+      maxAge: 60 * 60 * 24 * 30,
+    });
+    res.cookies.set("block70_plan", plan, {
       httpOnly: false,
       sameSite: "lax",
       path: "/",

@@ -1,5 +1,7 @@
 import Link from "next/link";
+import { cookies } from "next/headers";
 import { AlertCard } from "@/components/wallets/alert-card";
+import { UpgradeToProButton } from "@/components/wallets/upgrade-to-pro-button";
 import { WalletTable } from "@/components/wallets/wallet-table";
 import { smartAlerts } from "@/data/alerts";
 import { smartMoneyWallets } from "@/data/smartMoneyWallets";
@@ -11,6 +13,10 @@ export const metadata = {
 };
 
 export default async function WalletsPage() {
+  const cookieStore = cookies();
+  const plan = cookieStore.get("block70_plan")?.value ?? "free";
+  const isPro = plan === "pro" || plan === "admin";
+
   return (
     <div className="space-y-8 pb-20">
       <section className="rounded-2xl border border-slate-800 bg-slate-950/80 p-6">
@@ -33,9 +39,9 @@ export default async function WalletsPage() {
         </div>
         <WalletTable
           wallets={smartMoneyWallets}
-          previewLocked={true}
+          previewLocked={!isPro}
           previewCount={5}
-          showLockedRows={true}
+          showLockedRows={!isPro}
         />
       </section>
 
@@ -69,12 +75,23 @@ export default async function WalletsPage() {
       <section className="rounded-xl border border-emerald-500/30 bg-emerald-500/5 p-5">
         <h3 className="text-lg font-semibold text-slate-50">Unlock 300+ Smart Money Wallets</h3>
         <p className="mt-1 text-sm text-slate-300">Premium plan placeholder: $39/month</p>
-        <Link
-          href="/register"
-          className="mt-4 inline-flex rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-500"
-        >
-          Start Free Trial
-        </Link>
+        <div className="mt-4 flex flex-wrap items-center gap-3">
+          {isPro ? (
+            <p className="rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-3 py-2 text-xs font-semibold text-emerald-300">
+              Pro Unlocked
+            </p>
+          ) : (
+            <>
+              <Link
+                href="/register"
+                className="inline-flex rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-500"
+              >
+                Start Free Trial
+              </Link>
+              <UpgradeToProButton compact={true} />
+            </>
+          )}
+        </div>
       </section>
 
       <section className="text-center">

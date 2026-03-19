@@ -13,7 +13,8 @@ export function middleware(request: NextRequest) {
   if (!isProtected) return NextResponse.next();
 
   const session = request.cookies.get("block70_session")?.value;
-  if (session) return NextResponse.next();
+  const plan = request.cookies.get("block70_plan")?.value;
+  if (session && (plan === "pro" || plan === "admin")) return NextResponse.next();
 
   const url = request.nextUrl.clone();
   url.pathname = "/login";

@@ -49,6 +49,36 @@ export async function POST(request: NextRequest) {
       { status: response.status || 400 },
     );
   }
-  return NextResponse.json(data, { status: 201 });
+  // Auto-login on successful registration so client receives a usable session/token.
+  const loginResponse = await fetch(
+    `${apiBase}/api/v1/auth/login?email=${encodeURIComponent(body.email)}&password=${encodeURIComponent(body.password)}`,
+    { method: "POST" },
+  );
+  const loginData = await loginResponse.json().catch(() => ({}));
+  if (!loginResponse.ok) {
+    return NextResponse.json(
+      { detail: "Registered, but auto-login failed" },
+      { status: 201 },
+    );
+  }
+
+  const token = loginData?.access_token as string | undefined;
+  const plan = (loginData?.user?.plan as string | undefined) || "free";
+  const res = NextResponse.json(loginData, { status: 201 });
+  if (token) {
+    res.cookies.set("block70_session", token, {
+      httpOnly: false,
+      sameSite: "lax",
+      path: "/",
+      maxAge: 60 * 60 * 24 * 30,
+    });
+    res.cookies.set("block70_plan", plan, {
+      httpOnly: false,
+      sameSite: "lax",
+      path: "/",
+      maxAge: 60 * 60 * 24 * 30,
+    });
+  }
+  return res;
 }
 

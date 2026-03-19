@@ -7,6 +7,11 @@ export async function POST() {
     maxAge: 0,
     sameSite: "lax",
   });
+  res.cookies.set("block70_plan", "", {
+    path: "/",
+    maxAge: 0,
+    sameSite: "lax",
+  });
   return res;
 }
 

@@ -53,10 +53,24 @@ def login(
     return {
         "access_token": access_token,
         "token_type": "bearer",
+        "user": UserRead.model_validate(user).model_dump(),
     }
 
 
 @router.get("/me", response_model=UserRead)
 def read_me(current_user: User = Depends(get_current_user)) -> User:
+    return current_user
+
+
+@router.post("/upgrade-me", response_model=UserRead)
+def upgrade_me(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> User:
+    # Temporary self-upgrade endpoint for premium feature testing.
+    current_user.plan = "pro"
+    db.add(current_user)
+    db.commit()
+    db.refresh(current_user)
     return current_user
 

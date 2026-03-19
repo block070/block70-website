@@ -87,3 +87,24 @@ class User(Base):
         cascade="all, delete-orphan",
     )
 
+    @property
+    def plan(self) -> str:
+        # Backward-compatible canonical plan: admin > pro > free
+        if self.role == UserRole.ADMIN.value:
+            return "admin"
+        if self.plan_type in (PlanType.PRO.value, PlanType.ELITE.value):
+            return "pro"
+        return "free"
+
+    @plan.setter
+    def plan(self, value: str) -> None:
+        normalized = (value or "").lower().strip()
+        if normalized == "admin":
+            self.role = UserRole.ADMIN.value
+            self.plan_type = PlanType.PRO.value
+            return
+        if normalized == "pro":
+            self.plan_type = PlanType.PRO.value
+            return
+        self.plan_type = PlanType.FREE.value
+

@@ -5,6 +5,7 @@ type User = {
   email: string;
   name: string;
   role: "admin" | "user";
+  plan: "free" | "pro" | "admin";
   plan_type: "free" | "pro" | "elite";
   is_active: boolean;
   created_at: string;
@@ -14,7 +15,13 @@ type User = {
 type LoginResponse = {
   access_token: string;
   token_type: string;
+  user?: User;
 };
+
+function setPlanCookie(plan: string) {
+  if (typeof window === "undefined") return;
+  document.cookie = `block70_plan=${encodeURIComponent(plan)}; path=/; max-age=2592000; SameSite=Lax`;
+}
 
 export function getToken(): string | null {
   if (typeof window === "undefined") return null;
@@ -31,6 +38,7 @@ export function clearToken() {
   if (typeof window === "undefined") return;
   window.localStorage.removeItem(TOKEN_KEY);
   document.cookie = "block70_session=; path=/; max-age=0; SameSite=Lax";
+  document.cookie = "block70_plan=; path=/; max-age=0; SameSite=Lax";
 }
 
 export async function login(params: {
@@ -51,6 +59,7 @@ export async function login(params: {
 
   const data = (await res.json()) as LoginResponse;
   setToken(data.access_token);
+  setPlanCookie(data.user?.plan ?? "free");
 
   return getCurrentUser();
 }
@@ -86,9 +95,12 @@ export async function register(params: {
   if (!res.ok) {
     throw new Error("Registration failed");
   }
-
-  // Auto-login after registration
-  return login({ email: params.email, password: params.password });
+  const data = (await res.json()) as LoginResponse;
+  if (data.access_token) {
+    setToken(data.access_token);
+    setPlanCookie(data.user?.plan ?? "free");
+  }
+  return getCurrentUser();
 }
 
 export async function logout(): Promise<void> {
@@ -119,6 +131,22 @@ export async function getCurrentUser(): Promise<User> {
     throw new Error("Failed to fetch current user");
   }
 
-  return (await res.json()) as User;
+  const user = (await res.json()) as User;
+  setPlanCookie(user.plan ?? "free");
+  return user;
+}
+
+export async function upgradeToPro(): Promise<User> {
+  const res = await fetch("/api/admin/upgrade-me", { method: "POST" });
+  if (!res.ok) {
+    throw new Error("Upgrade failed");
+  }
+  const data = (await res.json()) as { user?: User };
+  const user = data.user;
+  if (!user) {
+    throw new Error("Upgrade response missing user");
+  }
+  setPlanCookie(user.plan ?? "pro");
+  return user;
 }
 

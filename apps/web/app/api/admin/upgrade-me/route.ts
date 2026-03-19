@@ -4,29 +4,27 @@ function getApiBaseUrl() {
   return process.env.API_SERVER_URL || process.env.NEXT_PUBLIC_API_BASE_URL || "";
 }
 
-export async function GET(request: NextRequest) {
-  const cookieToken = request.cookies.get("block70_session")?.value;
-  const headerToken = request.headers.get("authorization")?.replace(/^Bearer\s+/i, "");
-  const token = headerToken || cookieToken;
+export async function POST(request: NextRequest) {
+  const token = request.cookies.get("block70_session")?.value;
   if (!token) {
     return NextResponse.json({ detail: "Not authenticated" }, { status: 401 });
   }
 
   const apiBase = getApiBaseUrl();
-  const response = await fetch(`${apiBase}/api/v1/auth/me`, {
+  const response = await fetch(`${apiBase}/api/v1/auth/upgrade-me`, {
+    method: "POST",
     headers: { Authorization: `Bearer ${token}` },
-    cache: "no-store",
   });
   const data = await response.json().catch(() => ({}));
   if (!response.ok) {
     return NextResponse.json(
-      { detail: data?.detail || "Failed to fetch current user" },
-      { status: response.status || 401 },
+      { detail: data?.detail || "Upgrade failed" },
+      { status: response.status || 400 },
     );
   }
-  const res = NextResponse.json(data);
-  const plan = (data?.plan as string | undefined) || "free";
-  res.cookies.set("block70_plan", plan, {
+
+  const res = NextResponse.json({ ok: true, user: data });
+  res.cookies.set("block70_plan", "pro", {
     httpOnly: false,
     sameSite: "lax",
     path: "/",
