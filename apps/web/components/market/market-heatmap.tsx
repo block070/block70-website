@@ -44,30 +44,36 @@ function colorForChange(change: number): string {
 }
 
 function TileContent(props: any) {
-  const { x, y, width, height, payload } = props;
+  const { x, y, width, height, depth, payload } = props;
   if (!payload) return null;
+  // For a flat list, leaves are depth 1 in Recharts treemap.
+  if (depth !== 1) return null;
 
   const coin = payload as TreemapNode;
-  const showDetails = width > 90 && height > 56;
+  const safeW = Math.max(0, width);
+  const safeH = Math.max(0, height);
+  const showDetails = safeW > 100 && safeH > 58;
 
   return (
     <g>
       <rect
         x={x}
         y={y}
-        width={width}
-        height={height}
-        style={{ fill: colorForChange(coin.change24h), stroke: "#0f172a", strokeWidth: 1 }}
+        width={safeW}
+        height={safeH}
+        fill={colorForChange(coin.change24h)}
+        stroke="#0f172a"
+        strokeWidth={1}
       />
       {showDetails ? (
         <>
           <text x={x + 6} y={y + 16} fill="#ffffff" fontSize={12} fontWeight={700}>
             {coin.symbol}
           </text>
-          <text x={x + 6} y={y + 30} fill="#e2e8f0" fontSize={11}>
+          <text x={x + 6} y={y + 31} fill="#e2e8f0" fontSize={11}>
             {formatPrice(coin.price)}
           </text>
-          <text x={x + 6} y={y + 44} fill="#f8fafc" fontSize={11}>
+          <text x={x + 6} y={y + 46} fill="#f8fafc" fontSize={11}>
             {coin.change24h >= 0 ? "+" : ""}
             {coin.change24h.toFixed(2)}%
           </text>
@@ -132,8 +138,10 @@ export function MarketHeatmap({ coins = [] }: MarketHeatmapProps) {
               height={chartHeight}
               data={data}
               dataKey="size"
+              nameKey="symbol"
               stroke="#0f172a"
               content={<TileContent />}
+              isAnimationActive={false}
               onClick={(node: any) => {
                 const slug = node?.payload?.slug as string | undefined;
                 if (slug) router.push(`/coins/${slug}`);
