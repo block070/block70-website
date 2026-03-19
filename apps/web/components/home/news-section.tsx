@@ -10,7 +10,7 @@ export function NewsSection({ items = [], errorMessage = null }: NewsSectionProp
   const hasNews = items.length > 0;
 
   return (
-    <section className="rounded-xl border border-slate-800 bg-slate-950/70 p-4">
+    <section className="flex h-full flex-col rounded-xl border border-slate-800 bg-slate-950/70 p-4">
       <div className="flex items-center justify-between">
         <div>
           <h3 className="text-sm font-semibold text-slate-50">Crypto news</h3>
@@ -25,39 +25,41 @@ export function NewsSection({ items = [], errorMessage = null }: NewsSectionProp
           View all
         </Link>
       </div>
-      {errorMessage ? (
-        <p className="mt-3 text-xs text-slate-500">
-          Data temporarily unavailable.{" "}
-          <span className="font-mono text-slate-400">{errorMessage}</span>
-        </p>
-      ) : hasNews ? (
-        <ul className="mt-3 space-y-2">
-          {items.slice(0, 5).map((article) => (
-            <li key={article.id}>
-              <a
-                href={article.url}
-                target={article.url.startsWith("http") ? "_blank" : undefined}
-                rel={article.url.startsWith("http") ? "noreferrer" : undefined}
-                className="block rounded-lg border border-slate-800 bg-slate-900/50 px-3 py-2 text-xs transition-colors hover:border-slate-700 hover:bg-slate-800/50"
-              >
-                <p className="font-medium text-slate-100 line-clamp-2">
-                  {article.title}
-                </p>
-                <p className="mt-1 text-[10px] text-slate-500">
-                  {article.source} ·{" "}
-                  {article.published_at
-                    ? new Date(article.published_at).toLocaleDateString()
-                    : "—"}
-                </p>
-              </a>
-            </li>
-          ))}
-        </ul>
-      ) : (
-        <p className="mt-3 text-xs text-slate-500">
-          No live news articles yet.
-        </p>
-      )}
+      <div className="mt-3 flex-1 space-y-2 overflow-auto">
+        {errorMessage ? (
+          <p className="text-xs text-slate-500">
+            Data temporarily unavailable.{" "}
+            <span className="font-mono text-slate-400">{errorMessage}</span>
+          </p>
+        ) : hasNews ? (
+          <ul className="space-y-2">
+            {items.slice(0, 5).map((article) => (
+              <li key={article.id}>
+                <a
+                  href={article.url}
+                  target={article.url.startsWith("http") ? "_blank" : undefined}
+                  rel={article.url.startsWith("http") ? "noreferrer" : undefined}
+                  className="block rounded-lg border border-slate-800 bg-slate-900/50 px-3 py-2 text-xs transition-colors hover:border-slate-700 hover:bg-slate-800/50"
+                >
+                  <p className="font-medium text-slate-100 line-clamp-2">
+                    {article.title}
+                  </p>
+                  <p className="mt-1 text-[10px] text-slate-500">
+                    {article.source} ·{" "}
+                    {article.published_at
+                      ? new Date(article.published_at).toLocaleDateString()
+                      : "—"}
+                  </p>
+                </a>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="text-xs text-slate-500">
+            No live news articles yet.
+          </p>
+        )}
+      </div>
     </section>
   );
 }
