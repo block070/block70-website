@@ -22,6 +22,20 @@ type TreemapNode = HeatmapCoin & {
   size: number;
 };
 
+function isTreemapNode(value: unknown): value is TreemapNode {
+  if (!value || typeof value !== "object") return false;
+  const v = value as Record<string, unknown>;
+  return (
+    typeof v.slug === "string" &&
+    typeof v.symbol === "string" &&
+    typeof v.name === "string" &&
+    typeof v.price === "number" &&
+    typeof v.change24h === "number" &&
+    typeof v.marketCap === "number" &&
+    typeof v.volume24h === "number"
+  );
+}
+
 function formatPrice(value: number): string {
   if (value >= 1000) return `$${value.toLocaleString(undefined, { maximumFractionDigits: 0 })}`;
   if (value >= 1) return `$${value.toLocaleString(undefined, { maximumFractionDigits: 2 })}`;
@@ -102,7 +116,8 @@ export function MarketHeatmap({ coins = [] }: MarketHeatmapProps) {
           {containerWidth > 0 ? (
             <svg width={containerWidth} height={chartHeight} viewBox={`0 0 ${containerWidth} ${chartHeight}`}>
               {positioned.map((leaf) => {
-                const d = leaf.data as TreemapNode;
+                const d = leaf.data;
+                if (!isTreemapNode(d)) return null;
                 const x = leaf.x0;
                 const y = leaf.y0;
                 const w = Math.max(0, leaf.x1 - leaf.x0);
