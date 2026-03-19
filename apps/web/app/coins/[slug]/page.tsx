@@ -86,14 +86,13 @@ export default async function CoinDetailPage({ params }: { params: Params }) {
   } catch {
     coinNews = [];
   }
-  const renderedNews = coinNews.length > 0 ? coinNews : fallbackNews;
-
-  return (
   try {
     sentiment = await getSentiment(symbol);
   } catch {
     // ignore
   }
+
+  const renderedNews = coinNews.length > 0 ? coinNews : fallbackNews;
 
   return (
     <div className="space-y-6">
