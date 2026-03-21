@@ -3,10 +3,13 @@ from __future__ import annotations
 from datetime import datetime, timedelta
 from typing import Callable
 
+from apscheduler.events import EVENT_JOB_ERROR, EVENT_JOB_EXECUTED
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.interval import IntervalTrigger
 from apscheduler.triggers.cron import CronTrigger
 from sqlalchemy.orm import Session
+
+from app.jobs.status_store import record_job_error, record_job_success
 
 from app.db import SessionLocal
 from app.agents.arbitrage_agent import run_arbitrage_scan
@@ -343,26 +346,38 @@ def _run_signal_bot_dispatcher_job() -> None:
     _with_db_session(run_signal_bot_dispatcher)
 
 
+_scheduler_instance: BackgroundScheduler | None = None
+
+
+def get_scheduler() -> BackgroundScheduler | None:
+    """Return the running scheduler instance for status API."""
+    return _scheduler_instance
+
+
+def _job_listener(event) -> None:
+    """Record job execution success/error for status API."""
+    job_id = event.job_id if hasattr(event, "job_id") else getattr(event, "job_id", None)
+    if not job_id:
+        return
+    if event.code == EVENT_JOB_EXECUTED:
+        record_job_success(job_id, getattr(event, "retval", None))
+    elif event.code == EVENT_JOB_ERROR:
+        exc = getattr(event, "exception", None)
+        record_job_error(job_id, str(exc) if exc else "Unknown error")
+
+
 def create_scheduler() -> BackgroundScheduler:
     """
     Create and configure a background scheduler for Block70 agents.
 
-    - Arbitrage agent every 2 minutes
-    - Miner ROI agent every 30 minutes
-    - Wallet tracker agent every 10 minutes
-    - Radar pipeline every 5 minutes
-    - Alpha snapshot (hourly top N) every hour
-    - Alpha snapshot (daily top N) once per day
-    - Backtest engine every hour
-    - Trade simulations for new opportunities every hour
-    - AI opportunity analysis every 15 minutes
-    - Daily intelligence briefing once per day
-    - Opportunity Hunter every 30 minutes
-    - Liquidity monitor every 10 minutes
-    - Streaming event consumer every 5 seconds
-    - News scraper every 10 minutes
+    - News scraper every 5 minutes
+    - Market data every 5 minutes
+    - Coin sync every 30 minutes
+    - And other agent jobs (arbitrage, radar, signals, etc.)
     """
+    global _scheduler_instance
     scheduler = BackgroundScheduler(timezone="UTC")
+    scheduler.add_listener(_job_listener, EVENT_JOB_EXECUTED | EVENT_JOB_ERROR)
 
     scheduler.add_job(
         _run_arbitrage_job,
@@ -529,5 +544,6 @@ def create_scheduler() -> BackgroundScheduler:
         max_instances=1,
     )
 
+    _scheduler_instance = scheduler
     return scheduler
 

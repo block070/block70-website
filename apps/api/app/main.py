@@ -59,6 +59,7 @@ from app.api.v1.token_comments import router as token_comments_router
 from app.api.v1.ai_search import router as ai_search_router
 from app.api.v1.news import router as news_router
 from app.api.v1.search import router as search_router
+from app.api.v1.status import router as status_router
 from app.api.articles import router as articles_router
 from app.agents.arbitrage_agent import run_arbitrage_scan
 from app.jobs.scheduler import create_scheduler
@@ -157,6 +158,7 @@ app.include_router(token_comments_router)
 app.include_router(ai_search_router)
 app.include_router(news_router)
 app.include_router(search_router)
+app.include_router(status_router)
 app.include_router(articles_router)
 
 _scheduler = create_scheduler()
@@ -208,6 +210,21 @@ def bootstrap_coins(db: Session = Depends(get_db)) -> dict:
     pipeline = CoinSyncPipeline(per_page=250)
     pipeline.run(db, page=1)
     return {"status": "ok", "message": "Coin sync completed. Coins list and detail pages will now use API data."}
+
+
+@app.post("/bootstrap/news")
+def bootstrap_news(db: Session = Depends(get_db)) -> dict:
+    """
+    Manually trigger news ingestion from all configured RSS feeds.
+    Use this to fill the site with news on first deploy or to refresh.
+    """
+    from app.services.scrapers.news_scraper import run_news_scraper
+
+    try:
+        run_news_scraper(db)
+        return {"status": "ok", "message": "News ingestion completed."}
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
 
 
 @app.post("/bootstrap/market-data")
