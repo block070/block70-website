@@ -90,7 +90,46 @@ export default async function CoinDetailPage({ params }: { params: Params }) {
       <CoinPriceHeader coin={coinForHeader} />
 
       <section className="grid gap-4 md:grid-cols-[2fr,1fr]">
-        <CoinPriceChart slug={coin.slug} />
+        <div className="space-y-4">
+          <CoinPriceChart slug={coin.slug} />
+          <section className="space-y-2 rounded-xl border border-slate-800 bg-slate-900/60 p-4 text-xs">
+            <p className="text-[11px] uppercase tracking-wide text-slate-400">
+              Related news
+            </p>
+            {renderedNews.length ? (
+              <ul className="space-y-1.5">
+                {renderedNews.map((article) => (
+                  <li key={article.url}>
+                    <a
+                      href={article.url}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="text-[11px] font-medium text-slate-100 hover:text-emerald-300"
+                    >
+                      {article.title}
+                    </a>
+                    <p className="text-[11px] text-slate-500">
+                      {article.source}
+                      {"rank_explanation" in article && article.rank_explanation
+                        ? " · Ranked for coin relevance"
+                        : ""}
+                      {" "}
+                      {article.published_at
+                        ? `· ${new Date(
+                            article.published_at,
+                          ).toLocaleString()}`
+                        : ""}
+                    </p>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="text-[11px] text-slate-500">
+                No recent news articles found.
+              </p>
+            )}
+          </section>
+        </div>
         <CoinStats coin={coinForHeader} />
       </section>
 
@@ -189,43 +228,6 @@ export default async function CoinDetailPage({ params }: { params: Params }) {
             twitterHandle={coin.twitter ?? undefined}
             telegramUrl={coin.discord ?? undefined}
           />
-          <section className="space-y-2 rounded-xl border border-slate-800 bg-slate-900/60 p-4 text-xs">
-            <p className="text-[11px] uppercase tracking-wide text-slate-400">
-              Related news
-            </p>
-            {renderedNews.length ? (
-              <ul className="space-y-1.5">
-                {renderedNews.map((article) => (
-                  <li key={article.url}>
-                    <a
-                      href={article.url}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="text-[11px] font-medium text-slate-100 hover:text-emerald-300"
-                    >
-                      {article.title}
-                    </a>
-                    <p className="text-[11px] text-slate-500">
-                      {article.source}
-                      {"rank_explanation" in article && article.rank_explanation
-                        ? " · Ranked for coin relevance"
-                        : ""}
-                      {" "}
-                      {article.published_at
-                        ? `· ${new Date(
-                            article.published_at,
-                          ).toLocaleString()}`
-                        : ""}
-                    </p>
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <p className="text-[11px] text-slate-500">
-                No recent news articles found.
-              </p>
-            )}
-          </section>
         </div>
       </section>
 
