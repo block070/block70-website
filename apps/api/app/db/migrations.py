@@ -20,15 +20,28 @@ MIGRATIONS = [
     "ALTER TABLE coins ADD COLUMN IF NOT EXISTS whitepaper_url VARCHAR(1024)",
     "ALTER TABLE coins ADD COLUMN IF NOT EXISTS explorer_url VARCHAR(512)",
     "ALTER TABLE coins ADD COLUMN IF NOT EXISTS market_cap_rank INTEGER",
-    # news_articles: columns added for news ingestion pipeline
+    # news_articles: ensure all columns exist (legacy table may have minimal schema)
+    "ALTER TABLE news_articles ADD COLUMN IF NOT EXISTS author VARCHAR(256)",
+    "ALTER TABLE news_articles ADD COLUMN IF NOT EXISTS summary TEXT",
+    "ALTER TABLE news_articles ADD COLUMN IF NOT EXISTS content TEXT",
     "ALTER TABLE news_articles ADD COLUMN IF NOT EXISTS source_type VARCHAR(32) DEFAULT 'rss' NOT NULL",
     "ALTER TABLE news_articles ADD COLUMN IF NOT EXISTS body_text TEXT",
+    "ALTER TABLE news_articles ADD COLUMN IF NOT EXISTS image_url VARCHAR(1024)",
+    "ALTER TABLE news_articles ADD COLUMN IF NOT EXISTS tags JSONB",
+    "ALTER TABLE news_articles ADD COLUMN IF NOT EXISTS tickers JSONB",
+    "ALTER TABLE news_articles ADD COLUMN IF NOT EXISTS entities JSONB",
+    "ALTER TABLE news_articles ADD COLUMN IF NOT EXISTS published_at TIMESTAMP WITH TIME ZONE",
+    "ALTER TABLE news_articles ADD COLUMN IF NOT EXISTS sentiment DOUBLE PRECISION DEFAULT 0.0 NOT NULL",
+    "ALTER TABLE news_articles ADD COLUMN IF NOT EXISTS engagement JSONB",
+    "ALTER TABLE news_articles ADD COLUMN IF NOT EXISTS dedupe_cluster_id INTEGER",
     "ALTER TABLE news_articles ADD COLUMN IF NOT EXISTS rank_explanation JSONB",
     "ALTER TABLE news_articles ADD COLUMN IF NOT EXISTS homepage_score DOUBLE PRECISION",
     "ALTER TABLE news_articles ADD COLUMN IF NOT EXISTS coin_scores JSONB",
     "ALTER TABLE news_articles ADD COLUMN IF NOT EXISTS source_count INTEGER DEFAULT 1 NOT NULL",
     "ALTER TABLE news_articles ADD COLUMN IF NOT EXISTS dedupe_count INTEGER DEFAULT 1 NOT NULL",
     "ALTER TABLE news_articles ADD COLUMN IF NOT EXISTS quality_status VARCHAR(32) DEFAULT 'keep' NOT NULL",
+    "ALTER TABLE news_articles ADD COLUMN IF NOT EXISTS created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL",
+    "ALTER TABLE news_articles ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL",
 ]
 
 
