@@ -5,28 +5,44 @@ const API_BASE =
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { slug: string } }
+  context: { params: Promise<{ slug: string }> | { slug: string } }
 ) {
+  const params = await Promise.resolve(context.params);
   const slug = params.slug;
-  const days = request.nextUrl.searchParams.get("days") || "7";
+  const daysParam = request.nextUrl.searchParams.get("days") || "7";
+  const daysNum = Number(daysParam);
+  const daysQuery =
+    daysParam === "max" || daysNum > 365 ? "max" : String(daysParam);
   if (!API_BASE) {
     return NextResponse.json(
-      { error: "API backend not configured" },
+      { prices: [], error: "API backend not configured" },
       { status: 503 }
+    );
+  }
+  if (!slug || typeof slug !== "string") {
+    return NextResponse.json(
+      { prices: [], error: "Invalid slug" },
+      { status: 400 }
     );
   }
   try {
     const res = await fetch(
-      `${API_BASE}/api/v1/coins/${encodeURIComponent(slug)}/chart?days=${encodeURIComponent(days)}`,
+      `${API_BASE}/api/v1/coins/${encodeURIComponent(slug)}/chart?days=${daysQuery}`,
       { cache: "no-store" }
     );
-    const data = await res.json();
-    return NextResponse.json(data, { status: res.status });
+    const data = (await res.json()) as { prices?: unknown[]; detail?: string };
+    if (!res.ok) {
+      return NextResponse.json(
+        { prices: [], error: data.detail || data || "Chart unavailable" },
+        { status: res.status >= 500 ? 502 : res.status }
+      );
+    }
+    return NextResponse.json({ prices: data.prices ?? [] });
   } catch (err) {
     return NextResponse.json(
       {
-        error:
-          err instanceof Error ? err.message : "Failed to fetch chart data",
+        prices: [],
+        error: err instanceof Error ? err.message : "Failed to fetch chart data",
       },
       { status: 502 }
     );

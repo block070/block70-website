@@ -5,7 +5,7 @@ import { getCoinChartData, type ChartPricePoint } from "@/lib/coins";
 import { chartColors } from "@/components/ui/charts/chart-styles";
 import { clsx } from "clsx";
 
-export type ChartRange = "24H" | "7D" | "1M" | "3M" | "1Y" | "YTD";
+export type ChartRange = "24H" | "7D" | "1M" | "3M" | "1Y" | "YTD" | "Max";
 
 const RANGES: { key: ChartRange; label: string; days: number }[] = [
   { key: "24H", label: "24H", days: 1 },
@@ -14,6 +14,7 @@ const RANGES: { key: ChartRange; label: string; days: number }[] = [
   { key: "3M", label: "3M", days: 90 },
   { key: "1Y", label: "1Y", days: 365 },
   { key: "YTD", label: "YTD", days: 0 },
+  { key: "Max", label: "Max", days: -1 },
 ];
 
 function getYtdDays(): number {
@@ -24,7 +25,7 @@ function getYtdDays(): number {
 
 function formatPrice(price: number): string {
   if (price >= 1e6) return `$${(price / 1e6).toFixed(2)}M`;
-  if (price >= 1e3) return `$${(price / 1e3).toFixed(2)}K`;
+  if (price >= 1e3) return `$${(price / 1e3).toFixed(1)}K`;
   if (price >= 1) return `$${price.toFixed(2)}`;
   if (price >= 0.01) return `$${price.toFixed(4)}`;
   return `$${price.toFixed(6)}`;
@@ -33,7 +34,7 @@ function formatPrice(price: number): string {
 function formatTime(timestamp: number, range: ChartRange): string {
   const d = new Date(timestamp);
   if (range === "24H") return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-  if (range === "7D" || range === "1M") return d.toLocaleDateString([], { month: "short", day: "numeric" });
+  if (range === "7D" || range === "1M" || range === "3M") return d.toLocaleDateString([], { month: "short", day: "numeric" });
   return d.toLocaleDateString([], { month: "short", year: "2-digit" });
 }
 
@@ -48,7 +49,12 @@ export function CoinPriceChart({ slug, className }: Props) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const days = range === "YTD" ? getYtdDays() : RANGES.find((r) => r.key === range)?.days ?? 7;
+  const days =
+    range === "YTD"
+      ? getYtdDays()
+      : range === "Max"
+        ? 365 * 10
+        : RANGES.find((r) => r.key === range)?.days ?? 7;
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -81,9 +87,9 @@ export function CoinPriceChart({ slug, className }: Props) {
   const minPrice = Math.min(...prices) || 0;
   const maxPrice = Math.max(...prices) || 1;
   const rangeVal = maxPrice - minPrice || 1;
-  const padding = { top: 20, right: 12, bottom: 24, left: 52 };
-  const width = 400;
-  const height = 200;
+  const padding = { top: 24, right: 58, bottom: 32, left: 16 };
+  const width = 600;
+  const height = 320;
   const chartW = width - padding.left - padding.right;
   const chartH = height - padding.top - padding.bottom;
 
@@ -96,7 +102,7 @@ export function CoinPriceChart({ slug, className }: Props) {
   const areaD = `${pathD} L ${padding.left + chartW},${padding.top + chartH} L ${padding.left},${padding.top + chartH} Z`;
   const isUp = prices[prices.length - 1] >= prices[0];
 
-  const yTicks = 4;
+  const yTicks = 5;
   const yLabels = Array.from({ length: yTicks + 1 }, (_, i) => {
     const v = minPrice + (rangeVal * i) / yTicks;
     return { val: v, y: padding.top + chartH - (chartH * i) / yTicks };
@@ -112,20 +118,20 @@ export function CoinPriceChart({ slug, className }: Props) {
   const gradientId = `coin-chart-grad-${slug}-${range}`;
 
   return (
-    <section className={clsx("space-y-3 rounded-xl border border-slate-800 bg-slate-900/60 p-4", className)}>
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <p className="text-[11px] uppercase tracking-wide text-slate-400">Price chart</p>
-        <div className="flex gap-1">
+    <section className={clsx("space-y-4 rounded-xl border border-slate-800 bg-slate-900/60 p-5", className)}>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <p className="text-sm font-semibold uppercase tracking-wide text-slate-300">Price chart</p>
+        <div className="flex flex-wrap gap-1.5">
           {RANGES.map((r) => (
             <button
               key={r.key}
               type="button"
               onClick={() => setRange(r.key)}
               className={clsx(
-                "rounded px-2 py-1 text-[11px] font-medium transition-colors",
+                "rounded-full px-3 py-1.5 text-xs font-semibold transition-all",
                 range === r.key
-                  ? "bg-crypto-blue/30 text-crypto-blue"
-                  : "text-slate-500 hover:bg-slate-800 hover:text-slate-300"
+                  ? "bg-white/95 text-slate-900 shadow-sm dark:bg-slate-100 dark:text-slate-900"
+                  : "text-slate-500 hover:bg-slate-700/60 hover:text-slate-200"
               )}
             >
               {r.label}
@@ -135,23 +141,23 @@ export function CoinPriceChart({ slug, className }: Props) {
       </div>
 
       {loading && !points.length ? (
-        <div className="flex h-40 items-center justify-center text-slate-500">Loading chart…</div>
+        <div className="flex h-72 items-center justify-center text-slate-500">Loading chart…</div>
       ) : points.length === 0 ? (
-        <div className="flex h-40 items-center justify-center text-slate-500">No chart data</div>
+        <div className="flex h-72 items-center justify-center text-slate-500">No chart data</div>
       ) : (
         <div className="overflow-x-auto">
           <svg
             viewBox={`0 0 ${width} ${height}`}
             preserveAspectRatio="xMidYMid meet"
-            className="h-40 w-full min-w-[320px]"
+            className="h-72 w-full min-w-[360px] sm:h-80"
           >
             <defs>
               <linearGradient id={gradientId} x1="0" x2="0" y1="0" y2="1">
-                <stop offset="0%" stopColor={isUp ? chartColors.up : chartColors.down} stopOpacity="0.5" />
+                <stop offset="0%" stopColor={isUp ? chartColors.up : chartColors.down} stopOpacity="0.6" />
                 <stop offset="100%" stopColor={isUp ? chartColors.up : chartColors.down} stopOpacity="0" />
               </linearGradient>
             </defs>
-            {/* Grid */}
+            {/* Grid - horizontal only like CoinGecko */}
             {yLabels.map((l, i) => (
               <line
                 key={i}
@@ -163,26 +169,15 @@ export function CoinPriceChart({ slug, className }: Props) {
                 strokeWidth="0.5"
               />
             ))}
-            {xLabels.map((l, i) => (
-              <line
-                key={i}
-                x1={l.x}
-                y1={padding.top}
-                x2={l.x}
-                y2={padding.top + chartH}
-                stroke="var(--b70-border)"
-                strokeWidth="0.5"
-              />
-            ))}
-            {/* Y labels */}
+            {/* Y-axis labels on the right (CoinGecko style) */}
             {yLabels.map((l, i) => (
               <text
                 key={i}
-                x={padding.left - 6}
+                x={width - padding.right + 8}
                 y={l.y}
-                textAnchor="end"
+                textAnchor="start"
                 dominantBaseline="middle"
-                className="fill-[var(--b70-text-muted)] text-[10px]"
+                className="fill-[var(--b70-text-muted)] text-xs font-medium"
               >
                 {formatPrice(l.val)}
               </text>
@@ -192,19 +187,21 @@ export function CoinPriceChart({ slug, className }: Props) {
               <text
                 key={i}
                 x={l.x}
-                y={height - 6}
+                y={height - 8}
                 textAnchor="middle"
-                className="fill-[var(--b70-text-muted)] text-[10px]"
+                className="fill-[var(--b70-text-muted)] text-xs"
               >
                 {formatTime(l.ts, range)}
               </text>
             ))}
-            <path d={areaD} fill={`url(#${gradientId})`} opacity={0.25} />
+            <path d={areaD} fill={`url(#${gradientId})`} opacity={0.3} />
             <path
               d={pathD}
               fill="none"
               stroke={isUp ? chartColors.up : chartColors.down}
-              strokeWidth={1.5}
+              strokeWidth={2.5}
+              strokeLinecap="round"
+              strokeLinejoin="round"
               vectorEffect="non-scaling-stroke"
             />
           </svg>

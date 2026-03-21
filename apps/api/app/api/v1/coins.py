@@ -236,7 +236,7 @@ _SYMBOL_TO_COINGECKO_ID: dict[str, str] = {
 @router.get("/{slug}/chart")
 def get_coin_chart(
     slug: str,
-    days: int = Query(7, ge=1, le=365, description="Number of days of history (1, 7, 30, 90, 365)"),
+    days: int = Query(7, ge=1, le=3650, description="Number of days (1-365) or use max via days param"),
 ) -> dict:
     """Fetch historical price chart from CoinGecko. Uses coin slug from DB or symbol mapping."""
     from app.services.connectors.coingecko_connector import fetch_market_chart
@@ -257,7 +257,8 @@ def get_coin_chart(
         coin_id = _SYMBOL_TO_COINGECKO_ID.get(coin_id, coin_id)
 
     try:
-        data = fetch_market_chart(coin_id, days=days)
+        days_param = "max" if days > 365 else days
+        data = fetch_market_chart(coin_id, days=days_param)
         prices = data.get("prices") or []
         return {"prices": prices}
     except Exception as e:

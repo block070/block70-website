@@ -143,12 +143,13 @@ export async function getCoinChartData(
   slug: string,
   days: number
 ): Promise<ChartPricePoint[]> {
+  const daysParam = days > 365 ? "max" : String(days);
   const res = await fetch(
-    `/api/coins/${encodeURIComponent(slug)}/chart?days=${days}`,
+    `/api/coins/${encodeURIComponent(slug)}/chart?days=${daysParam}`,
     { cache: "no-store" }
   );
-  if (!res.ok) throw new Error("Chart data unavailable");
-  const data = (await res.json()) as { prices?: ChartPricePoint[] };
+  const data = (await res.json()) as { prices?: ChartPricePoint[]; error?: string };
+  if (!res.ok) throw new Error(data.error || "Chart data unavailable");
   return data.prices ?? [];
 }
 

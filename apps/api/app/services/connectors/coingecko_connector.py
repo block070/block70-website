@@ -137,14 +137,20 @@ def normalize_coin_detail(raw: Dict[str, Any], vs_currency: str = "usd") -> Dict
     }
 
 
-def fetch_market_chart(coin_id: str, days: int = 7, vs_currency: str = "usd") -> Dict[str, Any]:
+def fetch_market_chart(
+    coin_id: str,
+    days: int | str = 7,
+    vs_currency: str = "usd",
+) -> Dict[str, Any]:
     """
     Fetch historical price chart data from CoinGecko's /coins/{id}/market_chart.
     Returns { prices: [[timestamp_ms, price], ...], market_caps, total_volumes }.
+    days: int (1-365) or "max" for full history.
     """
+    days_param = "max" if days == "max" or (isinstance(days, int) and days > 365) else str(days)
     data = _get(
         f"/coins/{coin_id}/market_chart",
-        params={"vs_currency": vs_currency, "days": str(days)},
+        params={"vs_currency": vs_currency, "days": days_param},
     )
     return data
 
