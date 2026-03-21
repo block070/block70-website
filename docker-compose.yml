@@ -26,6 +26,7 @@ services:
     environment:
       POSTGRES_HOST: postgres
       REDIS_HOST: redis
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
       DATABASE_URL: postgresql+psycopg2://${POSTGRES_USER:-block70}:${POSTGRES_PASSWORD:-block70password}@postgres:${POSTGRES_PORT:-5432}/${POSTGRES_DB:-block70}
     depends_on:
       - postgres

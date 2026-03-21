@@ -32,6 +32,7 @@ yarn-error.log*
 
 # env files (can opt-in for committing if needed)
 .env*
+!.env.example
 
 # vercel
 .vercel
@@ -45,5 +46,6 @@ apps/web/.next/
 apps/web/.turbo/
 .env
 .env.*
+!.env.example
 dist/
 build/

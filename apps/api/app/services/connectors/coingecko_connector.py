@@ -1,10 +1,19 @@
 from __future__ import annotations
 
+import logging
 import os
 from typing import Any, Dict, List, Optional
 
 import requests
 
+from app.services.connectors.chart_cache import (
+    chart_cache_get,
+    chart_cache_get_stale,
+    chart_cache_set,
+    get_chart_ttl,
+)
+
+logger = logging.getLogger(__name__)
 
 COINGECKO_API_BASE = os.getenv("COINGECKO_API_BASE", "https://api.coingecko.com/api/v3")
 
@@ -145,14 +154,28 @@ def fetch_market_chart(
     """
     Fetch historical price chart data from CoinGecko's /coins/{id}/market_chart.
     Returns { prices: [[timestamp_ms, price], ...], market_caps, total_volumes }.
-    days: int (1-365) or "max" for full history.
+    Cached to avoid 429 rate limits. Stale cache served on 429.
     """
     days_param = "max" if days == "max" or (isinstance(days, int) and days > 365) else str(days)
-    data = _get(
-        f"/coins/{coin_id}/market_chart",
-        params={"vs_currency": vs_currency, "days": days_param},
-    )
-    return data
+    cache_key = f"{coin_id}:{days_param}:{vs_currency}"
+    ttl = get_chart_ttl(days_param)
+    cached = chart_cache_get(cache_key)
+    if cached is not None:
+        return cached
+    try:
+        data = _get(
+            f"/coins/{coin_id}/market_chart",
+            params={"vs_currency": vs_currency, "days": days_param},
+        )
+        chart_cache_set(cache_key, data, ttl)
+        return data
+    except requests.HTTPError as e:
+        if e.response is not None and e.response.status_code == 429:
+            stale = chart_cache_get_stale(cache_key)
+            if stale:
+                logger.warning("CoinGecko 429, serving stale chart for %s", cache_key)
+                return stale
+        raise
 
 
 def fetch_trending_coins() -> List[Dict[str, Any]]:
