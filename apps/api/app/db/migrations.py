@@ -20,6 +20,15 @@ MIGRATIONS = [
     "ALTER TABLE coins ADD COLUMN IF NOT EXISTS whitepaper_url VARCHAR(1024)",
     "ALTER TABLE coins ADD COLUMN IF NOT EXISTS explorer_url VARCHAR(512)",
     "ALTER TABLE coins ADD COLUMN IF NOT EXISTS market_cap_rank INTEGER",
+    # news_articles: columns added for news ingestion pipeline
+    "ALTER TABLE news_articles ADD COLUMN IF NOT EXISTS source_type VARCHAR(32) DEFAULT 'rss' NOT NULL",
+    "ALTER TABLE news_articles ADD COLUMN IF NOT EXISTS body_text TEXT",
+    "ALTER TABLE news_articles ADD COLUMN IF NOT EXISTS rank_explanation JSONB",
+    "ALTER TABLE news_articles ADD COLUMN IF NOT EXISTS homepage_score DOUBLE PRECISION",
+    "ALTER TABLE news_articles ADD COLUMN IF NOT EXISTS coin_scores JSONB",
+    "ALTER TABLE news_articles ADD COLUMN IF NOT EXISTS source_count INTEGER DEFAULT 1 NOT NULL",
+    "ALTER TABLE news_articles ADD COLUMN IF NOT EXISTS dedupe_count INTEGER DEFAULT 1 NOT NULL",
+    "ALTER TABLE news_articles ADD COLUMN IF NOT EXISTS quality_status VARCHAR(32) DEFAULT 'keep' NOT NULL",
 ]
 
 
