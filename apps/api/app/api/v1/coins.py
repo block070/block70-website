@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import datetime, timezone
 from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -62,6 +63,61 @@ def list_coins(
     return items
 
 
+def _enrich_coin_from_coingecko(coin: Coin, db: Session) -> tuple[Coin, list]:
+    """Fetch live data from CoinGecko and enrich coin + market_data."""
+    from app.services.connectors.coingecko_connector import fetch_coin_details
+
+    try:
+        payload = fetch_coin_details(coin.slug, vs_currency="usd")
+        coin_data = payload.get("coin", {})
+        md_data = payload.get("market_data", {})
+
+        # Update coin metadata for this request (description, links)
+        coin.description = coin_data.get("description") or coin.description
+        coin.website = coin_data.get("website") or coin.website
+        coin.twitter = coin_data.get("twitter") or coin.twitter
+        wp = coin_data.get("whitepaper_url")
+        if wp and hasattr(coin, "whitepaper_url"):
+            coin.whitepaper_url = wp
+        exp = coin_data.get("explorer_url")
+        if exp and hasattr(coin, "explorer_url"):
+            coin.explorer_url = exp
+        coin.price = md_data.get("price") or coin.price
+        coin.market_cap = md_data.get("market_cap") or coin.market_cap
+        coin.volume_24h = md_data.get("volume_24h") or coin.volume_24h
+
+        latest = MarketDataPoint(
+            timestamp=datetime.now(timezone.utc),
+            price=md_data.get("price") or coin.price or 0.0,
+            market_cap=md_data.get("market_cap"),
+            volume_24h=md_data.get("volume_24h"),
+            price_change_24h=md_data.get("price_change_24h"),
+            price_change_7d=md_data.get("price_change_7d"),
+        )
+
+        md_rows = (
+            db.query(MarketData)
+            .filter(MarketData.coin_id == coin.id)
+            .order_by(MarketData.timestamp.desc())
+            .limit(99)
+            .all()
+        )
+        points = [
+            MarketDataPoint(
+                timestamp=row.timestamp,
+                price=row.price,
+                market_cap=row.market_cap,
+                volume_24h=row.volume_24h,
+                price_change_24h=row.price_change_24h,
+                price_change_7d=row.price_change_7d,
+            )
+            for row in reversed(md_rows)
+        ]
+        return coin, [latest] + points
+    except Exception:
+        return coin, []
+
+
 @router.get("/{slug}", response_model=CoinDetailResponse)
 def get_coin_detail(
     slug: str,
@@ -75,7 +131,7 @@ def get_coin_detail(
     if coin is None:
         raise HTTPException(status_code=404, detail="Coin not found")
 
-    # Market data time series (e.g. last 100 points)
+    # Try to enrich with live CoinGecko data (price, 24h%, 7d%, description, links)
     md_rows = (
         db.query(MarketData)
         .filter(MarketData.coin_id == coin.id)
@@ -94,6 +150,11 @@ def get_coin_detail(
         )
         for row in reversed(md_rows)
     ]
+
+    enriched_coin, enriched_md = _enrich_coin_from_coingecko(coin, db)
+    if enriched_md:
+        coin = enriched_coin
+        md_points = enriched_md
 
     # Narratives
     cn_rows = (

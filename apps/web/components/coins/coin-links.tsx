@@ -1,18 +1,21 @@
 type Props = {
   websiteUrl?: string;
-  docsUrl?: string;
+  whitepaperUrl?: string;
   explorerUrl?: string;
   twitterHandle?: string;
   telegramUrl?: string;
 };
 
+const X_URL = "https://x.com";
+
 export function CoinLinks({
   websiteUrl,
-  docsUrl,
+  whitepaperUrl,
   explorerUrl,
   twitterHandle,
   telegramUrl,
 }: Props) {
+  const xUrl = twitterHandle ? `${X_URL}/${twitterHandle.replace(/^@/, "")}` : null;
   return (
     <section className="grid gap-4 md:grid-cols-2">
       <div className="space-y-2 rounded-xl border border-slate-800 bg-slate-900/60 p-4 text-xs">
@@ -30,7 +33,7 @@ export function CoinLinks({
                   rel="noreferrer"
                   className="text-emerald-300 hover:text-emerald-200"
                 >
-                  {websiteUrl}
+                  {websiteUrl.replace(/^https?:\/\//, "").replace(/\/$/, "")}
                 </a>
               ) : (
                 "—"
@@ -38,16 +41,16 @@ export function CoinLinks({
             </Value>
           </li>
           <li>
-            <Label>Docs</Label>
+            <Label>Whitepaper</Label>
             <Value>
-              {docsUrl ? (
+              {whitepaperUrl ? (
                 <a
-                  href={docsUrl}
+                  href={whitepaperUrl}
                   target="_blank"
                   rel="noreferrer"
                   className="text-emerald-300 hover:text-emerald-200"
                 >
-                  {docsUrl}
+                  PDF
                 </a>
               ) : (
                 "—"
@@ -64,7 +67,7 @@ export function CoinLinks({
                   rel="noreferrer"
                   className="text-emerald-300 hover:text-emerald-200"
                 >
-                  {explorerUrl}
+                  {explorerUrl.replace(/^https?:\/\//, "").replace(/\/$/, "")}
                 </a>
               ) : (
                 "—"
@@ -80,16 +83,16 @@ export function CoinLinks({
         </p>
         <ul className="space-y-1 text-slate-300">
           <li>
-            <Label>Twitter</Label>
+            <Label>X</Label>
             <Value>
-              {twitterHandle ? (
+              {xUrl ? (
                 <a
-                  href={`https://twitter.com/${twitterHandle}`}
+                  href={xUrl}
                   target="_blank"
                   rel="noreferrer"
                   className="text-emerald-300 hover:text-emerald-200"
                 >
-                  @{twitterHandle}
+                  @{twitterHandle!.replace(/^@/, "")}
                 </a>
               ) : (
                 "—"

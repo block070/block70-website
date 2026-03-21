@@ -22,7 +22,9 @@ class Coin(Base):
     description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     logo_url: Mapped[Optional[str]] = mapped_column(String(512), nullable=True)
     website: Mapped[Optional[str]] = mapped_column(String(512), nullable=True)
-    twitter: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    whitepaper_url: Mapped[Optional[str]] = mapped_column(String(1024), nullable=True)
+    explorer_url: Mapped[Optional[str]] = mapped_column(String(512), nullable=True)
+    twitter: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)  # screen name for X/Twitter
     discord: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
 
     chain: Mapped[Optional[str]] = mapped_column(String(64), nullable=True, index=True)

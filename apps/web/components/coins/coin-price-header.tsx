@@ -30,18 +30,30 @@ export function CoinPriceHeader({ coin }: Props) {
             24h:{" "}
             <span
               className={
-                coin.change24hPct >= 0 ? "text-emerald-400" : "text-red-400"
+                typeof coin.change24hPct === "number" && !Number.isNaN(coin.change24hPct)
+                  ? coin.change24hPct >= 0
+                    ? "text-emerald-400"
+                    : "text-red-400"
+                  : "text-slate-500"
               }
             >
-              {coin.change24hPct.toFixed(2)}%
+              {typeof coin.change24hPct === "number" && !Number.isNaN(coin.change24hPct)
+                ? `${coin.change24hPct >= 0 ? "+" : ""}${coin.change24hPct.toFixed(2)}%`
+                : "—"}
             </span>{" "}
             · 7d:{" "}
             <span
               className={
-                coin.change7dPct >= 0 ? "text-emerald-400" : "text-red-400"
+                typeof coin.change7dPct === "number" && !Number.isNaN(coin.change7dPct)
+                  ? coin.change7dPct >= 0
+                    ? "text-emerald-400"
+                    : "text-red-400"
+                  : "text-slate-500"
               }
             >
-              {coin.change7dPct.toFixed(2)}%
+              {typeof coin.change7dPct === "number" && !Number.isNaN(coin.change7dPct)
+                ? `${coin.change7dPct >= 0 ? "+" : ""}${coin.change7dPct.toFixed(2)}%`
+                : "—"}
             </span>
           </p>
         </div>

@@ -84,6 +84,7 @@ def normalize_market_coin(raw: Dict[str, Any]) -> Dict[str, Any]:
 def normalize_coin_detail(raw: Dict[str, Any], vs_currency: str = "usd") -> Dict[str, Any]:
     """
     Normalize /coins/{id} response into Coin + MarketData schema fields.
+    Extracts description, links (website, whitepaper, explorer), and market data.
     """
     market_data = raw.get("market_data") or {}
 
@@ -95,6 +96,13 @@ def normalize_coin_detail(raw: Dict[str, Any], vs_currency: str = "usd") -> Dict
     change_7d = market_data.get("price_change_percentage_7d")
 
     links = raw.get("links") or {}
+    homepage = (links.get("homepage") or [None])[0]
+    wp = links.get("whitepaper")
+    whitepaper = wp if isinstance(wp, str) else (wp.get("link") if isinstance(wp, dict) else None)
+    blockchain_sites = links.get("blockchain_site") or []
+    explorer = (blockchain_sites[0] or None) if blockchain_sites else None
+    chat_url = links.get("chat_url") or []
+    discord_url = (chat_url[0] or None) if chat_url else None
 
     return {
         "coin": {
@@ -104,9 +112,11 @@ def normalize_coin_detail(raw: Dict[str, Any], vs_currency: str = "usd") -> Dict
             "slug": raw.get("id"),
             "description": (raw.get("description") or {}).get("en") or None,
             "logo_url": (raw.get("image") or {}).get("large"),
-            "website": (links.get("homepage") or [None])[0],
+            "website": homepage,
+            "whitepaper_url": whitepaper if isinstance(whitepaper, str) else None,
+            "explorer_url": explorer,
             "twitter": links.get("twitter_screen_name"),
-            "discord": links.get("chat_url", [None])[0],
+            "discord": discord_url,
             "chain": None,
             "category": (raw.get("categories") or [None])[0],
             "market_cap": market_cap,

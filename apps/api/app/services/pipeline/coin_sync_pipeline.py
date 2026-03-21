@@ -47,6 +47,8 @@ class CoinSyncPipeline:
                 description=payload.get("description"),
                 logo_url=payload.get("logo_url"),
                 website=payload.get("website"),
+                whitepaper_url=payload.get("whitepaper_url"),
+                explorer_url=payload.get("explorer_url"),
                 twitter=payload.get("twitter"),
                 discord=payload.get("discord"),
                 chain=payload.get("chain"),
@@ -68,6 +70,10 @@ class CoinSyncPipeline:
             existing.volume_24h = payload.get("volume_24h")
             existing.circulating_supply = payload.get("circulating_supply")
             existing.total_supply = payload.get("total_supply")
+            if hasattr(existing, "whitepaper_url") and payload.get("whitepaper_url"):
+                existing.whitepaper_url = payload.get("whitepaper_url")
+            if hasattr(existing, "explorer_url") and payload.get("explorer_url"):
+                existing.explorer_url = payload.get("explorer_url")
 
         # Flush to ensure IDs are assigned for any subsequent pipelines, but
         # keep commit at the end of the batch.

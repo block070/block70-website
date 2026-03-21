@@ -188,13 +188,13 @@ export default async function CoinDetailPage({ params }: { params: Params }) {
         </div>
 
         <div className="space-y-4">
-          <CoinDescription coin={coinForHeader} />
+          <CoinDescription coin={coinForHeader} description={coin.description} />
           <SentimentPanel tokenSymbol={symbol} initialSummary={sentiment} />
           <AISentimentSummary tokenSymbol={symbol} />
           <CoinLinks
             websiteUrl={coin.website ?? undefined}
-            docsUrl={undefined}
-            explorerUrl={undefined}
+            whitepaperUrl={coin.whitepaper_url ?? undefined}
+            explorerUrl={coin.explorer_url ?? undefined}
             twitterHandle={coin.twitter ?? undefined}
             telegramUrl={coin.discord ?? undefined}
           />

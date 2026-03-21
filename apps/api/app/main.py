@@ -71,11 +71,16 @@ app = FastAPI(title="Block70 API", version="0.1.0")
 
 
 def _init_db() -> None:
-    """Create tables and seed rewards when database is available."""
+    """Create tables, run migrations, and seed rewards when database is available."""
     try:
         Base.metadata.create_all(bind=engine)
+        from app.db.migrations import run_migrations
+
+        run_migrations()
+
         from app.db import SessionLocal
         from app.services.rewards.seed_rewards import seed_rewards
+
         _db = SessionLocal()
         try:
             seed_rewards(_db)
@@ -203,4 +208,20 @@ def bootstrap_coins(db: Session = Depends(get_db)) -> dict:
     pipeline = CoinSyncPipeline(per_page=250)
     pipeline.run(db, page=1)
     return {"status": "ok", "message": "Coin sync completed. Coins list and detail pages will now use API data."}
+
+
+@app.post("/bootstrap/market-data")
+def bootstrap_market_data(db: Session = Depends(get_db)) -> dict:
+    """
+    One-off refresh of market data (price, 24h%, 7d%, description, links) for all coins.
+    Call after bootstrap/coins to populate MarketData and coin metadata.
+    Set BOOTSTRAP_MARKET_LIMIT=N to refresh only top N coins (default: all).
+    """
+    from app.services.pipeline.market_data_pipeline import MarketDataPipeline
+
+    raw = os.getenv("BOOTSTRAP_MARKET_LIMIT", "")
+    limit = int(raw) if raw.isdigit() and int(raw) > 0 else None
+    pipeline = MarketDataPipeline(limit=limit)
+    pipeline.run(db)
+    return {"status": "ok", "message": "Market data refreshed for all tracked coins."}
 

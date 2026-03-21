@@ -9,6 +9,8 @@ export type CoinInfoDto = {
   description: string | null;
   logo_url: string | null;
   website: string | null;
+  whitepaper_url: string | null;
+  explorer_url: string | null;
   twitter: string | null;
   discord: string | null;
   chain: string | null;
@@ -63,19 +65,31 @@ function getMockCoinBySlugOrSymbol(slug: string): typeof COINS[0] | null {
   );
 }
 
+const MOCK_LINKS: Record<string, { website?: string; whitepaper?: string; explorer?: string; twitter?: string }> = {
+  bitcoin: { website: "https://bitcoin.org", whitepaper: "https://bitcoin.org/bitcoin.pdf", explorer: "https://mempool.space/", twitter: "bitcoin" },
+  ethereum: { website: "https://ethereum.org", whitepaper: "https://ethereum.org/en/whitepaper/", explorer: "https://etherscan.io/", twitter: "ethereum" },
+  solana: { website: "https://solana.com", whitepaper: "https://solana.com/solana-whitepaper.pdf", explorer: "https://solscan.io/", twitter: "solana" },
+  chainlink: { website: "https://chain.link", explorer: "https://etherscan.io/", twitter: "chainlink" },
+  avalanche: { website: "https://avax.network", explorer: "https://snowtrace.io/", twitter: "avalancheavax" },
+  dogecoin: { website: "https://dogecoin.com", explorer: "https://dogechain.info/", twitter: "dogecoin" },
+  uniswap: { website: "https://uniswap.org", whitepaper: "https://uniswap.org/whitepaper.pdf", explorer: "https://etherscan.io/", twitter: "Uniswap" },
+  cosmos: { website: "https://cosmos.network", whitepaper: "https://cosmos.network/resources/whitepaper", explorer: "https://mintscan.io/cosmos/", twitter: "cosmos" },
+};
+
 /** Return mock coin detail for a slug/symbol when the API has no data. */
 export function getMockCoinDetail(slug: string): CoinDetailDto | null {
   const coin = getMockCoinBySlugOrSymbol(slug);
   if (!coin) return null;
   const points = COIN_PRICES[coin.slug as keyof typeof COIN_PRICES];
+  const links = MOCK_LINKS[coin.slug as keyof typeof MOCK_LINKS];
   const market_data: MarketDataPointDto[] = Array.isArray(points)
     ? points.map((p) => ({
         timestamp: p.timestamp,
         price: p.priceUsd,
         market_cap: null,
         volume_24h: null,
-        price_change_24h: null,
-        price_change_7d: null,
+        price_change_24h: coin.change24hPct,
+        price_change_7d: coin.change7dPct,
       }))
     : [];
   return {
@@ -86,8 +100,10 @@ export function getMockCoinDetail(slug: string): CoinDetailDto | null {
       slug: coin.slug,
       description: null,
       logo_url: null,
-      website: null,
-      twitter: null,
+      website: links?.website ?? null,
+      whitepaper_url: links?.whitepaper ?? null,
+      explorer_url: links?.explorer ?? null,
+      twitter: links?.twitter ?? null,
       discord: null,
       chain: coin.chainIds[0] ?? null,
       category: coin.categoryIds[0] ?? null,

@@ -39,6 +39,8 @@ class CoinInfo(BaseModel):
     description: Optional[str] = None
     logo_url: Optional[str] = None
     website: Optional[str] = None
+    whitepaper_url: Optional[str] = None
+    explorer_url: Optional[str] = None
     twitter: Optional[str] = None
     discord: Optional[str] = None
     chain: Optional[str] = None

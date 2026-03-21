@@ -317,10 +317,16 @@ def _run_coin_sync_job() -> None:
 
 
 def _run_market_data_job() -> None:
-    """Refresh market data time series for all tracked coins."""
+    """
+    Refresh market data time series for tracked coins.
+    Processes top coins by market cap; limit configurable via MARKET_DATA_LIMIT env.
+    """
 
     def _job(db: Session) -> None:
-        pipeline = MarketDataPipeline()
+        import os
+
+        limit = os.getenv("MARKET_DATA_LIMIT")
+        pipeline = MarketDataPipeline(limit=int(limit) if limit else None)
         pipeline.run(db)
 
     _with_db_session(_job)
@@ -489,6 +495,7 @@ def create_scheduler() -> BackgroundScheduler:
     )
 
     # Coin + market data jobs
+    # coin_sync: ensures coin list is populated from CoinGecko /coins/markets
     scheduler.add_job(
         _run_coin_sync_job,
         IntervalTrigger(minutes=30),
@@ -496,7 +503,8 @@ def create_scheduler() -> BackgroundScheduler:
         replace_existing=True,
         max_instances=1,
     )
-
+    # market_data_refresh: fetches price, 24h%, 7d%, description, links for each coin
+    # Throttled to respect CoinGecko rate limits. Set MARKET_DATA_LIMIT=100 to refresh top 100 every 5 min.
     scheduler.add_job(
         _run_market_data_job,
         IntervalTrigger(minutes=5),
