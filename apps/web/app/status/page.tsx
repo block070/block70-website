@@ -147,8 +147,8 @@ export default function StatusPage() {
 
       <div className="text-sm text-[var(--b70-text-muted)]">
         <p>
-          Manual trigger: <code className="rounded bg-[var(--b70-border)] px-1">POST /bootstrap/news</code> or{" "}
-          <code className="rounded bg-[var(--b70-border)] px-1">POST /api/v1/status/news/trigger</code>
+          Manual trigger: <code className="rounded bg-[var(--b70-border)] px-1">POST /api/status/news/trigger</code>{" "}
+          (proxies to backend)
         </p>
       </div>
     </div>
