@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
-import { CoinChart } from "@/components/coins/coin-chart";
+import { CoinPriceChart } from "@/components/coins/coin-price-chart";
 import { CoinDescription } from "@/components/coins/coin-description";
 import { CoinIntelligence } from "@/components/coins/coin-intelligence";
 import { CoinLinks } from "@/components/coins/coin-links";
@@ -61,11 +61,6 @@ export default async function CoinDetailPage({ params }: { params: Params }) {
 
   const { coin, market_data: series, narratives, news: fallbackNews } = data;
 
-  const prices = series.map((p) => ({
-    timestamp: p.timestamp,
-    priceUsd: p.price,
-  }));
-
   const coinForHeader: Coin = coinToHeaderShape(coin, series[0]);
   const symbol = coin.symbol.toUpperCase();
 
@@ -95,7 +90,7 @@ export default async function CoinDetailPage({ params }: { params: Params }) {
       <CoinPriceHeader coin={coinForHeader} />
 
       <section className="grid gap-4 md:grid-cols-[2fr,1fr]">
-        <CoinChart points={prices} />
+        <CoinPriceChart slug={coin.slug} />
         <CoinStats coin={coinForHeader} />
       </section>
 

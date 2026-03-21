@@ -214,3 +214,52 @@ def get_coin_detail(
         news=news,
     )
 
+
+# Map common symbols to CoinGecko ids for chart when coin not in DB
+_SYMBOL_TO_COINGECKO_ID: dict[str, str] = {
+    "btc": "bitcoin",
+    "eth": "ethereum",
+    "sol": "solana",
+    "bnb": "binancecoin",
+    "xrp": "ripple",
+    "ada": "cardano",
+    "doge": "dogecoin",
+    "avax": "avalanche-2",
+    "link": "chainlink",
+    "dot": "polkadot",
+    "matic": "matic-network",
+    "uni": "uniswap",
+    "atom": "cosmos",
+}
+
+
+@router.get("/{slug}/chart")
+def get_coin_chart(
+    slug: str,
+    days: int = Query(7, ge=1, le=365, description="Number of days of history (1, 7, 30, 90, 365)"),
+) -> dict:
+    """Fetch historical price chart from CoinGecko. Uses coin slug from DB or symbol mapping."""
+    from app.services.connectors.coingecko_connector import fetch_market_chart
+
+    coin_id = slug.lower().strip()
+    # Resolve via DB first for accurate CoinGecko id
+    from app.db import SessionLocal
+
+    db = SessionLocal()
+    try:
+        coin = _resolve_coin(db, slug)
+        if coin:
+            coin_id = coin.slug
+    finally:
+        db.close()
+
+    if coin_id not in _SYMBOL_TO_COINGECKO_ID and "-" not in coin_id and len(coin_id) <= 5:
+        coin_id = _SYMBOL_TO_COINGECKO_ID.get(coin_id, coin_id)
+
+    try:
+        data = fetch_market_chart(coin_id, days=days)
+        prices = data.get("prices") or []
+        return {"prices": prices}
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"Chart data unavailable: {e}")
+

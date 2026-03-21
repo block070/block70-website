@@ -137,6 +137,21 @@ export type CoinListItemDto = {
   latest_market_data: MarketDataPointDto | null;
 };
 
+export type ChartPricePoint = [number, number]; // [timestamp_ms, price]
+
+export async function getCoinChartData(
+  slug: string,
+  days: number
+): Promise<ChartPricePoint[]> {
+  const res = await fetch(
+    `/api/coins/${encodeURIComponent(slug)}/chart?days=${days}`,
+    { cache: "no-store" }
+  );
+  if (!res.ok) throw new Error("Chart data unavailable");
+  const data = (await res.json()) as { prices?: ChartPricePoint[] };
+  return data.prices ?? [];
+}
+
 export async function getCoinsList(params?: {
   category?: string;
   limit?: number;

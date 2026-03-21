@@ -137,6 +137,18 @@ def normalize_coin_detail(raw: Dict[str, Any], vs_currency: str = "usd") -> Dict
     }
 
 
+def fetch_market_chart(coin_id: str, days: int = 7, vs_currency: str = "usd") -> Dict[str, Any]:
+    """
+    Fetch historical price chart data from CoinGecko's /coins/{id}/market_chart.
+    Returns { prices: [[timestamp_ms, price], ...], market_caps, total_volumes }.
+    """
+    data = _get(
+        f"/coins/{coin_id}/market_chart",
+        params={"vs_currency": vs_currency, "days": str(days)},
+    )
+    return data
+
+
 def fetch_trending_coins() -> List[Dict[str, Any]]:
     """
     Fetch trending coins from CoinGecko's /search/trending endpoint.
