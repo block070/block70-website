@@ -45,6 +45,7 @@ class CoinInfo(BaseModel):
     discord: Optional[str] = None
     chain: Optional[str] = None
     category: Optional[str] = None
+    market_cap_rank: Optional[int] = None
     market_cap: Optional[float] = None
     price: Optional[float] = None
     volume_24h: Optional[float] = None

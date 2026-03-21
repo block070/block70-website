@@ -515,7 +515,7 @@ def create_scheduler() -> BackgroundScheduler:
 
     scheduler.add_job(
         _run_news_scraper_job,
-        IntervalTrigger(minutes=10),
+        IntervalTrigger(minutes=5),
         id="news_scraper",
         replace_existing=True,
         max_instances=1,

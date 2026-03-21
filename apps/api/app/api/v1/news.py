@@ -20,6 +20,14 @@ from app.services.news.ingestion import NewsIngestionService
 router = APIRouter(prefix="/api/news", tags=["news"])
 
 
+@router.get("/feeds")
+def get_news_feeds() -> dict:
+    """Return the configured RSS feed list. Update via NEWS_FEEDS_JSON env or app.services.news.feed_config."""
+    from app.services.news.feed_config import get_feed_list
+
+    return {"feeds": get_feed_list()}
+
+
 def _serialize_article(row: NewsArticle) -> NewsArticleRead:
     return NewsArticleRead(
         id=row.id,
@@ -106,10 +114,34 @@ def get_coin_news(
 ) -> NewsListResponse:
     _maybe_refresh_news(db)
     target = symbol.upper()
+    # 1) Prefer articles with ticker match (from entity extraction)
     rows = db.query(NewsArticle).all()
-    filtered = [row for row in rows if target in (row.tickers or [])]
+    by_ticker = [row for row in rows if target in (row.tickers or [])]
+    # 2) Fallback: match symbol or common names in title/summary/body
+    name_map = {
+        "BTC": "bitcoin", "ETH": "ethereum", "SOL": "solana", "XRP": "ripple",
+        "DOGE": "dogecoin", "ADA": "cardano", "AVAX": "avalanche", "DOT": "polkadot",
+        "LINK": "chainlink", "UNI": "uniswap", "ATOM": "cosmos",
+    }
+    search_terms = [target, name_map.get(target, target.lower())]
+    by_text = [
+        row
+        for row in rows
+        if row not in by_ticker
+        and any(
+            term in (row.title or "").lower()
+            or term in (row.summary or "").lower()
+            or term in (row.body_text or "").lower()
+            for term in search_terms
+        )
+    ]
+    filtered = by_ticker + by_text
     filtered.sort(
-        key=lambda row: ((row.coin_scores or {}).get(target, 0.0), row.published_at or datetime.min),
+        key=lambda row: (
+            (1 if target in (row.tickers or []) else 0),
+            (row.coin_scores or {}).get(target, 0.0),
+            row.published_at or datetime.min,
+        ),
         reverse=True,
     )
     sliced = filtered[:limit]

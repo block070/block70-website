@@ -85,6 +85,8 @@ def _enrich_coin_from_coingecko(coin: Coin, db: Session) -> tuple[Coin, list]:
         coin.price = md_data.get("price") or coin.price
         coin.market_cap = md_data.get("market_cap") or coin.market_cap
         coin.volume_24h = md_data.get("volume_24h") or coin.volume_24h
+        if coin_data.get("market_cap_rank") is not None and hasattr(coin, "market_cap_rank"):
+            coin.market_cap_rank = coin_data.get("market_cap_rank")
 
         latest = MarketDataPoint(
             timestamp=datetime.now(timezone.utc),
@@ -118,16 +120,23 @@ def _enrich_coin_from_coingecko(coin: Coin, db: Session) -> tuple[Coin, list]:
         return coin, []
 
 
+def _resolve_coin(db: Session, slug_or_symbol: str) -> Optional[Coin]:
+    """Resolve slug or symbol (e.g. btc, BTC) to Coin. Tries slug first, then symbol."""
+    slug_lower = slug_or_symbol.lower().strip()
+    symbol_upper = slug_or_symbol.upper().strip()
+    coin = db.query(Coin).filter(Coin.slug == slug_lower).first()
+    if coin:
+        return coin
+    coin = db.query(Coin).filter(Coin.symbol == symbol_upper).first()
+    return coin
+
+
 @router.get("/{slug}", response_model=CoinDetailResponse)
 def get_coin_detail(
     slug: str,
     db: Session = Depends(get_db),
 ) -> CoinDetailResponse:
-    coin: Optional[Coin] = (
-        db.query(Coin)
-        .filter(Coin.slug == slug)
-        .first()
-    )
+    coin = _resolve_coin(db, slug)
     if coin is None:
         raise HTTPException(status_code=404, detail="Coin not found")
 

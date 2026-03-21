@@ -7,15 +7,8 @@ from sqlalchemy.orm import Session
 
 from app.models import NewsArticle, NewsCluster, NewsEntity, NewsRawEvent
 from app.schemas.news import NewsIngestionResult
-from app.services.news.adapters import (
-    BlockworksScrapeAdapter,
-    CoinDeskApiAdapter,
-    CoinDeskRssAdapter,
-    CointelegraphRssAdapter,
-    DecryptRssAdapter,
-    GenericRssAdapter,
-    make_sitemap_adapters,
-)
+from app.services.news.adapters import GenericRssAdapter
+from app.services.news.feed_config import get_feed_list
 from app.services.news.cache import news_fetch_cache
 from app.services.news.dedupe import cluster_articles, normalize_title_key
 from app.services.news.entities import extract_entities
@@ -29,15 +22,11 @@ from app.services.news.types import SourceArticle, SourceFetchResult
 class NewsIngestionService:
     def __init__(self, db: Session) -> None:
         self.db = db
+        feeds = get_feed_list()
         self.adapters = [
-            CoinDeskApiAdapter(),
-            CoinDeskRssAdapter(),
-            CointelegraphRssAdapter(),
-            DecryptRssAdapter(),
-            BlockworksScrapeAdapter(),
-            GenericRssAdapter("The Block", "https://www.theblockcrypto.com/rss.xml"),
-            GenericRssAdapter("BeInCrypto", "https://beincrypto.com/feed/"),
-            *make_sitemap_adapters(),
+            GenericRssAdapter(item["source"], item["url"])
+            for item in feeds
+            if item.get("source") and item.get("url")
         ]
 
     def ingest_latest(self, limit_per_source: int = 50) -> NewsIngestionResult:

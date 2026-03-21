@@ -16,9 +16,10 @@ from app.db import engine
 logger = logging.getLogger(__name__)
 
 MIGRATIONS = [
-    # coins: whitepaper_url, explorer_url
+    # coins: whitepaper_url, explorer_url, market_cap_rank
     "ALTER TABLE coins ADD COLUMN IF NOT EXISTS whitepaper_url VARCHAR(1024)",
     "ALTER TABLE coins ADD COLUMN IF NOT EXISTS explorer_url VARCHAR(512)",
+    "ALTER TABLE coins ADD COLUMN IF NOT EXISTS market_cap_rank INTEGER",
 ]
 
 

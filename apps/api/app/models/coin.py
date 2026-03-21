@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Optional
 
-from sqlalchemy import DateTime, Float, String, Text
+from sqlalchemy import DateTime, Float, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 from sqlalchemy.sql import func
 
@@ -30,6 +30,7 @@ class Coin(Base):
     chain: Mapped[Optional[str]] = mapped_column(String(64), nullable=True, index=True)
     category: Mapped[Optional[str]] = mapped_column(String(128), nullable=True, index=True)
 
+    market_cap_rank: Mapped[Optional[int]] = mapped_column(Integer, nullable=True, index=True)
     market_cap: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     price: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     volume_24h: Mapped[Optional[float]] = mapped_column(Float, nullable=True)

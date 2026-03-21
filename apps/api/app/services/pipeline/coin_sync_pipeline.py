@@ -53,6 +53,7 @@ class CoinSyncPipeline:
                 discord=payload.get("discord"),
                 chain=payload.get("chain"),
                 category=payload.get("category"),
+                market_cap_rank=payload.get("market_cap_rank"),
                 market_cap=payload.get("market_cap"),
                 price=payload.get("price"),
                 volume_24h=payload.get("volume_24h"),
@@ -65,6 +66,8 @@ class CoinSyncPipeline:
             existing.symbol = payload["symbol"] or existing.symbol
             existing.logo_url = payload.get("logo_url") or existing.logo_url
             existing.category = payload.get("category") or existing.category
+            if hasattr(existing, "market_cap_rank") and payload.get("market_cap_rank") is not None:
+                existing.market_cap_rank = payload.get("market_cap_rank")
             existing.market_cap = payload.get("market_cap")
             existing.price = payload.get("price")
             existing.volume_24h = payload.get("volume_24h")

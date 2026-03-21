@@ -15,6 +15,7 @@ export type CoinInfoDto = {
   discord: string | null;
   chain: string | null;
   category: string | null;
+  market_cap_rank: number | null;
   market_cap: number | null;
   price: number | null;
   volume_24h: number | null;
@@ -100,6 +101,7 @@ export function getMockCoinDetail(slug: string): CoinDetailDto | null {
       slug: coin.slug,
       description: null,
       logo_url: null,
+      market_cap_rank: coin.rank,
       website: links?.website ?? null,
       whitepaper_url: links?.whitepaper ?? null,
       explorer_url: links?.explorer ?? null,

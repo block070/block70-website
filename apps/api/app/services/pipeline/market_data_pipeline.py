@@ -66,6 +66,8 @@ class MarketDataPipeline:
                 coin.logo_url = coin_data.get("logo_url")
             if coin_data.get("category") is not None:
                 coin.category = coin_data.get("category")
+            if hasattr(coin, "market_cap_rank") and coin_data.get("market_cap_rank") is not None:
+                coin.market_cap_rank = coin_data.get("market_cap_rank")
 
             # Insert MarketData row
             market_row = MarketData(
