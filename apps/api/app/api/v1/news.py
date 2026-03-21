@@ -124,6 +124,14 @@ def search_news(
     db: Session = Depends(get_db),
 ) -> NewsSearchResponse:
     _maybe_refresh_news(db)
+    from app.services.news.fts import search_news_fts
+
+    fts_results = search_news_fts(db, search_term=q, limit=limit)
+    if fts_results:
+        items = [_serialize_article(row) for _, row in fts_results]
+        return NewsSearchResponse(q=q, items=items, total=len(items))
+
+    # Fallback to ilike when FTS returns nothing (e.g. non-PostgreSQL, short query)
     like = f"%{q}%"
     rows = (
         db.query(NewsArticle)
@@ -132,7 +140,10 @@ def search_news(
             | (NewsArticle.summary.ilike(like))
             | (NewsArticle.body_text.ilike(like))
         )
-        .order_by(NewsArticle.homepage_score.desc().nullslast(), NewsArticle.published_at.desc().nullslast())
+        .order_by(
+            NewsArticle.homepage_score.desc().nullslast(),
+            NewsArticle.published_at.desc().nullslast(),
+        )
         .limit(limit)
         .all()
     )

@@ -42,7 +42,7 @@ export const smartMoneyWallets: SmartMoneyWallet[] = [
   {
     id: "sol-001",
     chain: "solana",
-    address: "SysvarRent111111111111111111111111111111111",
+    address: "MJKqp326RZCHnAAbew9MDdui3iCKWco7fsK9sVuZTX2",
     walletType: "whale",
     score: 92,
     balance: null,
@@ -81,7 +81,7 @@ export const smartMoneyWallets: SmartMoneyWallet[] = [
   {
     id: "sol-002",
     chain: "solana",
-    address: "Vote111111111111111111111111111111111111111",
+    address: "9QgXqrgdbVU8KcpfskqJpAXKzbaYQJecgMAruSWoXDkM",
     walletType: "market-maker",
     score: 88,
     balance: null,

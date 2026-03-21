@@ -39,9 +39,6 @@ export async function getSolWalletActivity(address: string): Promise<NormalizedW
 
       const pubkey = new PublicKey(address);
 
-      const nowMs = Date.now();
-      const cutoffMs = nowMs - 24 * 60 * 60 * 1000;
-
       const lamports = await retry(() => connection.getBalance(pubkey));
       const balance = lamportsToSol(lamports);
 
@@ -50,13 +47,9 @@ export async function getSolWalletActivity(address: string): Promise<NormalizedW
       const lastActivity = sigs[0]?.blockTime
         ? new Date(sigs[0].blockTime * 1000).toISOString()
         : null;
-
-      const inWindow = sigs.filter((s) => {
-        if (!s.blockTime) return false;
-        return s.blockTime * 1000 >= cutoffMs;
-      });
-
-      const txCount = inWindow.length;
+      // Use the total number of recent signatures returned as a proxy for activity.
+      // This keeps `txCount` stable even when `blockTime` is missing or RPC returns nulls.
+      const txCount = sigs.length;
 
       return {
         address,

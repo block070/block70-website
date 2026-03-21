@@ -1,10 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 
-type SearchCategory = "coins" | "wallets" | "airdrops" | "signals" | "narratives";
+type SearchCategory = "coins" | "news" | "wallets" | "airdrops" | "signals" | "narratives";
 
 type SearchResult = {
   id: string;
@@ -12,10 +11,15 @@ type SearchResult = {
   title: string;
   subtitle?: string;
   href: string;
+  price_change_24h?: number;
+  trending_rank?: number;
+  signal_count_24h?: number;
+  source?: string;
 };
 
 const CATEGORY_LABELS: Record<SearchCategory, string> = {
   coins: "Coins",
+  news: "News",
   wallets: "Wallets",
   airdrops: "Airdrops",
   signals: "Signals",
@@ -73,7 +77,11 @@ export function GlobalSearch() {
     setOpen(false);
     setQuery("");
     setResults([]);
-    router.push(href);
+    if (href.startsWith("http://") || href.startsWith("https://")) {
+      window.open(href, "_blank", "noopener,noreferrer");
+    } else {
+      router.push(href);
+    }
   }
 
   return (
@@ -123,14 +131,43 @@ export function GlobalSearch() {
                     role="option"
                   >
                     <span className="rounded bg-slate-800 px-1.5 py-0.5 text-[10px] text-slate-400">
-                      {CATEGORY_LABELS[r.category]}
+                      {CATEGORY_LABELS[r.category as SearchCategory] ?? r.category}
                     </span>
-                    <span className="font-medium text-slate-100">{r.title}</span>
-                    {r.subtitle ? (
-                      <span className="truncate text-xs text-slate-500">
-                        {r.subtitle}
+                    {r.category === "coins" && (
+                      <span
+                        className="rounded bg-amber-900/50 px-1.5 py-0.5 font-mono text-[10px] text-amber-400"
+                        aria-hidden
+                      >
+                        {r.title}
                       </span>
-                    ) : null}
+                    )}
+                    <span className="min-w-0 flex-1 font-medium text-slate-100 truncate">
+                      {r.title}
+                    </span>
+                    {r.category === "coins" && r.price_change_24h != null && (
+                      <span
+                        className={`text-xs ${
+                          r.price_change_24h >= 0 ? "text-emerald-400" : "text-rose-400"
+                        }`}
+                        aria-hidden
+                      >
+                        {r.price_change_24h >= 0 ? "+" : ""}
+                        {r.price_change_24h.toFixed(1)}%
+                      </span>
+                    )}
+                    {r.category === "coins" && r.trending_rank != null && r.trending_rank <= 10 && (
+                      <span
+                        className="rounded bg-violet-900/50 px-1.5 py-0.5 text-[10px] text-violet-300"
+                        aria-hidden
+                      >
+                        Trending
+                      </span>
+                    )}
+                    {(r.subtitle || r.source) && r.category !== "coins" && (
+                      <span className="truncate text-xs text-slate-500">
+                        {r.source ?? r.subtitle}
+                      </span>
+                    )}
                   </button>
                 </li>
               ))}

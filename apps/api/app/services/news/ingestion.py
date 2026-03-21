@@ -13,6 +13,8 @@ from app.services.news.adapters import (
     CoinDeskRssAdapter,
     CointelegraphRssAdapter,
     DecryptRssAdapter,
+    GenericRssAdapter,
+    make_sitemap_adapters,
 )
 from app.services.news.cache import news_fetch_cache
 from app.services.news.dedupe import cluster_articles, normalize_title_key
@@ -33,6 +35,9 @@ class NewsIngestionService:
             CointelegraphRssAdapter(),
             DecryptRssAdapter(),
             BlockworksScrapeAdapter(),
+            GenericRssAdapter("The Block", "https://www.theblockcrypto.com/rss.xml"),
+            GenericRssAdapter("BeInCrypto", "https://beincrypto.com/feed/"),
+            *make_sitemap_adapters(),
         ]
 
     def ingest_latest(self, limit_per_source: int = 50) -> NewsIngestionResult:
