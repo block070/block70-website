@@ -1,6 +1,7 @@
 import { CoinTable } from "@/components/market/coin-table";
 import { CoinsPagination } from "@/components/market/coins-pagination";
 import { MarketStats } from "@/components/market/market-stats";
+import { getMarketCoins, type MarketCoin } from "@/lib/api";
 import { COINS } from "@/lib/crypto-mock";
 import { getCoinsList, TOTAL_COINS_PAGINATED } from "@/lib/coins";
 
@@ -38,6 +39,28 @@ function apiCoinsToMockShape(
   }));
 }
 
+function marketCoinsToShape(
+  list: MarketCoin[],
+  page: number,
+  limit: number
+): typeof COINS {
+  const rankOffset = (page - 1) * limit;
+  return list.map((item, i) => ({
+    id: item.slug,
+    slug: item.slug,
+    symbol: item.symbol,
+    name: item.name,
+    priceUsd: item.price ?? 0,
+    marketCapUsd: item.market_cap ?? 0,
+    volume24hUsd: item.volume ?? 0,
+    change24hPct: item.change_24h ?? Number.NaN,
+    change7dPct: item.change_7d ?? Number.NaN,
+    rank: rankOffset + i + 1,
+    categoryIds: [],
+    chainIds: [],
+  }));
+}
+
 type PageProps = {
   searchParams: Promise<{ page?: string; limit?: string }>;
 };
@@ -59,9 +82,30 @@ export default async function CoinsPage({ searchParams }: PageProps) {
     const list = await getCoinsList({ limit, page });
     if (list.length > 0) {
       coins = apiCoinsToMockShape(list, page, limit);
+    } else {
+      throw new Error("Coins API returned empty");
     }
   } catch {
-    // use mock COINS
+    try {
+      const marketPerPage = 100;
+      const pagesNeeded = Math.ceil(limit / marketPerPage);
+      const marketList: MarketCoin[] = [];
+      for (let p = 0; p < pagesNeeded; p++) {
+        const marketPage = (page - 1) * pagesNeeded + p + 1;
+        const chunk = await getMarketCoins({
+          limit: marketPerPage,
+          page: marketPage,
+        });
+        marketList.push(...chunk);
+        if (chunk.length < marketPerPage) break;
+      }
+      const slice = marketList.slice(0, limit);
+      if (slice.length > 0) {
+        coins = marketCoinsToShape(slice, page, limit);
+      }
+    } catch {
+      // use mock COINS
+    }
   }
 
   return (
