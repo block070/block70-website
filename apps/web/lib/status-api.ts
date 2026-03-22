@@ -1,6 +1,6 @@
 /**
- * Status API - uses same-origin /api/status proxy to avoid CORS and mixed-content issues.
- * The Next.js API route forwards to the backend (API_SERVER_URL).
+ * Status API - fetches directly from the backend when NEXT_PUBLIC_API_BASE_URL is set
+ * (bypasses Next.js proxy to avoid Docker networking issues). Falls back to /api/status proxy.
  */
 export type JobStatus = {
   id: string;
@@ -17,8 +17,15 @@ export type StatusResponse = {
   error?: string;
 };
 
+const API_BASE =
+  typeof window !== "undefined"
+    ? (process.env.NEXT_PUBLIC_API_BASE_URL ?? "").replace(/\/$/, "")
+    : "";
+
 export async function getStatus(): Promise<StatusResponse> {
-  const res = await fetch("/api/status", { cache: "no-store" });
+  // Direct fetch from API when URL is set (browser only) - avoids server-side Docker networking
+  const url = API_BASE ? `${API_BASE}/api/v1/status` : "/api/status";
+  const res = await fetch(url, { cache: "no-store" });
   const data = (await res.json()) as StatusResponse;
   if (!res.ok) throw new Error(data.error || "Status API error: " + res.status);
   return data;

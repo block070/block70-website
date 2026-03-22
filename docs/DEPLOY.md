@@ -23,18 +23,17 @@ Ensure these are set for production:
 |----------|---------|
 | `NEXT_PUBLIC_API_BASE_URL` | Public API URL (e.g. `https://api.block70.com`) – used by browser |
 | `API_SERVER_URL` | **Server-side only**: Where the FastAPI backend runs. In Docker, if `http://api:8000` fails (DNS/network), use `http://host.docker.internal:8000` (requires `extra_hosts` in docker-compose). |
-| `FRONTEND_ORIGIN` | Your frontend origin for CORS (e.g. `https://block70.com`) |
+| `FRONTEND_ORIGIN` | Comma-separated CORS origins (e.g. `https://block70.com,http://108.175.11.229:3000`) – required for status page to fetch API directly |
 | `REDIS_URL` | Default `redis://redis:6379/0` in Docker – chart cache uses Redis |
 | `DATABASE_URL` | PostgreSQL connection string |
 | `SITEMAP_BASE_URL` | Base URL for sitemap (e.g. `https://block70.com`) |
 
 ### Status page "Backend API unreachable"
 
-If `/status` shows this in Docker, `http://api:8000` may not resolve from the web container. Set in `.env`:
-```bash
-API_SERVER_URL=http://host.docker.internal:8000
-```
-(docker-compose includes `extra_hosts` so `host.docker.internal` reaches the host; port 8000 is mapped from the API container)
+The status page fetches **directly from the API** in the browser (bypassing the web container). Ensure:
+
+1. `NEXT_PUBLIC_API_BASE_URL` points to the API (e.g. `http://108.175.11.229:8000` or `https://api.block70.com`)
+2. `FRONTEND_ORIGIN` includes your frontend domain (e.g. `https://block70.com,http://108.175.11.229:3000`) so CORS allows the fetch
 
 ## Chart cache (new)
 

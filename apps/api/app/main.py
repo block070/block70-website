@@ -99,11 +99,15 @@ def _init_db() -> None:
 def _on_startup() -> None:
     _init_db()
 
-# CORS configuration for local frontend
-frontend_origin = os.getenv("FRONTEND_ORIGIN", "http://localhost:3000")
+# CORS configuration - comma-separated origins for block70.com + local
+frontend_origins = [
+    o.strip()
+    for o in os.getenv("FRONTEND_ORIGIN", "http://localhost:3000").split(",")
+    if o.strip()
+]
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[frontend_origin],
+    allow_origins=frontend_origins,
     allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
