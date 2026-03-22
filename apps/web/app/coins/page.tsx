@@ -1,7 +1,8 @@
 import { CoinTable } from "@/components/market/coin-table";
+import { CoinsPagination } from "@/components/market/coins-pagination";
 import { MarketStats } from "@/components/market/market-stats";
 import { COINS } from "@/lib/crypto-mock";
-import { getCoinsList } from "@/lib/coins";
+import { getCoinsList, TOTAL_PAGES } from "@/lib/coins";
 
 export const metadata = {
   title: "Coins · Block70 Crypto Data",
@@ -10,8 +11,10 @@ export const metadata = {
 };
 
 function apiCoinsToMockShape(
-  list: Awaited<ReturnType<typeof getCoinsList>>
+  list: Awaited<ReturnType<typeof getCoinsList>>,
+  page: number
 ): typeof COINS {
+  const rankOffset = (page - 1) * 100;
   return list.map((item, i) => ({
     id: String(item.coin.id),
     slug: item.coin.slug,
@@ -26,18 +29,25 @@ function apiCoinsToMockShape(
     change7dPct:
       item.latest_market_data?.price_change_7d ??
       Number.NaN,
-    rank: i + 1,
+    rank: rankOffset + i + 1,
     categoryIds: item.coin.category ? [item.coin.category] : [],
     chainIds: item.coin.chain ? [item.coin.chain] : [],
   }));
 }
 
-export default async function CoinsPage() {
+type PageProps = {
+  searchParams: Promise<{ page?: string }>;
+};
+
+export default async function CoinsPage({ searchParams }: PageProps) {
+  const { page: pageParam } = await searchParams;
+  const page = Math.min(Math.max(1, parseInt(pageParam ?? "1", 10) || 1), TOTAL_PAGES);
+
   let coins = COINS;
   try {
-    const list = await getCoinsList({ limit: 100 });
+    const list = await getCoinsList({ limit: 100, page });
     if (list.length > 0) {
-      coins = apiCoinsToMockShape(list);
+      coins = apiCoinsToMockShape(list, page);
     }
   } catch {
     // use mock COINS
@@ -62,6 +72,9 @@ export default async function CoinsPage() {
           </p>
         </div>
         <CoinTable coins={coins} />
+        <div className="flex justify-center pt-4">
+          <CoinsPagination currentPage={page} totalPages={TOTAL_PAGES} />
+        </div>
       </section>
     </div>
   );

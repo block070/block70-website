@@ -21,6 +21,11 @@ from app.schemas.coin_api import (
 router = APIRouter(prefix="/api/v1/coins", tags=["coins"])
 
 
+COINS_PER_PAGE = 100
+TOTAL_COINS_PAGINATED = 2000
+TOTAL_PAGES = TOTAL_COINS_PAGINATED // COINS_PER_PAGE  # 20
+
+
 def _fetch_coingecko_price_changes(limit: int) -> dict[str, dict]:
     """
     Fetch price_change_24h and price_change_7d from CoinGecko /coins/markets
@@ -45,16 +50,88 @@ def _fetch_coingecko_price_changes(limit: int) -> dict[str, dict]:
     return out
 
 
+def _fetch_coins_from_coingecko(page: int) -> List[CoinListItem]:
+    """
+    Fetch a page of coins (100 per page) from CoinGecko, up to 2000 total.
+    CoinGecko returns 250 per page; we slice to get our 100.
+    """
+    from app.services.connectors.coingecko_connector import fetch_all_coins
+
+    start = (page - 1) * COINS_PER_PAGE
+    cg_page_start = (start // 250) + 1
+    offset_in_cg = start % 250
+    items: List[dict] = []
+    if offset_in_cg + COINS_PER_PAGE <= 250:
+        raw = fetch_all_coins(vs_currency="usd", per_page=250, page=cg_page_start)
+        items = raw[offset_in_cg : offset_in_cg + COINS_PER_PAGE]
+    else:
+        raw1 = fetch_all_coins(vs_currency="usd", per_page=250, page=cg_page_start)
+        raw2 = fetch_all_coins(vs_currency="usd", per_page=250, page=cg_page_start + 1)
+        part1 = raw1[offset_in_cg:]
+        part2 = raw2[: COINS_PER_PAGE - len(part1)]
+        items = part1 + part2
+
+    result: List[CoinListItem] = []
+    for i, cg in enumerate(items):
+        rank = (page - 1) * COINS_PER_PAGE + i + 1
+        coin_id = cg.get("market_cap_rank") or rank
+        coin_info = CoinInfo(
+            id=coin_id,
+            name=cg.get("name") or "",
+            symbol=(cg.get("symbol") or "").upper(),
+            slug=cg.get("slug") or "",
+            description=None,
+            logo_url=cg.get("logo_url"),
+            website=None,
+            whitepaper_url=None,
+            explorer_url=None,
+            twitter=None,
+            discord=None,
+            chain=None,
+            category=None,
+            market_cap_rank=cg.get("market_cap_rank"),
+            market_cap=cg.get("market_cap"),
+            price=cg.get("price"),
+            volume_24h=cg.get("volume_24h"),
+            circulating_supply=cg.get("circulating_supply"),
+            total_supply=cg.get("total_supply"),
+        )
+        md_point = MarketDataPoint(
+            timestamp=datetime.now(timezone.utc),
+            price=cg.get("price") or 0.0,
+            market_cap=cg.get("market_cap"),
+            volume_24h=cg.get("volume_24h"),
+            price_change_24h=cg.get("price_change_24h"),
+            price_change_7d=cg.get("price_change_7d"),
+        )
+        result.append(CoinListItem(coin=coin_info, latest_market_data=md_point))
+    return result
+
+
 @router.get("", response_model=List[CoinListItem])
 def list_coins(
     limit: int = Query(100, ge=1, le=500),
+    page: int = Query(1, ge=1, le=TOTAL_PAGES, description="Page for paginated list (1-20, 100 coins each)"),
     category: Optional[str] = Query(None, description="Filter by category (e.g. AI, DePIN, Gaming, Layer 2)"),
     db: Session = Depends(get_db),
 ) -> List[CoinListItem]:
+    # When no category filter, use CoinGecko for paginated top 2000 coins
+    if category is None and page > 1:
+        return _fetch_coins_from_coingecko(page)
+    if category is None and page == 1:
+        try:
+            cg_items = _fetch_coins_from_coingecko(1)
+            if cg_items:
+                return cg_items
+        except Exception:
+            pass
+        # Fall through to DB if CoinGecko fails
+
     q = db.query(Coin).order_by(Coin.market_cap.desc().nullslast())
     if category:
         q = q.filter(Coin.category.ilike(f"%{category}%"))
-    coins = q.limit(limit).all()
+    offset = (page - 1) * limit if page > 1 else 0
+    coins = q.offset(offset).limit(limit).all()
 
     cg_changes = _fetch_coingecko_price_changes(limit)
 

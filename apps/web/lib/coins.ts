@@ -153,13 +153,19 @@ export async function getCoinChartData(
   return data.prices ?? [];
 }
 
+export const COINS_PER_PAGE = 100;
+export const TOTAL_COINS_PAGINATED = 2000;
+export const TOTAL_PAGES = TOTAL_COINS_PAGINATED / COINS_PER_PAGE; // 20
+
 export async function getCoinsList(params?: {
   category?: string;
   limit?: number;
+  page?: number;
 }): Promise<CoinListItemDto[]> {
   const search = new URLSearchParams();
   if (params?.category) search.set("category", params.category);
   if (params?.limit != null) search.set("limit", String(params.limit));
+  if (params?.page != null && params.page > 1) search.set("page", String(params.page));
   const query = search.toString();
   return fetchJson<CoinListItemDto[]>(`/api/v1/coins${query ? `?${query}` : ""}`);
 }
