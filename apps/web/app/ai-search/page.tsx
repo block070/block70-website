@@ -23,7 +23,8 @@ export default function AISearchPage() {
       const data = await postAISearch(q);
       setResult(data);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Search failed");
+      const msg = e instanceof Error ? e.message : "Search failed";
+      setError(msg === "Failed to fetch" ? "Unable to reach the server. Please check your connection and try again." : msg);
     } finally {
       setLoading(false);
     }
@@ -36,7 +37,10 @@ export default function AISearchPage() {
     setLoading(true);
     postAISearch(q)
       .then(setResult)
-      .catch((e) => setError(e instanceof Error ? e.message : "Search failed"))
+      .catch((e) => {
+        const msg = e instanceof Error ? e.message : "Search failed";
+        setError(msg === "Failed to fetch" ? "Unable to reach the server. Please check your connection and try again." : msg);
+      })
       .finally(() => setLoading(false));
   }
 

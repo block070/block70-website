@@ -2,18 +2,28 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { getBlocksBalance } from "@/lib/rewards-api";
+import { clearToken } from "@/lib/auth";
 
 export function BlockBalance() {
   const [balance, setBalance] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
+  const router = useRouter();
 
   useEffect(() => {
     getBlocksBalance()
       .then((d) => setBalance(d.balance))
-      .catch(() => setBalance(null))
+      .catch((err) => {
+        const msg = err instanceof Error ? err.message : String(err);
+        if (msg.includes("401") || msg.includes("Not authenticated") || msg.includes("API error")) {
+          clearToken();
+          router.refresh();
+        }
+        setBalance(null);
+      })
       .finally(() => setLoading(false));
-  }, []);
+  }, [router]);
 
   if (loading || balance === null) {
     return (

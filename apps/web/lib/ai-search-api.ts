@@ -49,7 +49,14 @@ export async function postAISearch(queryText: string): Promise<AISearchResult> {
     body: JSON.stringify({ query_text: queryText }),
     cache: "no-store",
   });
-  if (!res.ok) throw new Error("AI search failed");
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    const detail = (body as { detail?: string })?.detail;
+    if (res.status === 401 || detail === "Not authenticated") {
+      throw new Error("Please log in and try again.");
+    }
+    throw new Error(detail || "AI search failed");
+  }
   return res.json();
 }
 
