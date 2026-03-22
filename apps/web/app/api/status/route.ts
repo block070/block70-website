@@ -15,11 +15,16 @@ export async function GET() {
     const data = await res.json();
     return NextResponse.json(data, { status: res.status });
   } catch (err) {
+    const msg = err instanceof Error ? err.message : "Failed to fetch status";
+    const isNetwork = /fetch failed|Failed to fetch|ECONNREFUSED|ETIMEDOUT|ENOTFOUND/i.test(msg);
+    const error = isNetwork
+      ? "Backend API unreachable. The Block70 API server may be down, or API_SERVER_URL may be incorrect. Use a process monitor (Docker restart policy, systemd) for auto-restart."
+      : msg;
     return NextResponse.json(
       {
         scheduler_running: false,
         jobs: [],
-        error: err instanceof Error ? err.message : "Failed to fetch status",
+        error,
       },
       { status: 502 }
     );

@@ -178,6 +178,9 @@ def _start_scheduler() -> None:
 
 @app.on_event("shutdown")
 def _shutdown_scheduler() -> None:
+    from app.jobs.scheduler import request_shutdown
+
+    request_shutdown()
     if _scheduler.running:
         _scheduler.shutdown(wait=False)
 

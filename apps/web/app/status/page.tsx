@@ -51,8 +51,13 @@ export default function StatusPage() {
   const [coinsResult, setCoinsResult] = useState<string | null>(null);
 
   const fetchStatus = useCallback(() => {
+    setError(null);
+    setLoading(true);
     getStatus()
-      .then(setData)
+      .then((d) => {
+        setData(d);
+        setError(null);
+      })
       .catch((e) => setError(e instanceof Error ? e.message : "Failed to load"))
       .finally(() => setLoading(false));
   }, []);
@@ -104,10 +109,21 @@ export default function StatusPage() {
     return (
       <div className="mx-auto max-w-6xl space-y-6 p-6">
         <h1 className="text-2xl font-bold text-slate-50">Service status</h1>
-        <p className="text-rose-400">{error}</p>
-        <Link href="/">
-          <Button variant="outline">← Back</Button>
-        </Link>
+        <div className="rounded-xl border border-rose-800/60 bg-rose-950/40 p-6">
+          <p className="text-rose-400">{error}</p>
+          <p className="mt-3 text-sm text-slate-400">
+            If the API backend is down, restart it (e.g. Docker, systemd). For auto-restart on crash, use{" "}
+            <code className="rounded bg-slate-800 px-1">restart: always</code> (Docker) or similar.
+          </p>
+        </div>
+        <div className="flex gap-3">
+          <Button variant="outline" onClick={fetchStatus}>
+            Retry
+          </Button>
+          <Link href="/">
+            <Button variant="outline">← Back</Button>
+          </Link>
+        </div>
       </div>
     );
   }

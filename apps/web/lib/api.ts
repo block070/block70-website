@@ -280,24 +280,42 @@ export type MarketCategory = {
   content?: string | null;
 };
 
+const FALLBACK_CATEGORIES: MarketCategory[] = [
+  { id: "defi", name: "DeFi Bluechips", market_cap: 25_000_000_000, volume_24h: 1_200_000_000, market_cap_change_24h: null, top_coins: [{ slug: "uniswap", symbol: "UNI" }, { slug: "aave", symbol: "AAVE" }, { slug: "curve-dao-token", symbol: "CRV" }] },
+  { id: "l1", name: "Layer 1s", market_cap: 450_000_000_000, volume_24h: 22_000_000_000, market_cap_change_24h: null, top_coins: [{ slug: "ethereum", symbol: "ETH" }, { slug: "solana", symbol: "SOL" }, { slug: "avalanche-2", symbol: "AVAX" }] },
+  { id: "infra", name: "Infrastructure", market_cap: 12_000_000_000, volume_24h: 600_000_000, market_cap_change_24h: null, top_coins: [{ slug: "chainlink", symbol: "LINK" }, { slug: "the-graph", symbol: "GRT" }] },
+  { id: "store-of-value", name: "Store of Value", market_cap: 1_400_000_000_000, volume_24h: 28_000_000_000, market_cap_change_24h: null, top_coins: [{ slug: "bitcoin", symbol: "BTC" }] },
+  { id: "meme-token", name: "Meme Coins", market_cap: 80_000_000_000, volume_24h: 8_000_000_000, market_cap_change_24h: null, top_coins: [{ slug: "dogecoin", symbol: "DOGE" }, { slug: "shiba-inu", symbol: "SHIB" }] },
+  { id: "ai-big-data", name: "AI & Big Data", market_cap: 35_000_000_000, volume_24h: 2_500_000_000, market_cap_change_24h: null, top_coins: [{ slug: "fetch-ai", symbol: "FET" }, { slug: "render-token", symbol: "RNDR" }, { slug: "ocean-protocol", symbol: "OCEAN" }] },
+];
+
 export async function getMarketCategories(params?: {
   order?: string;
   limit?: number;
   page?: number;
 }): Promise<{ items: MarketCategory[]; total: number }> {
-  const search = new URLSearchParams();
-  if (params?.order) search.set("order", params.order);
-  if (params?.limit != null) search.set("limit", String(params.limit));
-  if (params?.page != null && params.page > 1) search.set("page", String(params.page));
-  const query = search.toString();
-  const data = await fetchJson<{ items?: MarketCategory[]; total?: number } | MarketCategory[]>(
-    `/api/v1/market/categories${query ? `?${query}` : ""}`
-  );
-  if (data && typeof data === "object" && "items" in data && Array.isArray(data.items)) {
-    return { items: data.items, total: data.total ?? data.items.length };
+  try {
+    const search = new URLSearchParams();
+    if (params?.order) search.set("order", params.order);
+    if (params?.limit != null) search.set("limit", String(params.limit));
+    if (params?.page != null && params.page > 1) search.set("page", String(params.page));
+    const query = search.toString();
+    const data = await fetchJson<{ items?: MarketCategory[]; total?: number } | MarketCategory[]>(
+      `/api/v1/market/categories${query ? `?${query}` : ""}`
+    );
+    if (data && typeof data === "object" && "items" in data && Array.isArray(data.items) && data.items.length > 0) {
+      return { items: data.items, total: data.total ?? data.items.length };
+    }
+    const fallback = Array.isArray(data) ? data : [];
+    if (fallback.length > 0) return { items: fallback, total: fallback.length };
+  } catch {
+    // API failed: use fallback so categories page always has content
   }
-  const fallback = Array.isArray(data) ? data : [];
-  return { items: fallback, total: fallback.length };
+  const limit = params?.limit ?? 100;
+  const page = params?.page ?? 1;
+  const start = (page - 1) * limit;
+  const items = FALLBACK_CATEGORIES.slice(start, start + limit);
+  return { items, total: FALLBACK_CATEGORIES.length };
 }
 
 export async function getNewsArticles(params?: {

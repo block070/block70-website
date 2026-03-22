@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from datetime import datetime, timedelta
 from typing import Callable
 
@@ -368,11 +369,44 @@ def _run_signal_bot_dispatcher_job() -> None:
 
 
 _scheduler_instance: BackgroundScheduler | None = None
+_shutdown_requested = False
 
 
 def get_scheduler() -> BackgroundScheduler | None:
     """Return the running scheduler instance for status API."""
     return _scheduler_instance
+
+
+def request_shutdown() -> None:
+    """Mark that shutdown was requested (so watchdog won't restart)."""
+    global _shutdown_requested
+    _shutdown_requested = True
+
+
+def try_restart_scheduler_if_stopped() -> bool:
+    """
+    If the scheduler exists but stopped unexpectedly (not from shutdown),
+    create a new instance and start it. Returns True if a restart was performed.
+    """
+    global _scheduler_instance
+    if _shutdown_requested:
+        return False
+    s = _scheduler_instance
+    if s is None or s.running:
+        return False
+    logger = logging.getLogger(__name__)
+    try:
+        logger.warning("Scheduler was stopped unexpectedly; attempting restart")
+        try:
+            s.shutdown(wait=False)
+        except Exception:
+            pass
+        _scheduler_instance = create_scheduler()
+        _scheduler_instance.start()
+        return True
+    except Exception as e:
+        logger.exception("Scheduler restart failed: %s", e)
+        return False
 
 
 def _job_listener(event) -> None:

@@ -8,7 +8,7 @@ from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
 from app.db import get_db
-from app.jobs.scheduler import get_scheduler
+from app.jobs.scheduler import get_scheduler, try_restart_scheduler_if_stopped
 from app.jobs.status_store import get_all_status, JOB_LABELS
 from app.services.scrapers.news_scraper import run_news_scraper
 
@@ -21,7 +21,9 @@ def get_status() -> dict:
     """
     Real-time status of background services (scheduler jobs).
     Returns: scheduler running, jobs with next_run, last_run, status.
+    Attempts to restart the scheduler if it stopped unexpectedly.
     """
+    try_restart_scheduler_if_stopped()
     scheduler = get_scheduler()
     job_status = get_all_status()
 

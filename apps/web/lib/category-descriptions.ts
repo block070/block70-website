@@ -38,6 +38,14 @@ export const CATEGORY_DESCRIPTIONS: Record<string, string> = {
     "Decentralized exchanges (DEXs) allow peer-to-peer trading without intermediaries. Liquidity is pooled; users swap via smart contracts.",
   defi:
     "DeFi (Decentralized Finance) protocols replicate traditional financial services on-chain: lending, borrowing, trading, and yield.",
+  l1:
+    "Layer 1 (L1) blockchains are base networks that process and finalize transactions. Major L1s include Ethereum, Solana, Avalanche, and BNB Chain.",
+  infra:
+    "Infrastructure tokens support core blockchain services: oracles, indexing, storage, and interoperability. Examples include Chainlink and The Graph.",
+  "store-of-value":
+    "Store of value assets are designed to preserve wealth over time. Bitcoin leads this category as a decentralized digital store of value.",
+  "ai-big-data":
+    "AI and Big Data tokens power artificial intelligence and data marketplace applications. Examples include Fetch.ai, Render, and Ocean Protocol.",
   "artificial-intelligence-(ai)":
     "AI tokens are crypto assets linked to artificial intelligence projects. They power AI-driven dApps, data marketplaces, and compute networks.",
   "gaming-tokens":
