@@ -196,9 +196,9 @@ export function MarketHeatmap({ coins = [] }: MarketHeatmapProps) {
                       strokeWidth={1}
                       rx={2}
                     />
-                    {showLogo ? (
+                    {showLogo && d.logoUrl ? (
                       <image
-                        href={d.logoUrl}
+                        href={d.logoUrl || undefined}
                         x={x + 4}
                         y={y + 4}
                         width={20}
