@@ -103,17 +103,16 @@ def list_coins(
     category: Optional[str] = Query(None, description="Filter by category (e.g. AI, DePIN, Gaming, Layer 2)"),
     db: Session = Depends(get_db),
 ) -> List[CoinListItem]:
-    # When no category filter, use CoinGecko for paginated top 2000 coins
-    if category is None and page > 1:
-        return _fetch_coins_from_coingecko(page)
-    if category is None and page == 1:
+    # When no category filter, try CoinGecko first; fall back to DB on failure or empty
+    # (CoinGecko free API typically limits /coins/markets to first ~500 coins, so pages 6+ may return empty)
+    if category is None:
         try:
-            cg_items = _fetch_coins_from_coingecko(1)
+            cg_items = _fetch_coins_from_coingecko(page)
             if cg_items:
                 return cg_items
         except Exception:
             pass
-        # Fall through to DB if CoinGecko fails
+        # Fall through to DB when CoinGecko fails or returns empty
 
     q = db.query(Coin).order_by(Coin.market_cap.desc().nullslast())
     if category:
