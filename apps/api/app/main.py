@@ -175,13 +175,18 @@ _scheduler = None
 @app.on_event("startup")
 def _start_scheduler() -> None:
     global _scheduler
+    import logging
+    import sys
+
+    logger = logging.getLogger(__name__)
     try:
         _scheduler = create_scheduler()
-        if not _scheduler.running:
-            _scheduler.start()
-    except Exception:
-        # Allow API to start even if scheduler fails (e.g. Redis/DB not ready)
-        pass
+        _scheduler.start()
+        logger.info("Scheduler started")
+        print("Scheduler started", flush=True)
+    except Exception as e:
+        logger.exception("Scheduler failed to start: %s", e)
+        print(f"Scheduler FAILED: {e}", file=sys.stderr, flush=True)
 
 
 @app.on_event("shutdown")
