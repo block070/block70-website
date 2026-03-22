@@ -169,15 +169,19 @@ app.include_router(search_router)
 app.include_router(status_router)
 app.include_router(articles_router)
 
-_scheduler = create_scheduler()
+_scheduler = None
 
 
 @app.on_event("startup")
 def _start_scheduler() -> None:
-    # Run agent jobs in a background scheduler so they do not block
-    # the API server's request handlers.
-    if not _scheduler.running:
-        _scheduler.start()
+    global _scheduler
+    try:
+        _scheduler = create_scheduler()
+        if not _scheduler.running:
+            _scheduler.start()
+    except Exception:
+        # Allow API to start even if scheduler fails (e.g. Redis/DB not ready)
+        pass
 
 
 @app.on_event("shutdown")
@@ -185,7 +189,7 @@ def _shutdown_scheduler() -> None:
     from app.jobs.scheduler import request_shutdown
 
     request_shutdown()
-    if _scheduler.running:
+    if _scheduler and _scheduler.running:
         _scheduler.shutdown(wait=False)
 
 
