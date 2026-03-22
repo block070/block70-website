@@ -17,14 +17,13 @@ export type StatusResponse = {
   error?: string;
 };
 
-const API_BASE =
-  typeof window !== "undefined"
-    ? (process.env.NEXT_PUBLIC_API_BASE_URL ?? "").replace(/\/$/, "")
-    : "";
-
 export async function getStatus(): Promise<StatusResponse> {
-  // Direct fetch from API when URL is set (browser only) - avoids server-side Docker networking
-  const url = API_BASE ? `${API_BASE}/api/v1/status` : "/api/status";
+  // Fetch directly from API - browser reaches same host, port 8000 (bypasses Docker proxy)
+  const apiBase =
+    (typeof window !== "undefined" &&
+      `${window.location.protocol}//${window.location.hostname}:8000`) ||
+    "";
+  const url = apiBase ? `${apiBase}/api/v1/status` : "/api/status";
   const res = await fetch(url, { cache: "no-store" });
   const data = (await res.json()) as StatusResponse;
   if (!res.ok) throw new Error(data.error || "Status API error: " + res.status);

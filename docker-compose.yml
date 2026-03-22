@@ -44,9 +44,8 @@ services:
     env_file:
       - .env
     environment:
-      # Use API_SERVER_URL from .env (e.g. http://108.175.11.229:8000) so the container can reach the API.
-      # If unset, falls back to http://api:8000 (Docker service name).
       API_SERVER_URL: ${API_SERVER_URL:-http://api:8000}
+      NEXT_PUBLIC_API_BASE_URL: ${NEXT_PUBLIC_API_BASE_URL}
     extra_hosts:
       # Allows host.docker.internal:8000 from inside container (Linux)
       - "host.docker.internal:host-gateway"
