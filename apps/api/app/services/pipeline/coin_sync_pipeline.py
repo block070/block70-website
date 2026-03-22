@@ -5,7 +5,7 @@ from typing import Any, Dict, List
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.models import Coin
+from app.models import Coin, MarketData
 from app.services.connectors.coingecko_connector import fetch_all_coins
 
 
@@ -38,7 +38,7 @@ class CoinSyncPipeline:
 
         db.commit()
 
-    def _upsert_coin(self, db: Session, existing: Coin | None, payload: Dict[str, Any]) -> None:
+    def _upsert_coin(self, db: Session, existing: Coin | None, payload: Dict[str, Any]) -> Coin:
         if existing is None:
             coin = Coin(
                 name=payload["name"],
@@ -62,23 +62,33 @@ class CoinSyncPipeline:
             )
             db.add(coin)
         else:
-            existing.name = payload["name"] or existing.name
-            existing.symbol = payload["symbol"] or existing.symbol
-            existing.logo_url = payload.get("logo_url") or existing.logo_url
-            existing.category = payload.get("category") or existing.category
-            if hasattr(existing, "market_cap_rank") and payload.get("market_cap_rank") is not None:
-                existing.market_cap_rank = payload.get("market_cap_rank")
-            existing.market_cap = payload.get("market_cap")
-            existing.price = payload.get("price")
-            existing.volume_24h = payload.get("volume_24h")
-            existing.circulating_supply = payload.get("circulating_supply")
-            existing.total_supply = payload.get("total_supply")
-            if hasattr(existing, "whitepaper_url") and payload.get("whitepaper_url"):
-                existing.whitepaper_url = payload.get("whitepaper_url")
-            if hasattr(existing, "explorer_url") and payload.get("explorer_url"):
-                existing.explorer_url = payload.get("explorer_url")
+            coin = existing
+            coin.name = payload["name"] or coin.name
+            coin.symbol = payload["symbol"] or coin.symbol
+            coin.logo_url = payload.get("logo_url") or coin.logo_url
+            coin.category = payload.get("category") or coin.category
+            if hasattr(coin, "market_cap_rank") and payload.get("market_cap_rank") is not None:
+                coin.market_cap_rank = payload.get("market_cap_rank")
+            coin.market_cap = payload.get("market_cap")
+            coin.price = payload.get("price")
+            coin.volume_24h = payload.get("volume_24h")
+            coin.circulating_supply = payload.get("circulating_supply")
+            coin.total_supply = payload.get("total_supply")
+            if hasattr(coin, "whitepaper_url") and payload.get("whitepaper_url"):
+                coin.whitepaper_url = payload.get("whitepaper_url")
+            if hasattr(coin, "explorer_url") and payload.get("explorer_url"):
+                coin.explorer_url = payload.get("explorer_url")
 
-        # Flush to ensure IDs are assigned for any subsequent pipelines, but
-        # keep commit at the end of the batch.
         db.flush()
+
+        md = MarketData(
+            coin_id=coin.id,
+            price=payload.get("price") or 0.0,
+            market_cap=payload.get("market_cap"),
+            volume_24h=payload.get("volume_24h"),
+            price_change_24h=payload.get("price_change_24h"),
+            price_change_7d=payload.get("price_change_7d"),
+        )
+        db.add(md)
+        return coin
 

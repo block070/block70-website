@@ -2,7 +2,13 @@
 
 import { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
-import { getStatus, triggerNewsScraper, type StatusResponse, type JobStatus } from "@/lib/status-api";
+import {
+  getStatus,
+  triggerNewsScraper,
+  triggerAllCoinsUpdate,
+  type StatusResponse,
+  type JobStatus,
+} from "@/lib/status-api";
 import { Card, CardHeader } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 
@@ -41,6 +47,8 @@ export default function StatusPage() {
   const [error, setError] = useState<string | null>(null);
   const [newsTriggering, setNewsTriggering] = useState(false);
   const [newsResult, setNewsResult] = useState<string | null>(null);
+  const [coinsTriggering, setCoinsTriggering] = useState(false);
+  const [coinsResult, setCoinsResult] = useState<string | null>(null);
 
   const fetchStatus = useCallback(() => {
     getStatus()
@@ -66,6 +74,20 @@ export default function StatusPage() {
       setNewsResult(e instanceof Error ? e.message : "Trigger failed");
     } finally {
       setNewsTriggering(false);
+    }
+  };
+
+  const onTriggerAllCoins = async () => {
+    setCoinsTriggering(true);
+    setCoinsResult(null);
+    try {
+      const res = await triggerAllCoinsUpdate();
+      setCoinsResult(res.status === "ok" ? res.message : res.message);
+      fetchStatus();
+    } catch (e) {
+      setCoinsResult(e instanceof Error ? e.message : "Trigger failed");
+    } finally {
+      setCoinsTriggering(false);
     }
   };
 
@@ -109,6 +131,13 @@ export default function StatusPage() {
           >
             {newsTriggering ? "Running…" : "Trigger news scraper"}
           </Button>
+          <Button
+            variant="outline"
+            disabled={coinsTriggering}
+            onClick={onTriggerAllCoins}
+          >
+            {coinsTriggering ? "Running…" : "Update all 2,000 coins"}
+          </Button>
         </div>
       </div>
 
@@ -117,6 +146,13 @@ export default function StatusPage() {
           className={`rounded-lg border px-4 py-2 text-sm ${newsResult.includes("completed") ? "border-emerald-500/50 bg-emerald-500/10 text-emerald-300" : "border-rose-500/50 bg-rose-500/10 text-rose-300"}`}
         >
           {newsResult}
+        </div>
+      )}
+      {coinsResult && (
+        <div
+          className={`rounded-lg border px-4 py-2 text-sm ${coinsResult.includes("updated") || coinsResult.includes("ok") ? "border-emerald-500/50 bg-emerald-500/10 text-emerald-300" : "border-rose-500/50 bg-rose-500/10 text-rose-300"}`}
+        >
+          {coinsResult}
         </div>
       )}
 
@@ -146,9 +182,12 @@ export default function StatusPage() {
       </Card>
 
       <div className="text-sm text-[var(--b70-text-muted)]">
-        <p>
-          Manual trigger: <code className="rounded bg-[var(--b70-border)] px-1">POST /api/status/news/trigger</code>{" "}
-          (proxies to backend)
+        <p className="space-y-1">
+          Manual triggers (proxied to backend):
+          <br />
+          <code className="rounded bg-[var(--b70-border)] px-1">POST /api/status/news/trigger</code>
+          {" · "}
+          <code className="rounded bg-[var(--b70-border)] px-1">POST /api/status/coins/trigger</code>
         </p>
       </div>
     </div>

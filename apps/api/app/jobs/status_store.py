@@ -17,8 +17,9 @@ _lock = Lock()
 # Human-readable labels for job IDs
 JOB_LABELS: dict[str, str] = {
     "news_scraper": "News scraper (RSS feeds every 5 min)",
-    "coin_sync": "Coin sync (CoinGecko every 30 min)",
+    "coin_sync": "Coin sync (2,000 coins + MarketData every 30 min)",
     "market_data_refresh": "Market data (prices every 5 min)",
+    "description_backfill": "Description backfill (CoinGecko daily at 2am UTC)",
     "radar_scan": "Radar pipeline",
     "signal_detection": "Signal detection",
     "arbitrage_scan": "Arbitrage scan",

@@ -36,3 +36,23 @@ export async function triggerNewsScraper(): Promise<{
   if (!res.ok) throw new Error(data.message || "Trigger failed");
   return data;
 }
+
+export async function triggerAllCoinsUpdate(): Promise<{
+  status: string;
+  message: string;
+  synced_pages?: number;
+  description_stats?: Record<string, number>;
+}> {
+  const res = await fetch("/api/status/coins/trigger", {
+    method: "POST",
+    cache: "no-store",
+  });
+  const data = (await res.json()) as {
+    status: string;
+    message: string;
+    synced_pages?: number;
+    description_stats?: Record<string, number>;
+  };
+  if (!res.ok) throw new Error(data.message || "Trigger failed");
+  return data;
+}

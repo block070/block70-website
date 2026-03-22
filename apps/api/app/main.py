@@ -257,6 +257,48 @@ def bootstrap_market_data(db: Session = Depends(get_db)) -> dict:
     return {"status": "ok", "message": "Market data refreshed for all tracked coins."}
 
 
+@app.post("/bootstrap/all-coins")
+def bootstrap_all_coins(db: Session = Depends(get_db)) -> dict:
+    """
+    Update ALL 2,000 coin pages with price, 24h, 7d, market cap, volume, description, links.
+    Run this to fully populate/refresh every coin. Steps:
+    1) Sync all coins from /coins/markets (price, 24h, 7d, market cap, volume) + insert MarketData
+    2) Backfill descriptions + links for coins missing them
+    Takes ~90+ min due to CoinGecko rate limits. Use BOOTSTRAP_PAGES and BOOTSTRAP_DESC_LIMIT to test.
+    """
+    import time
+
+    from app.services.pipeline.coin_sync_pipeline import CoinSyncPipeline
+    from app.services.pipeline.description_backfill_pipeline import (
+        DescriptionBackfillPipeline,
+    )
+
+    pages = int(os.getenv("BOOTSTRAP_PAGES", "8"))
+    desc_limit = os.getenv("BOOTSTRAP_DESC_LIMIT", "")
+    desc_limit_int = int(desc_limit) if desc_limit.isdigit() and int(desc_limit) > 0 else None
+
+    synced_pages = 0
+    pipeline = CoinSyncPipeline(per_page=250)
+    for p in range(1, pages + 1):
+        try:
+            pipeline.run(db, page=p)
+            synced_pages += 1
+        except Exception:
+            break
+        if p < pages:
+            time.sleep(2.0)
+
+    desc_pipeline = DescriptionBackfillPipeline(limit=desc_limit_int)
+    desc_stats = desc_pipeline.run(db)
+
+    return {
+        "status": "ok",
+        "message": f"All coins updated: {synced_pages} pages synced, {desc_stats['fetched']} descriptions backfilled.",
+        "synced_pages": synced_pages,
+        "description_stats": desc_stats,
+    }
+
+
 @app.post("/bootstrap/descriptions")
 def bootstrap_descriptions(db: Session = Depends(get_db)) -> dict:
     """
