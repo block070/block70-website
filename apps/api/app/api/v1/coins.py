@@ -449,6 +449,48 @@ def _resolve_coin(db: Session, slug_or_symbol: str) -> Optional[Coin]:
     return coin
 
 
+def _make_stub_coin_response(slug: str) -> CoinDetailResponse:
+    """Return a minimal valid coin page so /coins/{slug} never 404s."""
+    name = slug.replace("-", " ").replace("_", " ").title()
+    symbol = (slug.split("-")[0][:10] if "-" in slug else slug[:10]).upper()
+    coin_info = CoinInfo(
+        id=0,
+        name=name,
+        symbol=symbol,
+        slug=slug,
+        description=None,
+        logo_url=None,
+        website=None,
+        whitepaper_url=None,
+        explorer_url=None,
+        twitter=None,
+        discord=None,
+        telegram=None,
+        chain=None,
+        category=None,
+        market_cap_rank=None,
+        market_cap=None,
+        price=None,
+        volume_24h=None,
+        circulating_supply=None,
+        total_supply=None,
+    )
+    md_point = MarketDataPoint(
+        timestamp=datetime.now(timezone.utc),
+        price=0.0,
+        market_cap=None,
+        volume_24h=None,
+        price_change_24h=None,
+        price_change_7d=None,
+    )
+    return CoinDetailResponse(
+        coin=coin_info,
+        market_data=[md_point],
+        narratives=[],
+        news=[],
+    )
+
+
 def _fetch_coin_from_coingecko(slug: str) -> CoinDetailResponse:
     """Fallback: fetch coin directly from CoinGecko when not in DB."""
     from app.services.connectors.coingecko_connector import fetch_coin_details, search_coins
@@ -525,7 +567,8 @@ def get_coin_detail(
         try:
             return _fetch_coin_from_coingecko(slug.lower().strip())
         except Exception:
-            raise HTTPException(status_code=404, detail="Coin not found")
+            # Never 404: return stub so every /coins/{slug} link has a page
+            return _make_stub_coin_response(slug.lower().strip())
 
     # Try to enrich with live CoinGecko data (price, 24h%, 7d%, description, links)
     md_rows = (

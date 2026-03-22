@@ -1,6 +1,5 @@
 import Link from "next/link";
-import { notFound } from "next/navigation";
-import { getCoinBySlugOrMock } from "@/lib/coins";
+import { getCoinBySlugOrMock, getStubCoinDetail } from "@/lib/coins";
 import { getAIInsightsForToken } from "@/lib/api";
 import { InsightCard } from "@/components/ai/insight-card";
 import { withTimeout } from "@/lib/with-timeout";
@@ -28,9 +27,9 @@ export default async function CoinInsightsPage({ params }: PageProps) {
   try {
     data = await withTimeout(getCoinBySlugOrMock(slug), FETCH_TIMEOUT_MS);
   } catch {
-    notFound();
+    data = getStubCoinDetail(slug);
   }
-  if (!data) notFound();
+  if (!data) data = getStubCoinDetail(slug);
 
   const symbol = data.coin.symbol.toUpperCase();
   let insights: Awaited<ReturnType<typeof getAIInsightsForToken>> = [];

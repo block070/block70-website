@@ -78,6 +78,48 @@ const MOCK_LINKS: Record<string, { website?: string; whitepaper?: string; explor
   cosmos: { website: "https://cosmos.network", whitepaper: "https://cosmos.network/resources/whitepaper", explorer: "https://mintscan.io/cosmos/", twitter: "cosmos" },
 };
 
+/** Build minimal stub from slug so every /coins/{slug} has a page (no 404). */
+export function getStubCoinDetail(slug: string): CoinDetailDto {
+  const name = slug.replace(/-/g, " ").replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+  const symbol = (slug.includes("-") ? slug.split("-")[0] : slug).slice(0, 10).toUpperCase();
+  return {
+    coin: {
+      id: 0,
+      name,
+      symbol,
+      slug,
+      description: null,
+      logo_url: null,
+      website: null,
+      whitepaper_url: null,
+      explorer_url: null,
+      twitter: null,
+      discord: null,
+      telegram: null,
+      chain: null,
+      category: null,
+      market_cap_rank: null,
+      market_cap: null,
+      price: null,
+      volume_24h: null,
+      circulating_supply: null,
+      total_supply: null,
+    },
+    market_data: [
+      {
+        timestamp: new Date().toISOString(),
+        price: 0,
+        market_cap: null,
+        volume_24h: null,
+        price_change_24h: null,
+        price_change_7d: null,
+      },
+    ],
+    narratives: [],
+    news: [],
+  };
+}
+
 /** Return mock coin detail for a slug/symbol when the API has no data. */
 export function getMockCoinDetail(slug: string): CoinDetailDto | null {
   const coin = getMockCoinBySlugOrSymbol(slug);
@@ -123,14 +165,14 @@ export function getMockCoinDetail(slug: string): CoinDetailDto | null {
   };
 }
 
-/** Fetch coin by slug from API; on 404 use mock data so SOL, BTC, etc. always work. */
+/** Fetch coin by slug from API; on failure use mock then stub. Never 404 for /coins/{slug}. */
 export async function getCoinBySlugOrMock(slug: string): Promise<CoinDetailDto> {
   try {
     return await getCoinBySlug(slug);
   } catch {
     const mock = getMockCoinDetail(slug);
     if (mock) return mock;
-    throw new Error("Coin not found");
+    return getStubCoinDetail(slug);
   }
 }
 

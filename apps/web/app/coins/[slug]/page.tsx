@@ -1,5 +1,4 @@
 import Link from "next/link";
-import { notFound } from "next/navigation";
 
 import { CoinPriceChart } from "@/components/coins/coin-price-chart";
 import { CoinDescription } from "@/components/coins/coin-description";
@@ -12,7 +11,7 @@ import { SignalCard } from "@/components/signals/signal-card";
 import { SentimentPanel } from "@/components/sentiment/sentiment-panel";
 import { AISentimentSummary } from "@/components/sentiment/ai-sentiment-summary";
 import type { Coin } from "@/lib/crypto-mock";
-import { getCoinBySlugOrMock, type CoinInfoDto, type MarketDataPointDto } from "@/lib/coins";
+import { getCoinBySlugOrMock, getStubCoinDetail, type CoinInfoDto, type MarketDataPointDto } from "@/lib/coins";
 import { getNewsForCoin, getSignalsForToken } from "@/lib/api";
 import { getSentiment } from "@/lib/sentiment-api";
 import { withTimeout } from "@/lib/with-timeout";
@@ -55,16 +54,17 @@ export async function generateMetadata({ params }: { params: Params }) {
 const COIN_FETCH_TIMEOUT_MS = 8_000;
 
 export default async function CoinDetailPage({ params }: { params: Params }) {
+  const slug = params.slug;
   let data;
   try {
     data = await withTimeout(
-      getCoinBySlugOrMock(params.slug),
+      getCoinBySlugOrMock(slug),
       COIN_FETCH_TIMEOUT_MS
     );
   } catch {
-    notFound();
+    data = getStubCoinDetail(slug);
   }
-  if (!data) notFound();
+  if (!data) data = getStubCoinDetail(slug);
 
   const { coin, market_data: series, narratives, news: fallbackNews } = data;
 

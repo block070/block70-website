@@ -1,6 +1,5 @@
 import Link from "next/link";
-import { getCoinBySlugOrMock } from "@/lib/coins";
-import { notFound } from "next/navigation";
+import { getCoinBySlugOrMock, getStubCoinDetail } from "@/lib/coins";
 import { API_BASE_URL } from "@/lib/api";
 import { TokenDiscussionFeed } from "@/components/coins/token-discussion-feed";
 import { withTimeout } from "@/lib/with-timeout";
@@ -29,7 +28,7 @@ export default async function CoinCommunityPage({ params }: PageProps) {
     const data = await withTimeout(getCoinBySlugOrMock(slug), FETCH_TIMEOUT_MS);
     coin = data.coin;
   } catch {
-    notFound();
+    coin = getStubCoinDetail(slug).coin;
   }
   const symbol = coin.symbol.toUpperCase();
 
