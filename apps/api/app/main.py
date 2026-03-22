@@ -256,3 +256,25 @@ def bootstrap_market_data(db: Session = Depends(get_db)) -> dict:
     pipeline.run(db)
     return {"status": "ok", "message": "Market data refreshed for all tracked coins."}
 
+
+@app.post("/bootstrap/descriptions")
+def bootstrap_descriptions(db: Session = Depends(get_db)) -> dict:
+    """
+    Backfill project descriptions for all 2000 coins from CoinGecko.
+    Fetches slugs from /coins/markets, then details for coins missing descriptions.
+    Throttled (~2.5s/coin); takes ~90 min for full run. Set BOOTSTRAP_DESC_LIMIT=N for testing.
+    """
+    from app.services.pipeline.description_backfill_pipeline import (
+        DescriptionBackfillPipeline,
+    )
+
+    raw = os.getenv("BOOTSTRAP_DESC_LIMIT", "")
+    limit = int(raw) if raw.isdigit() and int(raw) > 0 else None
+    pipeline = DescriptionBackfillPipeline(limit=limit)
+    stats = pipeline.run(db)
+    return {
+        "status": "ok",
+        "message": f"Description backfill: {stats['fetched']} fetched, {stats['errors']} errors.",
+        "stats": stats,
+    }
+

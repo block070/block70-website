@@ -19,6 +19,9 @@ from app.services.pipeline.alpha_snapshot_pipeline import AlphaSnapshotPipeline
 from app.services.pipeline.radar_pipeline import RadarPipeline
 from app.services.pipeline.coin_sync_pipeline import CoinSyncPipeline
 from app.services.pipeline.market_data_pipeline import MarketDataPipeline
+from app.services.pipeline.description_backfill_pipeline import (
+    DescriptionBackfillPipeline,
+)
 from app.services.backtesting.backtest_engine import BacktestEngine
 from app.services.simulation.trade_simulator import TradeSimulator
 from app.services.ai.analysis_pipeline import OpportunityAnalysisPipeline
@@ -309,12 +312,19 @@ def _run_event_consumer_job() -> None:
 
 
 def _run_coin_sync_job() -> None:
-    """Synchronize core coin list and snapshot data from CoinGecko."""
+    """Synchronize core coin list from CoinGecko. Syncs 8 pages (2000 coins)."""
 
     def _job(db: Session) -> None:
+        import time
+
         pipeline = CoinSyncPipeline()
-        # For now, sync first page of majors; paging strategy can evolve later.
-        pipeline.run(db, page=1)
+        for page in range(1, 9):
+            try:
+                pipeline.run(db, page=page)
+                if page < 8:
+                    time.sleep(2.0)
+            except Exception:
+                break
 
     _with_db_session(_job)
 
@@ -330,6 +340,16 @@ def _run_market_data_job() -> None:
 
         limit = os.getenv("MARKET_DATA_LIMIT")
         pipeline = MarketDataPipeline(limit=int(limit) if limit else None)
+        pipeline.run(db)
+
+    _with_db_session(_job)
+
+
+def _run_description_backfill_job() -> None:
+    """Backfill project descriptions from CoinGecko for coins missing them."""
+
+    def _job(db: Session) -> None:
+        pipeline = DescriptionBackfillPipeline()
         pipeline.run(db)
 
     _with_db_session(_job)
@@ -526,6 +546,15 @@ def create_scheduler() -> BackgroundScheduler:
         id="market_data_refresh",
         replace_existing=True,
         max_instances=1,
+    )
+    # description_backfill: fetches project descriptions from CoinGecko for coins missing them
+    scheduler.add_job(
+        _run_description_backfill_job,
+        CronTrigger(hour=2, minute=0),  # Daily at 2am UTC
+        id="description_backfill",
+        replace_existing=True,
+        max_instances=1,
+        misfire_grace_time=3600,
     )
 
     scheduler.add_job(

@@ -438,6 +438,49 @@ def _enrich_coin_from_coingecko(coin: Coin, db: Session) -> tuple[Coin, list]:
         return coin, []
 
 
+def _persist_coin_from_coingecko(
+    db: Session, slug: str, response: CoinDetailResponse
+) -> None:
+    """Persist coin from CoinGecko fallback so we have description for next visit."""
+    try:
+        c = response.coin
+        existing = db.query(Coin).filter(Coin.slug == slug).first()
+        if existing:
+            if c.description and not (existing.description or "").strip():
+                existing.description = c.description
+            existing.website = c.website or existing.website
+            existing.whitepaper_url = c.whitepaper_url or existing.whitepaper_url
+            existing.explorer_url = c.explorer_url or existing.explorer_url
+            existing.twitter = c.twitter or existing.twitter
+            existing.discord = c.discord or existing.discord
+            if hasattr(existing, "telegram"):
+                existing.telegram = getattr(c, "telegram", None) or existing.telegram
+        else:
+            coin = Coin(
+                name=c.name,
+                symbol=c.symbol,
+                slug=c.slug,
+                description=c.description,
+                logo_url=c.logo_url,
+                website=c.website,
+                whitepaper_url=c.whitepaper_url,
+                explorer_url=c.explorer_url,
+                twitter=c.twitter,
+                discord=c.discord,
+                telegram=getattr(c, "telegram", None),
+                market_cap_rank=c.market_cap_rank,
+                market_cap=c.market_cap,
+                price=c.price,
+                volume_24h=c.volume_24h,
+                circulating_supply=c.circulating_supply,
+                total_supply=c.total_supply,
+            )
+            db.add(coin)
+        db.commit()
+    except Exception:
+        db.rollback()
+
+
 def _resolve_coin(db: Session, slug_or_symbol: str) -> Optional[Coin]:
     """Resolve slug or symbol (e.g. btc, BTC) to Coin. Tries slug first, then symbol."""
     slug_lower = slug_or_symbol.lower().strip()
@@ -565,7 +608,9 @@ def get_coin_detail(
     coin = _resolve_coin(db, slug)
     if coin is None:
         try:
-            return _fetch_coin_from_coingecko(slug.lower().strip())
+            response = _fetch_coin_from_coingecko(slug.lower().strip())
+            _persist_coin_from_coingecko(db, slug.lower().strip(), response)
+            return response
         except Exception:
             # Never 404: return stub so every /coins/{slug} link has a page
             return _make_stub_coin_response(slug.lower().strip())
