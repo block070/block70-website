@@ -53,23 +53,11 @@ def _fetch_coingecko_price_changes(limit: int) -> dict[str, dict]:
 def _fetch_coins_from_coingecko(page: int) -> List[CoinListItem]:
     """
     Fetch a page of coins (100 per page) from CoinGecko, up to 2000 total.
-    CoinGecko returns 250 per page; we slice to get our 100.
+    Uses per_page=100 so each page needs only one CoinGecko request.
     """
     from app.services.connectors.coingecko_connector import fetch_all_coins
 
-    start = (page - 1) * COINS_PER_PAGE
-    cg_page_start = (start // 250) + 1
-    offset_in_cg = start % 250
-    items: List[dict] = []
-    if offset_in_cg + COINS_PER_PAGE <= 250:
-        raw = fetch_all_coins(vs_currency="usd", per_page=250, page=cg_page_start)
-        items = raw[offset_in_cg : offset_in_cg + COINS_PER_PAGE]
-    else:
-        raw1 = fetch_all_coins(vs_currency="usd", per_page=250, page=cg_page_start)
-        raw2 = fetch_all_coins(vs_currency="usd", per_page=250, page=cg_page_start + 1)
-        part1 = raw1[offset_in_cg:]
-        part2 = raw2[: COINS_PER_PAGE - len(part1)]
-        items = part1 + part2
+    items = fetch_all_coins(vs_currency="usd", per_page=COINS_PER_PAGE, page=page)
 
     result: List[CoinListItem] = []
     for i, cg in enumerate(items):
