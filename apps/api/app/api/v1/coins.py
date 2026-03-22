@@ -6,6 +6,7 @@ from datetime import datetime, timezone
 from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
 from app.db import get_db
@@ -175,21 +176,65 @@ def _fetch_coins_from_coinmarketcap(page: int, limit: int) -> List[CoinListItem]
     return result
 
 
+# Slug -> alternates for category filter; helps match "layer-1" to "Layer 1 (L1)" etc.
+def _norm_slug(s: str) -> str:
+    return (s or "").lower().replace(" ", "-").replace("(", "").replace(")", "")
+
+
+CATEGORY_SLUG_ALTERNATES: dict[str, list[str]] = {
+    "layer-1": ["Layer 1", "Layer 1 (L1)", "L1"],
+    "layer-2": ["Layer 2", "Layer 2 (L2)", "L2"],
+    "proof-of-work": ["Proof of Work", "Proof of Work (PoW)", "PoW"],
+    "proof-of-work-pow": ["Proof of Work", "Proof of Work (PoW)", "PoW"],
+    "proof-of-stake": ["Proof of Stake", "Proof of Stake (PoS)", "PoS"],
+    "proof-of-stake-pos": ["Proof of Stake", "Proof of Stake (PoS)", "PoS"],
+    "smart-contract-platform": ["Smart Contract Platform"],
+    "stablecoins": ["Stablecoins", "Stablecoin", "USD Stablecoin", "Fiat-backed Stablecoin"],
+    "defi": ["DeFi", "Decentralized Finance"],
+    "decentralized-finance-defi": ["DeFi", "Decentralized Finance"],
+    "dex": ["DEX", "Decentralized Exchange"],
+    "decentralized-exchange-dex": ["DEX", "Decentralized Exchange"],
+    "decentralized-exchange-(dex)": ["DEX", "Decentralized Exchange"],
+    "artificial-intelligence": ["Artificial Intelligence", "AI"],
+    "artificial-intelligence-ai": ["Artificial Intelligence", "AI"],
+    "artificial-intelligence-(ai)": ["Artificial Intelligence", "AI"],
+    "infrastructure": ["Infrastructure"],
+    "solana-ecosystem": ["Solana Ecosystem", "Solana"],
+    "ethereum-ecosystem": ["Ethereum Ecosystem", "Ethereum"],
+    "gaming": ["Gaming", "GameFi"],
+    "meme": ["Meme", "Meme coins"],
+}
+
+
 @router.get("", response_model=List[CoinListItem])
 def list_coins(
     limit: int = Query(100, ge=1, le=500),
     page: int = Query(1, ge=1, le=500, description="Page for paginated list"),
     category: Optional[str] = Query(None, description="Filter by category (e.g. AI, DePIN, Gaming, Layer 2)"),
+    category_slug: Optional[str] = Query(None, description="Category slug (e.g. layer-1) - uses alternates for matching"),
     db: Session = Depends(get_db),
 ) -> List[CoinListItem]:
-    cache_key = f"coins:{page}:{limit}:{category or ''}"
+    cat_filter = category
+    if not cat_filter and category_slug:
+        norm_slug = _norm_slug(category_slug)
+        alternates = CATEGORY_SLUG_ALTERNATES.get(norm_slug) or CATEGORY_SLUG_ALTERNATES.get(
+            category_slug.toLowerCase()
+        )
+        if alternates:
+            cat_filter = alternates[0]
+        else:
+            raw = category_slug.replace("-", " ")
+            for sep in ("(", ")"):
+                raw = raw.replace(sep, " ")
+            cat_filter = " ".join(raw.split()).strip() or category_slug.replace("-", " ").title()
+    cache_key = f"coins:{page}:{limit}:{cat_filter or ''}:{category_slug or ''}"
     cached = _coins_list_cache.get(cache_key)
     if cached is not None:
         return cached
 
     # When no category filter: CoinGecko first, then CoinMarketCap (if configured), then DB
     # CoinGecko free API limits to ~500 coins; CMC fallback covers pages 6-20
-    if category is None:
+    if cat_filter is None:
         try:
             cg_items = _fetch_coins_from_coingecko(page, limit)
             if cg_items:
@@ -209,8 +254,12 @@ def list_coins(
                 pass
 
     q = db.query(Coin).order_by(Coin.market_cap.desc().nullslast())
-    if category:
-        q = q.filter(Coin.category.ilike(f"%{category}%"))
+    if cat_filter:
+        if category_slug and category_slug.lower() in CATEGORY_SLUG_ALTERNATES:
+            terms = CATEGORY_SLUG_ALTERNATES[category_slug.lower()]
+            q = q.filter(or_(*(Coin.category.ilike(f"%{t}%") for t in terms)))
+        else:
+            q = q.filter(Coin.category.ilike(f"%{cat_filter}%"))
     offset = (page - 1) * limit if page > 1 else 0
     coins = q.offset(offset).limit(limit).all()
 

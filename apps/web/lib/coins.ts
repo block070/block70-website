@@ -159,11 +159,13 @@ export const TOTAL_PAGES = TOTAL_COINS_PAGINATED / COINS_PER_PAGE; // 20
 
 export async function getCoinsList(params?: {
   category?: string;
+  category_slug?: string;
   limit?: number;
   page?: number;
 }): Promise<CoinListItemDto[]> {
   const search = new URLSearchParams();
   if (params?.category) search.set("category", params.category);
+  if (params?.category_slug) search.set("category_slug", params.category_slug);
   if (params?.limit != null) search.set("limit", String(params.limit));
   if (params?.page != null && params.page > 1) search.set("page", String(params.page));
   const query = search.toString();

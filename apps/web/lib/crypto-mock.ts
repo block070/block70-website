@@ -35,6 +35,7 @@ export type Coin = {
   rank: number;
   categoryIds: string[];
   chainIds: string[];
+  logoUrl?: string | null;
 };
 
 export type PricePoint = {

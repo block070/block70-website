@@ -41,6 +41,13 @@ export function CoinTable({ coins }: Props) {
                   className="flex items-center gap-2"
                   onClick={(e) => e.stopPropagation()}
                 >
+                  {coin.logoUrl ? (
+                    <img
+                      src={coin.logoUrl}
+                      alt=""
+                      className="h-6 w-6 shrink-0 rounded-full object-cover"
+                    />
+                  ) : null}
                   <span className="text-sm font-medium text-slate-50">
                     {coin.name}
                   </span>
