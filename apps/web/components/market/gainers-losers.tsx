@@ -49,20 +49,20 @@ function Row({
   return (
     <Link
       href={`/coins/${row.symbol.toLowerCase()}`}
-      className="rounded-lg px-3 py-2 text-sm transition-colors hover:bg-slate-800/60"
+      className="rounded-lg px-3 py-2 text-sm transition-colors hover:bg-[var(--b70-border)] dark:hover:bg-slate-800/60"
     >
       <div className="grid grid-cols-6 items-center gap-3">
-        <span className="font-medium text-slate-100">{row.symbol}</span>
-        <span className="truncate text-slate-300">{row.name}</span>
-        <span className="text-slate-300">{formatPrice(row.price)}</span>
-        <span className={isGainer ? "text-emerald-400" : "text-rose-400"}>
+        <span className="font-medium text-[var(--b70-text)]">{row.symbol}</span>
+        <span className="truncate text-[var(--b70-text-muted)]">{row.name}</span>
+        <span className="text-[var(--b70-text)]">{formatPrice(row.price)}</span>
+        <span className={isGainer ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400"}>
           {row.change24h >= 0 ? "+" : ""}
           {Math.round(row.change24h * 1000) / 1000}%
         </span>
-        <span className="text-slate-500">
+        <span className="text-[var(--b70-text-muted)]">
           {formatVolume(row.volume24h)}
         </span>
-        <span className="text-slate-500">
+        <span className="text-[var(--b70-text-muted)]">
           {formatMcap(row.marketCap)}
         </span>
       </div>
@@ -105,14 +105,14 @@ export function GainersLosers({
   const displayedLosers = sortRows(losers, losersSort);
 
   const headerBase =
-    "flex items-center gap-1 cursor-pointer select-none hover:text-slate-300";
+    "flex items-center gap-1 cursor-pointer select-none hover:text-[var(--b70-text)]";
 
   return (
     <div className="grid gap-4 md:grid-cols-2">
-      <div className="rounded-xl border border-slate-800 bg-slate-950/70 p-4">
-        <h3 className="text-sm font-semibold text-slate-50">Top 10 Gainers</h3>
-        <p className="mt-0.5 text-[11px] text-slate-400">24H Price Change</p>
-        <div className="mt-3 grid grid-cols-6 gap-3 border-b border-slate-800 px-3 pb-2 text-[10px] uppercase tracking-wide text-slate-500">
+      <div className="rounded-xl border border-[var(--b70-border)] bg-[var(--b70-card)] p-4 shadow-sm">
+        <h3 className="text-sm font-semibold text-[var(--b70-text)]">Top 10 Gainers</h3>
+        <p className="mt-0.5 text-[11px] text-[var(--b70-text-muted)]">24H Price Change</p>
+        <div className="mt-3 grid grid-cols-6 gap-3 border-b border-[var(--b70-border)] px-3 pb-2 text-[10px] uppercase tracking-wide text-[var(--b70-text-muted)]">
           <button
             type="button"
             className={headerBase}
@@ -187,7 +187,7 @@ export function GainersLosers({
           </button>
         </div>
         {gainers.length === 0 ? (
-          <p className="mt-3 px-3 text-xs text-slate-500">
+          <p className="mt-3 px-3 text-xs text-[var(--b70-text-muted)]">
             Live market data temporarily unavailable.
           </p>
         ) : (
@@ -200,10 +200,10 @@ export function GainersLosers({
           </ul>
         )}
       </div>
-      <div className="rounded-xl border border-slate-800 bg-slate-950/70 p-4">
-        <h3 className="text-sm font-semibold text-slate-50">Top 10 Losers</h3>
-        <p className="mt-0.5 text-[11px] text-slate-400">24H Price Change</p>
-        <div className="mt-3 grid grid-cols-6 gap-3 border-b border-slate-800 px-3 pb-2 text-[10px] uppercase tracking-wide text-slate-500">
+      <div className="rounded-xl border border-[var(--b70-border)] bg-[var(--b70-card)] p-4 shadow-sm">
+        <h3 className="text-sm font-semibold text-[var(--b70-text)]">Top 10 Losers</h3>
+        <p className="mt-0.5 text-[11px] text-[var(--b70-text-muted)]">24H Price Change</p>
+        <div className="mt-3 grid grid-cols-6 gap-3 border-b border-[var(--b70-border)] px-3 pb-2 text-[10px] uppercase tracking-wide text-[var(--b70-text-muted)]">
           <button
             type="button"
             className={headerBase}
@@ -280,7 +280,7 @@ export function GainersLosers({
           </button>
         </div>
         {losers.length === 0 ? (
-          <p className="mt-3 px-3 text-xs text-slate-500">
+          <p className="mt-3 px-3 text-xs text-[var(--b70-text-muted)]">
             Live market data temporarily unavailable.
           </p>
         ) : (

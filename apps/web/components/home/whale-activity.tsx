@@ -14,31 +14,31 @@ function formatUsd(n: number): string {
 
 export function WhaleActivity({ wallets, errorMessage = null }: WhaleActivityProps) {
   return (
-    <section className="rounded-xl border border-slate-800 bg-slate-950/70 p-4">
+    <section className="rounded-xl border border-[var(--b70-border)] bg-[var(--b70-card)] p-4 shadow-sm">
       <div className="flex items-center justify-between">
         <div>
-          <h3 className="text-sm font-semibold text-slate-50">
+          <h3 className="text-sm font-semibold text-[var(--b70-text)]">
             Whale activity
           </h3>
-          <p className="mt-0.5 text-[11px] text-slate-400">
+          <p className="mt-0.5 text-[11px] text-[var(--b70-text-muted)]">
             Large transactions from wallet tracker
           </p>
         </div>
         <Link
           href="/wallets/smart-money"
-          className="text-xs font-medium text-blue-400 hover:text-blue-300"
+          className="text-xs font-medium text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300"
         >
           Smart money →
         </Link>
       </div>
       <ul className="mt-3 space-y-2">
         {errorMessage ? (
-          <li className="text-xs text-slate-500">
+          <li className="text-xs text-[var(--b70-text-muted)]">
             Data temporarily unavailable.{" "}
-            <span className="font-mono text-slate-400">{errorMessage}</span>
+            <span className="font-mono">{errorMessage}</span>
           </li>
         ) : wallets.length === 0 ? (
-          <li className="text-xs text-slate-500">
+          <li className="text-xs text-[var(--b70-text-muted)]">
             No whale activity surfaced yet. As Block70 observes repeat winners,
             top addresses will be promoted into this view.
           </li>
@@ -46,15 +46,15 @@ export function WhaleActivity({ wallets, errorMessage = null }: WhaleActivityPro
           wallets.slice(0, 6).map((w, i) => (
             <li
               key={w.wallet_address}
-              className="flex items-center justify-between rounded-lg border border-slate-800 bg-slate-900/50 px-3 py-2 text-xs"
+              className="flex items-center justify-between rounded-lg border border-[var(--b70-border)] bg-[var(--b70-bg)] px-3 py-2 text-xs dark:border-slate-800 dark:bg-slate-900/50"
             >
-              <span className="font-mono text-slate-300 truncate max-w-[100px] sm:max-w-[160px]">
+              <span className="font-mono text-[var(--b70-text)] truncate max-w-[100px] sm:max-w-[160px]">
                 {w.wallet_address.slice(0, 6)}…{w.wallet_address.slice(-4)}
               </span>
-              <span className="text-emerald-400">
+              <span className="text-emerald-600 dark:text-emerald-400">
                 {(w.win_rate * 100).toFixed(0)}% win
               </span>
-              <span className="text-slate-400">
+              <span className="text-[var(--b70-text-muted)]">
                 {formatUsd(w.total_profit_usd)}
               </span>
             </li>

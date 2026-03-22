@@ -4,6 +4,7 @@
 
 /* ---------------------------------------------------------------------------
    Block70 design tokens – light mode (default)
+   Improved contrast for accessibility (WCAG 2.1 AA)
    --------------------------------------------------------------------------- */
 :root {
   /* Primary palette */
@@ -11,12 +12,13 @@
   --b70-crypto-green: #00ffa3;
   --b70-crypto-orange: #ff9f43;
 
-  /* Light mode semantic */
-  --b70-bg: #f8fafc;
+  /* Light mode semantic – higher contrast for readability */
+  --b70-bg: #f1f5f9;
   --b70-card: #ffffff;
-  --b70-border: #e5e7eb;
-  --b70-text: #111827;
-  --b70-text-muted: #6b7280;
+  --b70-card-elevated: #ffffff;
+  --b70-border: #cbd5e1;
+  --b70-text: #0f172a;
+  --b70-text-muted: #475569;
 }
 
 /* ---------------------------------------------------------------------------
@@ -25,6 +27,7 @@
 .dark {
   --b70-bg: #0e1117;
   --b70-card: #161b22;
+  --b70-card-elevated: #1c2128;
   --b70-border: #30363d;
   --b70-text: #e6edf3;
   --b70-text-muted: #8b949e;

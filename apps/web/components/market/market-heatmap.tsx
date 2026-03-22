@@ -109,20 +109,20 @@ export function MarketHeatmap({ coins = [] }: MarketHeatmapProps) {
   }, [containerWidth, data]);
 
   return (
-    <section className="rounded-xl border border-slate-800 bg-slate-950/70 p-4">
-      <h3 className="text-sm font-semibold text-slate-50">Crypto market heatmap</h3>
+    <section className="rounded-xl border border-[var(--b70-border)] bg-[var(--b70-card)] p-4 shadow-sm">
+      <h3 className="text-sm font-semibold text-[var(--b70-text)]">Crypto market heatmap</h3>
       <div className="mt-0.5 flex flex-wrap items-center justify-between gap-2">
-        <p className="text-[11px] text-slate-400">
+        <p className="text-[11px] text-[var(--b70-text-muted)]">
           Treemap sized by 24h move magnitude, colored by 24h price change
         </p>
-        <div className="inline-flex items-center rounded-md border border-slate-700 bg-slate-900/70 p-0.5 text-[11px]">
+        <div className="inline-flex items-center rounded-md border border-[var(--b70-border)] bg-[var(--b70-bg)] p-0.5 text-[11px] dark:border-slate-700 dark:bg-slate-900/70">
           <button
             type="button"
             onClick={() => setFilter("all")}
             className={`rounded px-2 py-1 ${
               filter === "all"
-                ? "bg-slate-700 text-slate-100"
-                : "text-slate-400 hover:text-slate-200"
+                ? "bg-[var(--b70-border)] text-[var(--b70-text)] dark:bg-slate-700 dark:text-slate-100"
+                : "text-[var(--b70-text-muted)] hover:text-[var(--b70-text)]"
             }`}
           >
             All
@@ -133,7 +133,7 @@ export function MarketHeatmap({ coins = [] }: MarketHeatmapProps) {
             className={`rounded px-2 py-1 ${
               filter === "gainers"
                 ? "bg-emerald-700/70 text-emerald-100"
-                : "text-slate-400 hover:text-slate-200"
+                : "text-[var(--b70-text-muted)] hover:text-[var(--b70-text)]"
             }`}
           >
             Gainers
@@ -144,7 +144,7 @@ export function MarketHeatmap({ coins = [] }: MarketHeatmapProps) {
             className={`rounded px-2 py-1 ${
               filter === "losers"
                 ? "bg-rose-700/70 text-rose-100"
-                : "text-slate-400 hover:text-slate-200"
+                : "text-[var(--b70-text-muted)] hover:text-[var(--b70-text)]"
             }`}
           >
             Losers
@@ -152,13 +152,13 @@ export function MarketHeatmap({ coins = [] }: MarketHeatmapProps) {
         </div>
       </div>
       {data.length === 0 ? (
-        <p className="mt-3 text-xs text-slate-500">
+        <p className="mt-3 text-xs text-[var(--b70-text-muted)]">
           No coins in this filter right now.
         </p>
       ) : (
         <div
           ref={containerRef}
-          className="mt-3 h-[560px] w-full overflow-hidden rounded-lg border border-slate-800 bg-slate-900/50"
+          className="mt-3 h-[560px] w-full overflow-hidden rounded-lg border border-[var(--b70-border)] bg-[var(--b70-bg)] dark:border-slate-800 dark:bg-slate-900/50"
         >
           {containerWidth > 0 ? (
             <svg width={containerWidth} height={chartHeight} viewBox={`0 0 ${containerWidth} ${chartHeight}`}>

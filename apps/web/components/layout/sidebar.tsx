@@ -2,7 +2,6 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Tooltip } from "@/components/ui/tooltip";
 
 type NavItem = { href: string; label: string };
 
@@ -112,19 +111,17 @@ export function Sidebar({ open, onClose }: SidebarProps) {
                       : pathname === "/";
                   return (
                     <li key={item.href}>
-                      <Tooltip label={item.label}>
-                        <Link
-                          href={item.href}
-                          onClick={() => onClose()}
-                          className={`block rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
-                            active
-                              ? "bg-blue-500/20 text-blue-300"
-                              : "text-[var(--b70-text-muted)] hover:bg-[var(--b70-border)] hover:text-[var(--b70-text)]"
-                          }`}
-                        >
-                          {item.label}
-                        </Link>
-                      </Tooltip>
+                      <Link
+                        href={item.href}
+                        onClick={() => onClose()}
+                        className={`block rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
+                          active
+                            ? "bg-blue-500/20 text-blue-600 dark:text-blue-300"
+                            : "text-[var(--b70-text-muted)] hover:bg-[var(--b70-border)] hover:text-[var(--b70-text)]"
+                        }`}
+                      >
+                        {item.label}
+                      </Link>
                     </li>
                   );
                 })}

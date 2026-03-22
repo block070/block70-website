@@ -298,20 +298,20 @@ export default async function HomePage() {
 
       {/* Gainers / Losers + Heatmap */}
       <section>
-        <h2 className="mb-3 text-sm font-semibold text-slate-50">
+        <h2 className="mb-3 text-sm font-semibold text-[var(--b70-text)]">
           Top Gainers & Losers
         </h2>
         <GainersLosers gainers={gainers} losers={losers} />
         {marketError ? (
-          <p className="mt-2 text-xs text-slate-500">
+          <p className="mt-2 text-xs text-[var(--b70-text-muted)]">
             Market data temporarily unavailable.{" "}
-            <span className="font-mono text-slate-400">{marketError}</span>
+            <span className="font-mono">{marketError}</span>
           </p>
         ) : null}
       </section>
 
       <section>
-        <h2 className="mb-3 text-sm font-semibold text-slate-50">
+        <h2 className="mb-3 text-sm font-semibold text-[var(--b70-text)]">
           Market heatmap
         </h2>
         <MarketHeatmap coins={heatmapCoins} />
