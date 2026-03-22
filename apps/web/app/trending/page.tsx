@@ -1,6 +1,14 @@
 import Link from "next/link";
-import { getTrendingMarketCoins, type TrendingMarketCoin } from "@/lib/api";
+import {
+  getTrendingMarketCoins,
+  getMarketCoins,
+  type TrendingMarketCoin,
+  type MarketCoin,
+} from "@/lib/api";
+import { CoinTable } from "@/components/market/coin-table";
 import { TRENDING_COINS } from "@/lib/crypto-mock";
+import type { Coin } from "@/lib/crypto-mock";
+import { withTimeout } from "@/lib/with-timeout";
 
 export const revalidate = 60;
 
@@ -9,26 +17,97 @@ export const metadata = {
   description: "Live trending coins from CoinGecko, proxied via Block70.",
 };
 
-function mockToTrendingShape(): TrendingMarketCoin[] {
+function mockToCoins(): Coin[] {
   return TRENDING_COINS.map((c, i) => ({
-    name: c.name,
+    id: c.slug,
+    slug: c.slug,
     symbol: c.symbol,
+    name: c.name,
+    priceUsd: c.priceUsd,
+    marketCapUsd: c.marketCapUsd,
+    volume24hUsd: c.volume24hUsd,
+    change24hPct: c.change24hPct,
+    change7dPct: c.change7dPct,
     rank: i + 1,
-    price: c.priceUsd,
-    image: c.logoUrl ?? null,
-    coingecko_id: c.slug,
-    score: null,
+    categoryIds: c.categoryIds,
+    chainIds: c.chainIds,
+    logoUrl: c.logoUrl,
   }));
 }
 
+function trendingToCoins(
+  trending: TrendingMarketCoin[],
+  marketBySlug: Map<string, MarketCoin>
+): Coin[] {
+  const btcPriceUsd =
+    marketBySlug.get("bitcoin")?.price ??
+    marketBySlug.get("btc")?.price ??
+    0;
+
+  return trending.map((t, i) => {
+    const slug = t.coingecko_id ?? t.symbol.toLowerCase();
+    const market = marketBySlug.get(slug);
+
+    if (market) {
+      return {
+        id: market.slug,
+        slug: market.slug,
+        symbol: market.symbol,
+        name: market.name,
+        priceUsd: market.price ?? 0,
+        marketCapUsd: market.market_cap ?? 0,
+        volume24hUsd: market.volume ?? 0,
+        change24hPct: market.change_24h ?? Number.NaN,
+        change7dPct: market.change_7d ?? Number.NaN,
+        rank: t.rank ?? i + 1,
+        categoryIds: [],
+        chainIds: [],
+        logoUrl: market.logo_url ?? t.image,
+      };
+    }
+
+    const priceUsd =
+      t.price != null && btcPriceUsd > 0 ? t.price * btcPriceUsd : 0;
+
+    return {
+      id: slug,
+      slug,
+      symbol: t.symbol,
+      name: t.name,
+      priceUsd,
+      marketCapUsd: 0,
+      volume24hUsd: 0,
+      change24hPct: Number.NaN,
+      change7dPct: Number.NaN,
+      rank: t.rank ?? i + 1,
+      categoryIds: [],
+      chainIds: [],
+      logoUrl: t.image ?? undefined,
+    };
+  });
+}
+
 export default async function TrendingPage() {
-  let coins: TrendingMarketCoin[] = [];
+  let coins: Coin[] = [];
   let isFallback = false;
+  const FETCH_TIMEOUT_MS = 8_000;
 
   try {
-    coins = await getTrendingMarketCoins(20);
+    const [trending, marketChunk] = await Promise.all([
+      withTimeout(getTrendingMarketCoins(30), FETCH_TIMEOUT_MS),
+      withTimeout(getMarketCoins({ limit: 100, page: 1 }), FETCH_TIMEOUT_MS),
+    ]);
+
+    if (trending.length > 0) {
+      const marketBySlug = new Map(
+        marketChunk.map((m) => [m.slug?.toLowerCase() ?? "", m])
+      );
+      coins = trendingToCoins(trending, marketBySlug);
+    } else {
+      throw new Error("Trending API returned empty");
+    }
   } catch {
-    coins = mockToTrendingShape();
+    coins = mockToCoins();
     isFallback = true;
   }
 
@@ -43,10 +122,7 @@ export default async function TrendingPage() {
       {isFallback && (
         <div className="rounded-xl border border-amber-900/60 bg-amber-950/40 p-3 text-xs text-amber-200">
           Showing sample data — API temporarily unavailable.{" "}
-          <a
-            href="/trending"
-            className="underline hover:no-underline"
-          >
+          <a href="/trending" className="underline hover:no-underline">
             Retry
           </a>
         </div>
@@ -56,48 +132,7 @@ export default async function TrendingPage() {
           No trending data from CoinGecko yet. Try refreshing in a few seconds.
         </div>
       ) : (
-        <div className="overflow-hidden rounded-xl border border-slate-800 bg-slate-950/60">
-          <table className="min-w-full text-left text-xs">
-            <thead className="bg-slate-900/80 text-slate-400">
-              <tr>
-                <th className="px-3 py-2 font-medium">#</th>
-                <th className="px-3 py-2 font-medium">Coin</th>
-                <th className="px-3 py-2 font-medium text-right">Price (BTC)</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-800">
-              {coins.map((coin) => (
-                <tr key={coin.coingecko_id ?? `${coin.symbol}-${coin.rank}`}>
-                  <td className="px-3 py-2 text-slate-500">{coin.rank ?? "-"}</td>
-                  <td className="px-3 py-2">
-                    <Link
-                      href={`/coins/${coin.coingecko_id ?? coin.symbol.toLowerCase()}`}
-                      className="flex items-center gap-2 hover:text-crypto-blue"
-                    >
-                      {coin.image ? (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img
-                          src={coin.image}
-                          alt={coin.name}
-                          className="h-4 w-4 rounded-full"
-                        />
-                      ) : null}
-                      <span className="text-sm font-medium text-slate-50">
-                        {coin.name}
-                      </span>
-                      <span className="text-[11px] text-slate-400">
-                        {coin.symbol}
-                      </span>
-                    </Link>
-                  </td>
-                  <td className="px-3 py-2 text-right text-slate-50">
-                    {coin.price != null ? coin.price.toPrecision(4) : "—"}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        <CoinTable coins={coins} />
       )}
       <p className="text-xs text-slate-400">
         <Link href="/coins" className="text-crypto-blue hover:underline">
