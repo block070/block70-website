@@ -178,6 +178,33 @@ def fetch_market_chart(
         raise
 
 
+def fetch_coins_by_category(
+    category_id: str,
+    vs_currency: str = "usd",
+    per_page: int = 5,
+) -> List[Dict[str, Any]]:
+    """Fetch top coins for a category from CoinGecko /coins/markets."""
+    try:
+        data = _get(
+            "/coins/markets",
+            params={
+                "vs_currency": vs_currency,
+                "category": category_id,
+                "order": "market_cap_desc",
+                "per_page": per_page,
+                "page": 1,
+                "sparkline": "false",
+            },
+        )
+        return [
+            {"id": item.get("id"), "symbol": (item.get("symbol") or "").upper()}
+            for item in (data or [])
+            if item.get("id")
+        ]
+    except Exception:
+        return []
+
+
 def fetch_coins_categories(
     order: str = "market_cap_desc",
 ) -> List[Dict[str, Any]]:

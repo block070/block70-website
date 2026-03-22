@@ -11,6 +11,7 @@ from app.db import get_db
 from app.models import Coin, MarketData
 from app.services.connectors.coingecko_connector import (
     fetch_all_coins,
+    fetch_coins_by_category,
     fetch_coins_categories,
     fetch_trending_coins,
 )
@@ -206,21 +207,10 @@ def get_market_categories(
     page: int = Query(1, ge=1, le=100),
 ) -> Dict[str, Any]:
     """
-    Return coin categories with market cap, 24h volume, and top 5 coins.
-    Uses stored token data (DB) - same source as /coins page. No per-category CoinGecko calls.
-    Falls back to CoinGecko category list only if DB has no categories.
-    Supports pagination via limit and page. Returns { items, total } when limit is used.
+    Return coin categories with market cap, 24h volume, and top 5 coins per category.
+    Primary: CoinGecko (hundreds of categories). Fallback: DB when CoinGecko fails.
+    Top 5 coins from CoinGecko /coins/markets?category=id (sequential, rate-limited).
     """
-    # Primary: DB aggregation (same data source as coins page)
-    try:
-        all_rows = _load_categories_fallback_from_db(db)
-        if all_rows:
-            total = len(all_rows)
-            offset = (page - 1) * limit
-            return {"items": all_rows[offset : offset + limit], "total": total}
-    except Exception:
-        pass
-    # Fallback: CoinGecko category list, top coins from our DB only (no fetch_coins_by_category)
     for attempt in range(2):
         try:
             items = fetch_coins_categories(order=order)
@@ -228,6 +218,7 @@ def get_market_categories(
                 total = len(items)
                 offset = (page - 1) * limit
                 page_items = items[offset : offset + limit]
+                # Pre-load slug->symbol for top_3_coins_id (fallback when API returns fewer than 5)
                 all_cg_slugs = list(dict.fromkeys(
                     s for cat in page_items for s in (cat.get("top_3_coins_id") or [])
                 ))
@@ -238,13 +229,28 @@ def get_market_categories(
                 for s in all_cg_slugs:
                     if s not in slug_to_symbol:
                         slug_to_symbol[s] = _normalize_symbol(s, None)
+                # Fetch top 5 coins per category from CoinGecko (sequential + delay for rate limit)
+                cat_id_to_coins: Dict[str, List[Dict[str, str]]] = {}
+                for i, cat in enumerate(page_items):
+                    cid = cat.get("id")
+                    if not cid:
+                        continue
+                    if i > 0:
+                        time.sleep(0.4)
+                    coins_data = fetch_coins_by_category(cid, "usd", 5)
+                    if coins_data:
+                        cat_id_to_coins[cid] = [
+                            {"slug": c["id"], "symbol": _normalize_symbol(c["id"], c.get("symbol"))}
+                            for c in coins_data[:5]
+                        ]
+                # Build top_coins: API result first, then top_3_coins_id, then DB supplement
                 for cat in page_items:
                     cid = cat.get("id")
                     cat_name = (cat.get("name") or "").strip()
-                    cg_slugs = (cat.get("top_3_coins_id") or [])[:3]
-                    seen: set = set()
-                    merged: List[Dict[str, str]] = []
-                    for slug in cg_slugs:
+                    api_coins = cat_id_to_coins.get(cid, []) if cid else []
+                    seen = {c["slug"] for c in api_coins}
+                    merged = list(api_coins)
+                    for slug in (cat.get("top_3_coins_id") or [])[:3]:
                         if slug not in seen and len(merged) < 5:
                             merged.append({"slug": slug, "symbol": slug_to_symbol.get(slug, _normalize_symbol(slug, None))})
                             seen.add(slug)
@@ -273,7 +279,14 @@ def get_market_categories(
             if attempt == 0:
                 time.sleep(2)
             pass
-    return {"items": [], "total": 0}
+    # Fallback: DB aggregation when CoinGecko fails
+    try:
+        all_rows = _load_categories_fallback_from_db(db)
+        total = len(all_rows)
+        offset = (page - 1) * limit
+        return {"items": all_rows[offset : offset + limit], "total": total}
+    except Exception:
+        return {"items": [], "total": 0}
 
 
 @router.get("/trending", response_model=List[Dict[str, Any]])
