@@ -184,12 +184,14 @@ def _norm_slug(s: str) -> str:
 CATEGORY_SLUG_ALTERNATES: dict[str, list[str]] = {
     "layer-1": ["Layer 1", "Layer 1 (L1)", "L1"],
     "layer-2": ["Layer 2", "Layer 2 (L2)", "L2"],
+    "layer2-tokens": ["Layer 2", "Layer 2 (L2)", "L2"],
     "proof-of-work": ["Proof of Work", "Proof of Work (PoW)", "PoW"],
     "proof-of-work-pow": ["Proof of Work", "Proof of Work (PoW)", "PoW"],
     "proof-of-stake": ["Proof of Stake", "Proof of Stake (PoS)", "PoS"],
     "proof-of-stake-pos": ["Proof of Stake", "Proof of Stake (PoS)", "PoS"],
     "smart-contract-platform": ["Smart Contract Platform"],
     "stablecoins": ["Stablecoins", "Stablecoin", "USD Stablecoin", "Fiat-backed Stablecoin"],
+    "yield-bearing-stablecoins": ["Stablecoins", "Yield-bearing"],
     "defi": ["DeFi", "Decentralized Finance"],
     "decentralized-finance-defi": ["DeFi", "Decentralized Finance"],
     "dex": ["DEX", "Decentralized Exchange"],
@@ -199,10 +201,19 @@ CATEGORY_SLUG_ALTERNATES: dict[str, list[str]] = {
     "artificial-intelligence-ai": ["Artificial Intelligence", "AI"],
     "artificial-intelligence-(ai)": ["Artificial Intelligence", "AI"],
     "infrastructure": ["Infrastructure"],
+    "depin": ["DePIN", "Decentralized Physical Infrastructure"],
+    "depin-tokens": ["DePIN", "Decentralized Physical Infrastructure"],
     "solana-ecosystem": ["Solana Ecosystem", "Solana"],
     "ethereum-ecosystem": ["Ethereum Ecosystem", "Ethereum"],
     "gaming": ["Gaming", "GameFi"],
+    "gaming-tokens": ["Gaming", "GameFi"],
     "meme": ["Meme", "Meme coins"],
+    "meme-coins": ["Meme", "Meme coins"],
+    "real-world-assets-rwa": ["Real World Assets", "RWA"],
+    "liquid-staking-derivatives": ["Liquid Staking", "LSD"],
+    "nft-tokens": ["NFT", "NFT tokens"],
+    "tokenized-gold": ["Tokenized Gold", "Gold"],
+    "bridges": ["Bridges", "Bridge"],
 }
 
 
@@ -218,7 +229,7 @@ def list_coins(
     if not cat_filter and category_slug:
         norm_slug = _norm_slug(category_slug)
         alternates = CATEGORY_SLUG_ALTERNATES.get(norm_slug) or CATEGORY_SLUG_ALTERNATES.get(
-            category_slug.toLowerCase()
+            category_slug.lower()
         )
         if alternates:
             cat_filter = alternates[0]
@@ -231,6 +242,57 @@ def list_coins(
     cached = _coins_list_cache.get(cache_key)
     if cached is not None:
         return cached
+
+    # When category_slug provided: CoinGecko /coins/markets?category=id first (discover pages)
+    if category_slug:
+        try:
+            from app.services.connectors.coingecko_connector import fetch_coins_markets_by_category
+
+            cg_items = fetch_coins_markets_by_category(
+                category_id=category_slug,
+                vs_currency="usd",
+                per_page=limit,
+                page=page,
+            )
+            if cg_items:
+                out: List[CoinListItem] = []
+                for i, cg in enumerate(cg_items):
+                    rank = (page - 1) * limit + i + 1
+                    coin_id = cg.get("market_cap_rank") or rank
+                    coin_info = CoinInfo(
+                        id=coin_id,
+                        name=cg.get("name") or "",
+                        symbol=(cg.get("symbol") or "").upper(),
+                        slug=cg.get("slug") or "",
+                        description=None,
+                        logo_url=cg.get("logo_url"),
+                        website=None,
+                        whitepaper_url=None,
+                        explorer_url=None,
+                        twitter=None,
+                        discord=None,
+                        chain=None,
+                        category=None,
+                        market_cap_rank=cg.get("market_cap_rank"),
+                        market_cap=cg.get("market_cap"),
+                        price=cg.get("price"),
+                        volume_24h=cg.get("volume_24h"),
+                        circulating_supply=cg.get("circulating_supply"),
+                        total_supply=cg.get("total_supply"),
+                    )
+                    md_point = MarketDataPoint(
+                        timestamp=datetime.now(timezone.utc),
+                        price=cg.get("price") or 0.0,
+                        market_cap=cg.get("market_cap"),
+                        volume_24h=cg.get("volume_24h"),
+                        price_change_24h=cg.get("price_change_24h"),
+                        price_change_7d=cg.get("price_change_7d"),
+                    )
+                    out.append(CoinListItem(coin=coin_info, latest_market_data=md_point))
+                _coins_list_cache.set(cache_key, out, COINS_LIST_CACHE_TTL)
+                return out
+        except Exception:
+            pass
 
     # When no category filter: CoinGecko first, then CoinMarketCap (if configured), then DB
     # CoinGecko free API limits to ~500 coins; CMC fallback covers pages 6-20

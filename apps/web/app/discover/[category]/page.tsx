@@ -3,14 +3,15 @@ import { getCoinsList } from "@/lib/coins";
 import { withTimeout } from "@/lib/with-timeout";
 import { CoinTable } from "@/components/market/coin-table";
 import { CategoryMarketOverview } from "@/components/discover/category-market-overview";
-import { CATEGORY_DESCRIPTIONS } from "@/lib/category-descriptions";
+import { getCategoryDescription } from "@/lib/category-descriptions";
 import type { Coin } from "@/lib/crypto-mock";
 
-/** Slug -> human title for display. Covers common CoinGecko category ids. */
+/** Slug -> human title for display. Covers CoinGecko category ids. */
 const SLUG_TO_TITLE: Record<string, string> = {
   "ai-tokens": "AI Tokens",
   "artificial-intelligence": "Artificial Intelligence",
   "artificial-intelligence-ai": "Artificial Intelligence (AI)",
+  "artificial-intelligence-(ai)": "Artificial Intelligence (AI)",
   "depin-tokens": "DePIN Tokens",
   depin: "DePIN",
   "gaming-tokens": "Gaming Tokens",
@@ -21,6 +22,8 @@ const SLUG_TO_TITLE: Record<string, string> = {
   defi: "DeFi",
   "decentralized-finance-defi": "Decentralized Finance (DeFi)",
   "decentralized-exchange-dex": "Decentralized Exchange (DEX)",
+  "decentralized-exchange-(dex)": "Decentralized Exchange (DEX)",
+  "meme-coins": "Meme Coins",
   meme: "Meme",
   "smart-contract-platform": "Smart Contract Platform",
   "proof-of-work": "Proof of Work",
@@ -31,6 +34,12 @@ const SLUG_TO_TITLE: Record<string, string> = {
   infrastructure: "Infrastructure",
   "solana-ecosystem": "Solana Ecosystem",
   "ethereum-ecosystem": "Ethereum Ecosystem",
+  "real-world-assets-rwa": "Real World Assets (RWA)",
+  "liquid-staking-derivatives": "Liquid Staking Derivatives",
+  "yield-bearing-stablecoins": "Yield-Bearing Stablecoins",
+  "nft-tokens": "NFT Tokens",
+  "tokenized-gold": "Tokenized Gold",
+  bridges: "Bridges",
 };
 
 /** Convert URL slug to category query for API. */
@@ -107,7 +116,7 @@ export default async function DiscoverCategoryPage({ params }: PageProps) {
   const topGainer = sortedByGain[0];
   const topLoser = sortedByLoss[0];
 
-  const description = CATEGORY_DESCRIPTIONS[category] ?? CATEGORY_DESCRIPTIONS[category.toLowerCase()];
+  const description = getCategoryDescription(category, title);
 
   return (
     <div className="mx-auto max-w-5xl space-y-6 p-4">
@@ -144,18 +153,16 @@ export default async function DiscoverCategoryPage({ params }: PageProps) {
         }
       />
 
-      {description ? (
-        <section className="rounded-xl border border-[var(--b70-border)] bg-[var(--b70-card)] p-5 shadow-sm">
-          <h2 className="text-sm font-semibold text-[var(--b70-text)]">About {title}</h2>
-          <p className="mt-3 text-sm leading-relaxed text-[var(--b70-text-muted)]">
-            {description}
-          </p>
-        </section>
-      ) : null}
+      <section className="rounded-xl border border-[var(--b70-border)] bg-[var(--b70-card)] p-5 shadow-sm">
+        <h2 className="text-sm font-semibold text-[var(--b70-text)]">About {title}</h2>
+        <p className="mt-3 text-sm leading-relaxed text-[var(--b70-text-muted)]">
+          {description}
+        </p>
+      </section>
 
       {items.length === 0 ? (
         <section className="rounded-xl border border-[var(--b70-border)] bg-[var(--b70-card)] p-8 text-center text-sm text-[var(--b70-text-muted)] shadow-sm">
-          No tokens in this category yet. Categories are populated from the coin database; coins matching this category will appear here.
+          No tokens in this category yet. Data is sourced from live market APIs and the coin database.
         </section>
       ) : (
         <section>

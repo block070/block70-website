@@ -183,7 +183,7 @@ def fetch_coins_by_category(
     vs_currency: str = "usd",
     per_page: int = 5,
 ) -> List[Dict[str, Any]]:
-    """Fetch top coins for a category from CoinGecko /coins/markets."""
+    """Fetch top coins for a category from CoinGecko /coins/markets (minimal shape for top_coins)."""
     try:
         data = _get(
             "/coins/markets",
@@ -201,6 +201,34 @@ def fetch_coins_by_category(
             for item in (data or [])
             if item.get("id")
         ]
+    except Exception:
+        return []
+
+
+def fetch_coins_markets_by_category(
+    category_id: str,
+    vs_currency: str = "usd",
+    per_page: int = 100,
+    page: int = 1,
+) -> List[Dict[str, Any]]:
+    """
+    Fetch full market data for coins in a category from CoinGecko /coins/markets.
+    Returns same shape as fetch_all_coins (normalized) for discover/category pages.
+    """
+    try:
+        data = _get(
+            "/coins/markets",
+            params={
+                "vs_currency": vs_currency,
+                "category": category_id,
+                "order": "market_cap_desc",
+                "per_page": per_page,
+                "page": page,
+                "sparkline": "false",
+                "price_change_percentage": "24h,7d",
+            },
+        )
+        return [normalize_market_coin(item) for item in (data or [])]
     except Exception:
         return []
 

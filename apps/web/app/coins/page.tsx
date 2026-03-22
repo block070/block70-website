@@ -1,6 +1,6 @@
 import { Suspense } from "react";
 import { CoinsPageClient } from "./coins-page-client";
-import { CoinsLoading } from "./loading";
+import CoinsLoading from "./loading";
 
 export const metadata = {
   title: "Coins · Block70 Crypto Data",

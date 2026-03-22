@@ -247,6 +247,8 @@ def get_market_categories(
         return cached
     for attempt in range(3):
         try:
+            if attempt > 0:
+                time.sleep(5)  # Longer backoff before retry
             items = fetch_coins_categories(order=order)
             if items:
                 total = len(items)
@@ -255,22 +257,30 @@ def get_market_categories(
                 # Pre-load slug->symbol for top_3_coins_id (fallback when API returns fewer than 5)
                 all_cg_slugs = list(dict.fromkeys(
                     s for cat in page_items for s in (cat.get("top_3_coins_id") or [])
+                    if s
                 ))
                 slug_to_symbol: Dict[str, str] = {}
                 if all_cg_slugs:
-                    rows = db.query(Coin.slug, Coin.symbol).filter(Coin.slug.in_(all_cg_slugs)).all()
-                    slug_to_symbol = {s: _normalize_symbol(s, sym) for s, sym in rows}
+                    try:
+                        rows = db.query(Coin.slug, Coin.symbol).filter(Coin.slug.in_(all_cg_slugs)).all()
+                        slug_to_symbol = {s: _normalize_symbol(s, sym) for s, sym in rows}
+                    except Exception:
+                        pass
                 for s in all_cg_slugs:
                     if s not in slug_to_symbol:
                         slug_to_symbol[s] = _normalize_symbol(s, None)
-                # Fetch top 5 coins per category from CoinGecko (sequential + delay for rate limit)
+                # Fetch top 5 coins per category from CoinGecko - limit to first 25 to avoid rate limits
+                # Rest use top_3_coins_id from categories + DB supplement
+                MAX_CG_FETCH = 25
                 cat_id_to_coins: Dict[str, List[Dict[str, str]]] = {}
                 for i, cat in enumerate(page_items):
                     cid = cat.get("id")
                     if not cid:
                         continue
                     if i > 0:
-                        time.sleep(0.25)
+                        time.sleep(0.35)
+                    if i >= MAX_CG_FETCH:
+                        break  # Use top_3_coins_id + DB for the rest
                     coins_data = fetch_coins_by_category(cid, "usd", 5)
                     if coins_data:
                         cat_id_to_coins[cid] = [
