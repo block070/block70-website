@@ -1,6 +1,9 @@
 import type { NextConfig } from "next";
 
-// Use API_SERVER_URL at build for Docker (web->api); fallback for local dev
+// Rewrite /api/* to the backend. Required for SSR fetch and client requests.
+// - Docker: API_SERVER_URL=http://api:8000
+// - Production (e.g. block70.com): API_SERVER_URL or NEXT_PUBLIC_API_BASE_URL
+//   must point to the real API (e.g. https://api.block70.com)
 const apiTarget =
   process.env.API_SERVER_URL ||
   process.env.NEXT_PUBLIC_API_BASE_URL ||

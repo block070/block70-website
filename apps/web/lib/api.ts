@@ -12,17 +12,35 @@ import type {
 } from "./types";
 
 // Server (SSR): use API_SERVER_URL in Docker so the Next.js container can reach the API.
-// Client (browser): use NEXT_PUBLIC_API_BASE_URL. No hardcoded localhost.
-// Fallback to "" so the app can build when env is not set at build time (e.g. Docker build).
-// At runtime, set NEXT_PUBLIC_API_BASE_URL and API_SERVER_URL so requests hit your API.
-// (Do not throw here — build would fail when env is not available during docker build.)
+// Client (browser): use NEXT_PUBLIC_API_BASE_URL.
+// Node fetch requires absolute URLs; relative paths fail with "Invalid URL".
+function getApiBaseUrl(): string {
+  const url =
+    process.env.API_SERVER_URL ||
+    process.env.NEXT_PUBLIC_API_BASE_URL ||
+    "";
+  if (url) return url.replace(/\/$/, "");
+  if (typeof window !== "undefined") return "";
+  const protocol = process.env.VERCEL ? "https" : "http";
+  const host =
+    process.env.VERCEL_URL ||
+    process.env.NEXT_PUBLIC_VERCEL_URL ||
+    (typeof process.env.NEXT_PUBLIC_SITE_URL === "string"
+      ? process.env.NEXT_PUBLIC_SITE_URL.replace(/^https?:\/\//, "")
+      : "") ||
+    "localhost:3000";
+  return `${protocol}://${host}`;
+}
+
 export const API_BASE_URL =
   typeof window === "undefined"
     ? process.env.API_SERVER_URL || process.env.NEXT_PUBLIC_API_BASE_URL || ""
     : process.env.NEXT_PUBLIC_API_BASE_URL || "";
 
 export async function fetchJson<T>(path: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(`${API_BASE_URL}${path}`, {
+  const base = getApiBaseUrl();
+  const url = base ? `${base}${path.startsWith("/") ? "" : "/"}${path}` : path;
+  const res = await fetch(url, {
     ...init,
     headers: {
       "Content-Type": "application/json",
@@ -229,6 +247,25 @@ export async function getMarketCoins(params?: {
   if (params?.light) search.set("light", "1");
   const query = search.toString();
   return fetchJson<MarketCoin[]>(`/api/v1/market/coins${query ? `?${query}` : ""}`);
+}
+
+export type TrendingMarketCoin = {
+  name: string;
+  symbol: string;
+  rank: number;
+  price: number | null;
+  image: string | null;
+  coingecko_id: string | null;
+  score: number | null;
+};
+
+export async function getTrendingMarketCoins(
+  limit = 20,
+): Promise<TrendingMarketCoin[]> {
+  const search = new URLSearchParams({ limit: String(limit) });
+  return fetchJson<TrendingMarketCoin[]>(
+    `/api/v1/market/trending?${search.toString()}`,
+  );
 }
 
 export type MarketCategory = {

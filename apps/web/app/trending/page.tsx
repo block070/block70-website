@@ -1,5 +1,6 @@
 import Link from "next/link";
-import { fetchJson } from "@/lib/api";
+import { getTrendingMarketCoins, type TrendingMarketCoin } from "@/lib/api";
+import { TRENDING_COINS } from "@/lib/crypto-mock";
 
 export const revalidate = 60;
 
@@ -8,27 +9,27 @@ export const metadata = {
   description: "Live trending coins from CoinGecko, proxied via Block70.",
 };
 
-type TrendingCoin = {
-  name: string;
-  symbol: string;
-  rank: number;
-  price: number | null;
-  image: string | null;
-  coingecko_id: string | null;
-  score: number | null;
-};
+function mockToTrendingShape(): TrendingMarketCoin[] {
+  return TRENDING_COINS.map((c, i) => ({
+    name: c.name,
+    symbol: c.symbol,
+    rank: i + 1,
+    price: c.priceUsd,
+    image: c.logoUrl ?? null,
+    coingecko_id: c.slug,
+    score: null,
+  }));
+}
 
 export default async function TrendingPage() {
-  let coins: TrendingCoin[] = [];
-  let error: string | null = null;
+  let coins: TrendingMarketCoin[] = [];
+  let isFallback = false;
 
   try {
-    coins = await fetchJson<TrendingCoin[]>(
-      "/api/v1/market/trending?limit=20"
-    );
-  } catch (e) {
-    error =
-      e instanceof Error ? e.message : "Unable to load trending coins right now.";
+    coins = await getTrendingMarketCoins(20);
+  } catch {
+    coins = mockToTrendingShape();
+    isFallback = true;
   }
 
   return (
@@ -39,11 +40,18 @@ export default async function TrendingPage() {
           Live CoinGecko trending coins, proxied via the Block70 backend.
         </p>
       </header>
-      {error ? (
-        <div className="rounded-xl border border-red-900/60 bg-red-950/40 p-3 text-xs text-red-200">
-          {error}
+      {isFallback && (
+        <div className="rounded-xl border border-amber-900/60 bg-amber-950/40 p-3 text-xs text-amber-200">
+          Showing sample data — API temporarily unavailable.{" "}
+          <a
+            href="/trending"
+            className="underline hover:no-underline"
+          >
+            Retry
+          </a>
         </div>
-      ) : coins.length === 0 ? (
+      )}
+      {coins.length === 0 ? (
         <div className="rounded-xl border border-slate-800 bg-slate-950/70 p-3 text-xs text-slate-400">
           No trending data from CoinGecko yet. Try refreshing in a few seconds.
         </div>

@@ -82,6 +82,7 @@ export default async function CoinsPage({ searchParams }: PageProps) {
 
   const FETCH_TIMEOUT_MS = 10_000;
   let coins: Coin[] = COINS;
+  let isFallback = false;
   try {
     const list = await withTimeout(getCoinsList({ limit, page }), FETCH_TIMEOUT_MS);
     if (list.length > 0) {
@@ -97,9 +98,12 @@ export default async function CoinsPage({ searchParams }: PageProps) {
       );
       if (chunk.length > 0) {
         coins = marketCoinsToShape(chunk, page, limit);
+      } else {
+        throw new Error("Market coins API returned empty");
       }
     } catch {
-      // use mock COINS
+      isFallback = true;
+      // use mock COINS (8 items)
     }
   }
 
@@ -114,6 +118,15 @@ export default async function CoinsPage({ searchParams }: PageProps) {
           Data from API when available; otherwise mock majors.
         </p>
       </header>
+      {isFallback && (
+        <div className="rounded-xl border border-amber-900/60 bg-amber-950/40 p-3 text-xs text-amber-200">
+          Showing sample data — API temporarily unavailable. Try refreshing or{" "}
+          <Link href="/coins" className="underline hover:no-underline">
+            retry
+          </Link>
+          .
+        </div>
+      )}
       <MarketStats />
       <section className="space-y-3">
         <div className="flex items-center justify-between text-xs">
