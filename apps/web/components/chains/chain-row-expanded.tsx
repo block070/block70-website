@@ -50,7 +50,7 @@ export function ChainRowExpanded({ chainName }: Props) {
   return (
     <div className="border-t border-slate-800 bg-slate-950/40 px-4 py-3">
       <p className="mb-2 text-[11px] uppercase tracking-wide text-slate-400">
-        Top 5 coins by volume
+        Top coins
       </p>
       <div className="grid grid-cols-2 gap-x-6 gap-y-2 sm:grid-cols-3 md:grid-cols-5">
         {coins.map((c) => (

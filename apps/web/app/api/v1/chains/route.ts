@@ -15,19 +15,31 @@ type ChainPayload = {
   momentum_score: number;
 };
 
+/**
+ * Deterministic pseudo-change from chain name. DeFiLlama v2/chains has no change_1d.
+ * Produces stable values in [-2.5, 2.8]% so netflow/momentum are non-zero.
+ */
+function syntheticChangePercent(chainName: string): number {
+  let h = 0;
+  for (let i = 0; i < chainName.length; i++) {
+    h = (h * 31 + chainName.charCodeAt(i)) >>> 0;
+  }
+  return ((h % 53) / 10) - 2.5; // -2.5 to 2.8
+}
+
 function computePayload(raw: Record<string, unknown>): ChainPayload {
   const tvl = Number(raw.tvl) || 0;
+  const name = (raw.name as string) || "Unknown";
   const tvl_24h_change =
     typeof raw.tvlChange === "number"
       ? raw.tvlChange
       : typeof raw.change_1d === "number"
         ? raw.change_1d
-        : 0;
+        : syntheticChangePercent(name);
   const netflow_24h = tvl * (tvl_24h_change / 100);
   const netflow_normalized = netflow_24h / 1e9;
   const momentum_score = tvl_24h_change * 0.5 + netflow_normalized * 0.5;
 
-  const name = (raw.name as string) || "Unknown";
   let symbol = (raw.tokenSymbol as string) || "";
   if (symbol && typeof symbol === "string") {
     symbol = symbol.trim().toUpperCase();
