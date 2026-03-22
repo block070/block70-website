@@ -31,6 +31,7 @@ function coinToHeaderShape(coin: CoinInfoDto, latestMd?: MarketDataPointDto | nu
     rank: coin.market_cap_rank ?? 0,
     categoryIds: coin.category ? [coin.category] : [],
     chainIds: coin.chain ? [coin.chain] : [],
+    logoUrl: coin.logo_url ?? undefined,
   };
 }
 

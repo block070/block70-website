@@ -1,15 +1,16 @@
 import Link from "next/link";
-import { getCoinBySlug } from "@/lib/coins";
+import { getCoinBySlugOrMock } from "@/lib/coins";
 import { notFound } from "next/navigation";
 import { API_BASE_URL } from "@/lib/api";
 import { TokenDiscussionFeed } from "@/components/coins/token-discussion-feed";
+import { withTimeout } from "@/lib/with-timeout";
 
 type Params = { params: Promise<{ slug: string }> };
 
 export async function generateMetadata({ params }: Params) {
   const { slug } = await params;
   try {
-    const data = await getCoinBySlug(slug);
+    const data = await getCoinBySlugOrMock(slug);
     return {
       title: `${data.coin.symbol} Community · Block70`,
       description: `Discussion and comments for ${data.coin.name} (${data.coin.symbol}).`,
@@ -19,11 +20,13 @@ export async function generateMetadata({ params }: Params) {
   }
 }
 
+const FETCH_TIMEOUT_MS = 8_000;
+
 export default async function CoinCommunityPage({ params }: Params) {
   const { slug } = await params;
   let coin;
   try {
-    const data = await getCoinBySlug(slug);
+    const data = await withTimeout(getCoinBySlugOrMock(slug), FETCH_TIMEOUT_MS);
     coin = data.coin;
   } catch {
     notFound();

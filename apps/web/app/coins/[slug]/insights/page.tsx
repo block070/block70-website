@@ -1,14 +1,16 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { getCoinBySlug } from "@/lib/coins";
+import { getCoinBySlugOrMock } from "@/lib/coins";
 import { getAIInsightsForToken } from "@/lib/api";
 import { InsightCard } from "@/components/ai/insight-card";
+import { withTimeout } from "@/lib/with-timeout";
 
-type Params = { slug: string };
+type Params = { params: Promise<{ slug: string }> };
 
 export async function generateMetadata({ params }: { params: Params }) {
+  const { slug } = await params;
   try {
-    const data = await getCoinBySlug(params.slug);
+    const data = await getCoinBySlugOrMock(slug);
     return {
       title: `AI Insights · ${data.coin.symbol} · Block70`,
       description: `AI insights related to ${data.coin.name} (${data.coin.symbol}).`,
@@ -18,10 +20,13 @@ export async function generateMetadata({ params }: { params: Params }) {
   }
 }
 
+const FETCH_TIMEOUT_MS = 8_000;
+
 export default async function CoinInsightsPage({ params }: { params: Params }) {
+  const { slug } = await params;
   let data;
   try {
-    data = await getCoinBySlug(params.slug);
+    data = await withTimeout(getCoinBySlugOrMock(slug), FETCH_TIMEOUT_MS);
   } catch {
     notFound();
   }
@@ -48,7 +53,7 @@ export default async function CoinInsightsPage({ params }: { params: Params }) {
           </p>
         </div>
         <Link
-          href={`/coins/${params.slug}`}
+          href={`/coins/${slug}`}
           className="text-sm font-medium text-blue-400 hover:text-blue-300"
         >
           Back to {symbol}

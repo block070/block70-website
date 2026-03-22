@@ -447,6 +447,54 @@ def _resolve_coin(db: Session, slug_or_symbol: str) -> Optional[Coin]:
     return coin
 
 
+def _fetch_coin_from_coingecko(slug: str) -> CoinDetailResponse:
+    """Fallback: fetch coin directly from CoinGecko when not in DB."""
+    from app.services.connectors.coingecko_connector import fetch_coin_details
+
+    _coingecko_throttle()
+    payload = fetch_coin_details(slug, vs_currency="usd")
+    c = payload.get("coin") or {}
+    md = payload.get("market_data") or {}
+
+    coin_info = CoinInfo(
+        id=0,
+        name=c.get("name") or slug,
+        symbol=(c.get("symbol") or "?").upper(),
+        slug=c.get("slug") or slug,
+        description=c.get("description"),
+        logo_url=c.get("logo_url") if isinstance(c.get("logo_url"), str) else None,
+        website=c.get("website"),
+        whitepaper_url=c.get("whitepaper_url"),
+        explorer_url=c.get("explorer_url"),
+        twitter=c.get("twitter"),
+        discord=c.get("discord"),
+        chain=c.get("chain"),
+        category=c.get("category"),
+        market_cap_rank=c.get("market_cap_rank"),
+        market_cap=c.get("market_cap") or md.get("market_cap"),
+        price=c.get("price") or md.get("price"),
+        volume_24h=c.get("volume_24h") or md.get("volume_24h"),
+        circulating_supply=c.get("circulating_supply"),
+        total_supply=c.get("total_supply"),
+    )
+
+    md_point = MarketDataPoint(
+        timestamp=datetime.now(timezone.utc),
+        price=md.get("price") or c.get("price") or 0.0,
+        market_cap=md.get("market_cap") or c.get("market_cap"),
+        volume_24h=md.get("volume_24h") or c.get("volume_24h"),
+        price_change_24h=md.get("price_change_24h"),
+        price_change_7d=md.get("price_change_7d"),
+    )
+
+    return CoinDetailResponse(
+        coin=coin_info,
+        market_data=[md_point],
+        narratives=[],
+        news=[],
+    )
+
+
 @router.get("/{slug}", response_model=CoinDetailResponse)
 def get_coin_detail(
     slug: str,
@@ -454,7 +502,10 @@ def get_coin_detail(
 ) -> CoinDetailResponse:
     coin = _resolve_coin(db, slug)
     if coin is None:
-        raise HTTPException(status_code=404, detail="Coin not found")
+        try:
+            return _fetch_coin_from_coingecko(slug.lower().strip())
+        except Exception:
+            raise HTTPException(status_code=404, detail="Coin not found")
 
     # Try to enrich with live CoinGecko data (price, 24h%, 7d%, description, links)
     md_rows = (
