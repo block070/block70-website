@@ -928,14 +928,25 @@ export type ChainCoinDto = {
   change_24h: number | null;
 };
 
-export async function getChainCoins(
+export type ChainProtocolDto = {
+  name: string;
+  tvl: number;
+  category: string;
+};
+
+export type ChainExpansionDto = {
+  protocols: ChainProtocolDto[];
+  coins: ChainCoinDto[];
+};
+
+export async function getChainExpansion(
   chainName: string,
   limit?: number,
-): Promise<ChainCoinDto[]> {
+): Promise<ChainExpansionDto> {
   const search = new URLSearchParams();
   if (limit != null) search.set("limit", String(limit));
   const query = search.toString();
-  const path = `/api/v1/chains/${encodeURIComponent(chainName)}/coins${query ? `?${query}` : ""}`;
+  const path = `/api/v1/chains/${encodeURIComponent(chainName)}/expansion${query ? `?${query}` : ""}`;
   const url =
     typeof window !== "undefined"
       ? path
@@ -944,8 +955,17 @@ export async function getChainCoins(
     headers: { Accept: "application/json" },
     cache: "no-store",
   });
-  if (!res.ok) return [];
-  return res.json() as Promise<ChainCoinDto[]>;
+  if (!res.ok) return { protocols: [], coins: [] };
+  return res.json() as Promise<ChainExpansionDto>;
+}
+
+/** @deprecated Use getChainExpansion for protocols + coins */
+export async function getChainCoins(
+  chainName: string,
+  limit?: number,
+): Promise<ChainCoinDto[]> {
+  const data = await getChainExpansion(chainName, limit);
+  return data.coins;
 }
 
 export async function getSignalsLeaderboard(params?: {
