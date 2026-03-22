@@ -128,25 +128,33 @@ def _load_categories_fallback_from_db(db: Session) -> List[Dict[str, Any]]:
     ]
 
 
-@router.get("/categories", response_model=List[Dict[str, Any]])
+@router.get("/categories")
 def get_market_categories(
     db: Session = Depends(get_db),
     order: str = Query("market_cap_desc", description="Sort: market_cap_desc, market_cap_asc, name_asc, name_desc"),
-) -> List[Dict[str, Any]]:
+    limit: int = Query(100, ge=1, le=500),
+    page: int = Query(1, ge=1, le=100),
+) -> Dict[str, Any]:
     """
     Return coin categories with market cap and 24h volume from CoinGecko.
     Falls back to DB aggregation when CoinGecko is unavailable.
+    Supports pagination via limit and page. Returns { items, total } when limit is used.
     """
     try:
         items = fetch_coins_categories(order=order)
         if items:
-            return items
+            total = len(items)
+            offset = (page - 1) * limit
+            return {"items": items[offset : offset + limit], "total": total}
     except Exception:
         pass
     try:
-        return _load_categories_fallback_from_db(db)
+        all_rows = _load_categories_fallback_from_db(db)
+        total = len(all_rows)
+        offset = (page - 1) * limit
+        return {"items": all_rows[offset : offset + limit], "total": total}
     except Exception:
-        return []
+        return {"items": [], "total": 0}
 
 
 @router.get("/trending", response_model=List[Dict[str, Any]])

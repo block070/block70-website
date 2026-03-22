@@ -236,17 +236,28 @@ export type MarketCategory = {
   market_cap_change_24h?: number | null;
   volume_24h: number;
   top_3_coins?: string[];
+  top_3_coins_id?: string[];
   content?: string | null;
 };
 
 export async function getMarketCategories(params?: {
   order?: string;
-}): Promise<MarketCategory[]> {
+  limit?: number;
+  page?: number;
+}): Promise<{ items: MarketCategory[]; total: number }> {
   const search = new URLSearchParams();
   if (params?.order) search.set("order", params.order);
+  if (params?.limit != null) search.set("limit", String(params.limit));
+  if (params?.page != null && params.page > 1) search.set("page", String(params.page));
   const query = search.toString();
-  const data = await fetchJson<MarketCategory[]>(`/api/v1/market/categories${query ? `?${query}` : ""}`);
-  return Array.isArray(data) ? data : [];
+  const data = await fetchJson<{ items?: MarketCategory[]; total?: number } | MarketCategory[]>(
+    `/api/v1/market/categories${query ? `?${query}` : ""}`
+  );
+  if (data && typeof data === "object" && "items" in data && Array.isArray(data.items)) {
+    return { items: data.items, total: data.total ?? data.items.length };
+  }
+  const fallback = Array.isArray(data) ? data : [];
+  return { items: fallback, total: fallback.length };
 }
 
 export async function getNewsArticles(params?: {

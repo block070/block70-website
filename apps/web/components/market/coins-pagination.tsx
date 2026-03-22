@@ -9,23 +9,31 @@ type Props = {
   currentPage: number;
   totalPages: number;
   limit: number;
+  basePath?: string;
+  selectId?: string;
 };
 
-function buildHref(page: number, limit: number): string {
+function buildHref(page: number, limit: number, basePath: string): string {
   const params = new URLSearchParams();
   if (page > 1) params.set("page", String(page));
   if (limit !== 100) params.set("limit", String(limit));
   const qs = params.toString();
-  return qs ? `/coins?${qs}` : "/coins";
+  return qs ? `${basePath}?${qs}` : basePath;
 }
 
 /** Show up to 5 page numbers in a sliding window, with prev/next/first/last arrows and Show dropdown. */
-export function CoinsPagination({ currentPage, totalPages, limit }: Props) {
+export function CoinsPagination({
+  currentPage,
+  totalPages,
+  limit,
+  basePath = "/coins",
+  selectId,
+}: Props) {
   const router = useRouter();
 
   const handleLimitChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const newLimit = Number(e.target.value) as (typeof PAGE_SIZE_OPTIONS)[number];
-    router.push(buildHref(1, newLimit)); // reset to page 1 when changing page size
+    router.push(buildHref(1, newLimit, basePath)); // reset to page 1 when changing page size
   };
 
   const windowSize = 5;
@@ -53,7 +61,7 @@ export function CoinsPagination({ currentPage, totalPages, limit }: Props) {
           </span>
         ) : (
           <Link
-            href={buildHref(1, limit)}
+            href={buildHref(1, limit, basePath)}
             className="flex h-9 min-w-9 items-center justify-center rounded-lg border border-slate-700 px-2 text-slate-400 transition hover:bg-slate-800/60 hover:text-slate-200"
             aria-label="First page"
           >
@@ -69,7 +77,7 @@ export function CoinsPagination({ currentPage, totalPages, limit }: Props) {
           </span>
         ) : (
           <Link
-            href={buildHref(currentPage - 1, limit)}
+            href={buildHref(currentPage - 1, limit, basePath)}
             className="flex h-9 min-w-9 items-center justify-center rounded-lg border border-slate-700 px-2 text-slate-400 transition hover:bg-slate-800/60 hover:text-slate-200"
             aria-label="Previous page"
           >
@@ -89,7 +97,7 @@ export function CoinsPagination({ currentPage, totalPages, limit }: Props) {
             ) : (
               <Link
                 key={p}
-                href={buildHref(p, limit)}
+                href={buildHref(p, limit, basePath)}
                 className="flex h-9 min-w-9 items-center justify-center rounded-lg border border-slate-700 text-slate-400 transition hover:bg-slate-800/60 hover:text-slate-200"
               >
                 {p}
@@ -106,7 +114,7 @@ export function CoinsPagination({ currentPage, totalPages, limit }: Props) {
           </span>
         ) : (
           <Link
-            href={buildHref(currentPage + 1, limit)}
+            href={buildHref(currentPage + 1, limit, basePath)}
             className="flex h-9 min-w-9 items-center justify-center rounded-lg border border-slate-700 px-2 text-slate-400 transition hover:bg-slate-800/60 hover:text-slate-200"
             aria-label="Next page"
           >
@@ -122,7 +130,7 @@ export function CoinsPagination({ currentPage, totalPages, limit }: Props) {
           </span>
         ) : (
           <Link
-            href={buildHref(totalPages, limit)}
+            href={buildHref(totalPages, limit, basePath)}
             className="flex h-9 min-w-9 items-center justify-center rounded-lg border border-slate-700 px-2 text-slate-400 transition hover:bg-slate-800/60 hover:text-slate-200"
             aria-label="Last page"
           >
@@ -134,9 +142,9 @@ export function CoinsPagination({ currentPage, totalPages, limit }: Props) {
         <div />
       )}
       <div className="flex items-center gap-2 text-sm text-slate-400">
-        <label htmlFor="coins-per-page">Show</label>
+        <label htmlFor={selectId ?? "coins-per-page"}>Show</label>
         <select
-          id="coins-per-page"
+          id={selectId ?? "coins-per-page"}
           value={limit}
           onChange={handleLimitChange}
           className="h-9 rounded-lg border border-slate-700 bg-slate-800/60 px-2 text-slate-200 focus:border-slate-500 focus:outline-none focus:ring-1 focus:ring-slate-500"

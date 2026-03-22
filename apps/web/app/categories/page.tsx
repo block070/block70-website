@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { CoinsPagination } from "@/components/market/coins-pagination";
 import { getMarketCategories } from "@/lib/api";
 import { formatCompactUsd, formatChangePct } from "@/lib/format";
 
@@ -8,13 +9,41 @@ export const metadata = {
     "Crypto asset categories with market cap and 24h volume. Click through to explore coins by category.",
 };
 
-export default async function CategoriesPage() {
-  let categories: Awaited<ReturnType<typeof getMarketCategories>> = [];
+const VALID_LIMITS = [10, 25, 50, 100, 200] as const;
+
+function slugToLabel(slug: string): string {
+  return slug
+    .split("-")
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+    .join(" ");
+}
+
+type PageProps = {
+  searchParams: Promise<{ page?: string; limit?: string }>;
+};
+
+export default async function CategoriesPage({ searchParams }: PageProps) {
+  const { page: pageParam, limit: limitParam } = await searchParams;
+  const parsedLimit = parseInt(limitParam ?? "100", 10) || 100;
+  const limit = (VALID_LIMITS as readonly number[]).includes(parsedLimit)
+    ? (parsedLimit as (typeof VALID_LIMITS)[number])
+    : 100;
+  const page = Math.max(1, parseInt(pageParam ?? "1", 10) || 1);
+
+  let result = { items: [] as Awaited<ReturnType<typeof getMarketCategories>>["items"], total: 0 };
   try {
-    categories = await getMarketCategories({ order: "market_cap_desc" });
+    result = await getMarketCategories({
+      order: "market_cap_desc",
+      limit,
+      page,
+    });
   } catch {
     // Show empty state
   }
+
+  const { items: categories, total } = result;
+  const totalPages = Math.max(1, Math.ceil(total / limit));
+  const clampedPage = Math.min(page, totalPages);
 
   return (
     <div className="space-y-6">
@@ -55,7 +84,7 @@ export default async function CategoriesPage() {
                   key={cat.id}
                   className="transition-colors hover:bg-[var(--b70-bg)]/50"
                 >
-                  <td className="px-4 py-3 text-[var(--b70-text-muted)]">{i + 1}</td>
+                  <td className="px-4 py-3 text-[var(--b70-text-muted)]">{(clampedPage - 1) * limit + i + 1}</td>
                   <td className="px-4 py-3">
                     <Link
                       href={`/discover/${cat.id}`}
@@ -81,16 +110,36 @@ export default async function CategoriesPage() {
                   >
                     {formatChangePct(cat.market_cap_change_24h ?? NaN)}
                   </td>
-                  <td className="px-4 py-3 text-xs text-[var(--b70-text-muted)]">
-                    {Array.isArray(cat.top_3_coins) && cat.top_3_coins.length > 0
-                      ? cat.top_3_coins.slice(0, 3).join(", ")
-                      : "—"}
+                  <td className="px-4 py-3">
+                    <div className="flex flex-wrap gap-x-3 gap-y-1">
+                      {Array.isArray(cat.top_3_coins_id) && cat.top_3_coins_id.length > 0
+                        ? cat.top_3_coins_id.slice(0, 3).map((slug) => (
+                            <Link
+                              key={slug}
+                              href={`/coins/${slug}`}
+                              className="text-xs font-medium text-[var(--b70-text)] hover:text-crypto-blue hover:underline"
+                            >
+                              {slugToLabel(slug)}
+                            </Link>
+                          ))
+                        : "—"}
+                    </div>
                   </td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
+      )}
+
+      {categories.length > 0 && (
+        <CoinsPagination
+          currentPage={clampedPage || 1}
+          totalPages={totalPages}
+          limit={limit}
+          basePath="/categories"
+          selectId="categories-per-page"
+        />
       )}
 
       <p className="text-xs text-[var(--b70-text-muted)]">
