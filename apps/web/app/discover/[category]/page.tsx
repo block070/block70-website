@@ -1,6 +1,5 @@
 import Link from "next/link";
 import { getCoinsList } from "@/lib/coins";
-import { getMarketCategories } from "@/lib/api";
 import { CoinTable } from "@/components/market/coin-table";
 import { CategoryMarketOverview } from "@/components/discover/category-market-overview";
 import { CATEGORY_DESCRIPTIONS } from "@/lib/category-descriptions";
@@ -87,29 +86,16 @@ export default async function DiscoverCategoryPage({ params }: PageProps) {
   const title = getCategoryTitle(category);
 
   let items: Awaited<ReturnType<typeof getCoinsList>> = [];
-  let categoryStats: { market_cap?: number; volume_24h?: number } | null = null;
 
   try {
-    [items, categoryStats] = await Promise.all([
-      getCoinsList({ category_slug: category, limit: 200, page: 1 }),
-      (async () => {
-        const { items: cats } = await getMarketCategories({ limit: 300, page: 1 });
-        const norm = (s: string) => (s || "").toLowerCase().replace(/[\s()]/g, "-").replace(/-+/g, "-");
-        const match = cats.find(
-          (c) => c.id === category || norm(c.id ?? "") === norm(category)
-        );
-        return match ? { market_cap: match.market_cap, volume_24h: match.volume_24h } : null;
-      })(),
-    ]);
+    items = await getCoinsList({ category_slug: category, limit: 100, page: 1 });
   } catch {
     // Use empty state
   }
 
   const coins = itemsToCoins(items, 0);
-  const totalMcap = coins.reduce((s, c) => s + (c.marketCapUsd || 0), 0);
-  const totalVol = coins.reduce((s, c) => s + (c.volume24hUsd || 0), 0);
-  const marketCap = categoryStats?.market_cap ?? (totalMcap || undefined);
-  const volume24h = categoryStats?.volume_24h ?? (totalVol || undefined);
+  const marketCap = coins.reduce((s, c) => s + (c.marketCapUsd || 0), 0) || undefined;
+  const volume24h = coins.reduce((s, c) => s + (c.volume24hUsd || 0), 0) || undefined;
 
   const withChange = coins.filter((c) => typeof c.change24hPct === "number" && Number.isFinite(c.change24hPct));
   const sortedByGain = [...withChange].sort((a, b) => (b.change24hPct ?? -Infinity) - (a.change24hPct ?? -Infinity));
