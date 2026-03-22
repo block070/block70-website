@@ -22,10 +22,18 @@ Ensure these are set for production:
 | Variable | Purpose |
 |----------|---------|
 | `NEXT_PUBLIC_API_BASE_URL` | Public API URL (e.g. `https://api.block70.com`) – used by browser |
+| `API_SERVER_URL` | **Server-side only**: Where the FastAPI backend actually runs. If `api.block70.com` serves Next.js, this must be the separate FastAPI URL (e.g. `https://block70-api.railway.app` or internal `http://api:8000` in Docker). The `/status` page and API routes use this to reach the backend. |
 | `FRONTEND_ORIGIN` | Your frontend origin for CORS (e.g. `https://block70.com`) |
 | `REDIS_URL` | Default `redis://redis:6379/0` in Docker – chart cache uses Redis |
 | `DATABASE_URL` | PostgreSQL connection string |
 | `SITEMAP_BASE_URL` | Base URL for sitemap (e.g. `https://block70.com`) |
+
+### Status page "Backend API unreachable"
+
+If `/status` shows this error while `api.block70.com/health` returns `{"status":"ok"}`:
+- `api.block70.com` likely serves the Next.js app (which has `/health`).
+- `API_SERVER_URL` must point to the **FastAPI backend**, not `api.block70.com`.
+- Set `API_SERVER_URL` in Vercel (or your host) to the real backend URL.
 
 ## Chart cache (new)
 
