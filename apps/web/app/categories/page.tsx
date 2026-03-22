@@ -11,13 +11,6 @@ export const metadata = {
 
 const VALID_LIMITS = [10, 25, 50, 100, 200] as const;
 
-function slugToLabel(slug: string): string {
-  return slug
-    .split("-")
-    .map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
-    .join(" ");
-}
-
 type PageProps = {
   searchParams: Promise<{ page?: string; limit?: string }>;
 };
@@ -112,14 +105,14 @@ export default async function CategoriesPage({ searchParams }: PageProps) {
                   </td>
                   <td className="px-4 py-3">
                     <div className="flex flex-wrap gap-x-3 gap-y-1">
-                      {Array.isArray(cat.top_3_coins_id) && cat.top_3_coins_id.length > 0
-                        ? cat.top_3_coins_id.slice(0, 3).map((slug) => (
+                      {Array.isArray(cat.top_coins) && cat.top_coins.length > 0
+                        ? cat.top_coins.slice(0, 5).map(({ slug, symbol }) => (
                             <Link
                               key={slug}
                               href={`/coins/${slug}`}
                               className="text-xs font-medium text-[var(--b70-text)] hover:text-crypto-blue hover:underline"
                             >
-                              {slugToLabel(slug)}
+                              {symbol || slug}
                             </Link>
                           ))
                         : "—"}

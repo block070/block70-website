@@ -17,6 +17,15 @@ from app.services.connectors.coingecko_connector import (
 
 router = APIRouter(prefix="/api/v1/market", tags=["market"])
 
+# Fallback for common CoinGecko slugs when not in DB
+SLUG_TO_SYMBOL: Dict[str, str] = {
+    "bitcoin": "BTC", "ethereum": "ETH", "tether": "USDT", "binancecoin": "BNB",
+    "usd-coin": "USDC", "ripple": "XRP", "solana": "SOL", "staked-ether": "STETH",
+    "cardano": "ADA", "dogecoin": "DOGE", "avalanche-2": "AVAX", "chainlink": "LINK",
+    "tron": "TRX", "polkadot": "DOT", "bitcoin-cash": "BCH", "uniswap": "UNI",
+    "matic-network": "MATIC", "shiba-inu": "SHIB", "litecoin": "LTC", "dai": "DAI",
+}
+
 
 def _serialize_market_item(item: Dict[str, Any]) -> Dict[str, Any]:
     return {
@@ -116,27 +125,28 @@ def _load_categories_fallback_from_db(db: Session) -> List[Dict[str, Any]]:
     def slug_from_name(name: str) -> str:
         return (name or "").lower().replace(" ", "-").replace("_", "-")
 
-    # Get top 3 coin slugs per category
-    top_coins_by_cat: Dict[str, List[str]] = {}
+    # Get top 5 coins (slug, symbol) per category
+    top_coins_by_cat: Dict[str, List[Dict[str, str]]] = {}
     coins_ordered = (
-        db.query(Coin.category, Coin.slug, Coin.market_cap)
+        db.query(Coin.category, Coin.slug, Coin.symbol, Coin.market_cap)
         .filter(Coin.category.isnot(None), Coin.category != "")
         .order_by(Coin.category, Coin.market_cap.desc().nullslast())
         .all()
     )
-    for cat, slug, _ in coins_ordered:
+    for cat, slug, symbol, _ in coins_ordered:
         if cat and slug:
             if cat not in top_coins_by_cat:
                 top_coins_by_cat[cat] = []
-            if len(top_coins_by_cat[cat]) < 3:
-                top_coins_by_cat[cat].append(slug)
+            if len(top_coins_by_cat[cat]) < 5:
+                top_coins_by_cat[cat].append({"slug": slug, "symbol": (symbol or "").upper() or slug})
 
     # Get market_cap_change_24h per category (weighted avg from top coins' MarketData)
     change_by_cat: Dict[str, float] = {}
     for cat in top_coins_by_cat:
-        slugs = top_coins_by_cat[cat]
-        if not slugs:
+        coins_list = top_coins_by_cat[cat]
+        if not coins_list:
             continue
+        slugs = [c["slug"] for c in coins_list]
         coins_in_cat = db.query(Coin).filter(Coin.slug.in_(slugs)).all()
         if not coins_in_cat:
             continue
@@ -163,8 +173,7 @@ def _load_categories_fallback_from_db(db: Session) -> List[Dict[str, Any]]:
             "market_cap": float(mcap or 0),
             "market_cap_change_24h": change_by_cat.get(cat),
             "volume_24h": float(vol or 0),
-            "top_3_coins": [],
-            "top_3_coins_id": top_coins_by_cat.get(cat, []),
+            "top_coins": top_coins_by_cat.get(cat, []),
             "content": None,
         }
         for cat, mcap, vol in rows
@@ -187,6 +196,23 @@ def get_market_categories(
         try:
             items = fetch_coins_categories(order=order)
             if items:
+                # Enrich with top_coins [{ slug, symbol }] - show up to 5, use symbols
+                all_slugs = [
+                    slug for cat in items
+                    for slug in (cat.get("top_3_coins_id") or [])[:5]
+                ]
+                slug_to_symbol: Dict[str, str] = {}
+                if all_slugs:
+                    coins = db.query(Coin.slug, Coin.symbol).filter(
+                        Coin.slug.in_(list(dict.fromkeys(all_slugs)))
+                    ).all()
+                    slug_to_symbol = {s: (sym or "").upper() or s for s, sym in coins}
+                for cat in items:
+                    slugs = (cat.get("top_3_coins_id") or [])[:5]
+                    cat["top_coins"] = [
+                        {"slug": s, "symbol": slug_to_symbol.get(s) or SLUG_TO_SYMBOL.get(s, s.upper() if len(s) <= 5 else s)}
+                        for s in slugs
+                    ]
                 total = len(items)
                 offset = (page - 1) * limit
                 return {"items": items[offset : offset + limit], "total": total}

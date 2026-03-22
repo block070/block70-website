@@ -237,6 +237,7 @@ export type MarketCategory = {
   volume_24h: number;
   top_3_coins?: string[];
   top_3_coins_id?: string[];
+  top_coins?: { slug: string; symbol: string }[];
   content?: string | null;
 };
 
