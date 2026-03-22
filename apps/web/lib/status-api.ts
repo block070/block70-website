@@ -18,11 +18,17 @@ export type StatusResponse = {
 };
 
 export async function getStatus(): Promise<StatusResponse> {
-  // Fetch directly from API - browser reaches same host, port 8000 (bypasses Docker proxy)
-  const apiBase =
-    (typeof window !== "undefined" &&
-      `${window.location.protocol}//${window.location.hostname}:8000`) ||
-    "";
+  let apiBase = "";
+  try {
+    const config = await fetch("/api/config", { cache: "no-store" });
+    const { apiBase: base } = (await config.json()) as { apiBase: string };
+    apiBase = base || "";
+  } catch {
+    // Fallback when same-origin, port 8000
+    if (typeof window !== "undefined") {
+      apiBase = `${window.location.protocol}//${window.location.hostname}:8000`;
+    }
+  }
   const url = apiBase ? `${apiBase}/api/v1/status` : "/api/status";
   const res = await fetch(url, { cache: "no-store" });
   const data = (await res.json()) as StatusResponse;
