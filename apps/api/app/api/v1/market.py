@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Any, Dict, List
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -10,6 +11,7 @@ from app.db import get_db
 from app.models import Coin, MarketData
 from app.services.connectors.coingecko_connector import (
     fetch_all_coins,
+    fetch_coins_by_category,
     fetch_coins_categories,
     fetch_trending_coins,
 )
@@ -196,26 +198,53 @@ def get_market_categories(
         try:
             items = fetch_coins_categories(order=order)
             if items:
-                # Enrich with top_coins [{ slug, symbol }] - show up to 5, use symbols
-                all_slugs = [
-                    slug for cat in items
-                    for slug in (cat.get("top_3_coins_id") or [])[:5]
-                ]
-                slug_to_symbol: Dict[str, str] = {}
-                if all_slugs:
-                    coins = db.query(Coin.slug, Coin.symbol).filter(
-                        Coin.slug.in_(list(dict.fromkeys(all_slugs)))
-                    ).all()
-                    slug_to_symbol = {s: (sym or "").upper() or s for s, sym in coins}
-                for cat in items:
-                    slugs = (cat.get("top_3_coins_id") or [])[:5]
-                    cat["top_coins"] = [
-                        {"slug": s, "symbol": slug_to_symbol.get(s) or SLUG_TO_SYMBOL.get(s, s.upper() if len(s) <= 5 else s)}
-                        for s in slugs
-                    ]
                 total = len(items)
                 offset = (page - 1) * limit
-                return {"items": items[offset : offset + limit], "total": total}
+                page_items = items[offset : offset + limit]
+                # Enrich each category with top 5 coins via /coins/markets?category=id
+                cat_id_to_items: Dict[str, List[Dict[str, str]]] = {}
+                with ThreadPoolExecutor(max_workers=5) as pool:
+                    futures = {
+                        pool.submit(fetch_coins_by_category, cat.get("id", ""), "usd", 5): cat.get("id", "")
+                        for cat in page_items
+                        if cat.get("id")
+                    }
+                    for future in as_completed(futures):
+                        cat_id = futures[future]
+                        try:
+                            coins_data = future.result()
+                            if coins_data:
+                                cat_id_to_items[cat_id] = [
+                                    {"slug": c["id"], "symbol": c.get("symbol") or c["id"].upper()}
+                                    for c in coins_data[:5]
+                                ]
+                        except Exception:
+                            pass
+                fallback_slugs = [
+                    s for cat in page_items
+                    if cat.get("id") not in cat_id_to_items
+                    for s in (cat.get("top_3_coins_id") or [])[:5]
+                ]
+                slug_to_symbol: Dict[str, str] = {}
+                if fallback_slugs:
+                    rows = db.query(Coin.slug, Coin.symbol).filter(
+                        Coin.slug.in_(list(dict.fromkeys(fallback_slugs)))
+                    ).all()
+                    slug_to_symbol = {s: (sym or "").upper() or s for s, sym in rows}
+                for cat in page_items:
+                    cid = cat.get("id")
+                    if cid and cid in cat_id_to_items:
+                        cat["top_coins"] = cat_id_to_items[cid]
+                    else:
+                        slugs = (cat.get("top_3_coins_id") or [])[:5]
+                        cat["top_coins"] = [
+                            {
+                                "slug": s,
+                                "symbol": slug_to_symbol.get(s) or SLUG_TO_SYMBOL.get(s, s.upper() if len(s) <= 5 else s),
+                            }
+                            for s in slugs
+                        ]
+                return {"items": page_items, "total": total}
         except Exception:
             if attempt == 0:
                 time.sleep(2)  # Brief pause before retry (e.g. rate limit)
