@@ -894,6 +894,10 @@ export type ChainDto = {
   bridge_inflow_24h?: number | null;
 };
 
+/**
+ * Chains use same-origin /api/v1/chains so the Next.js route can proxy to the
+ * backend or fall back to DeFiLlama when the backend lacks the chains endpoint.
+ */
 export async function getChains(params?: {
   limit?: number;
   sort_by?: "netflow" | "tvl" | "momentum" | "tvl_change";
@@ -902,7 +906,18 @@ export async function getChains(params?: {
   if (params?.limit != null) search.set("limit", String(params.limit));
   if (params?.sort_by) search.set("sort_by", params.sort_by);
   const query = search.toString();
-  return fetchJson<ChainDto[]>(`/api/v1/chains${query ? `?${query}` : ""}`);
+  const path = `/api/v1/chains${query ? `?${query}` : ""}`;
+  // Always use same-origin so Next.js proxy/fallback handles the request
+  const url =
+    typeof window !== "undefined"
+      ? path
+      : (process.env.API_SERVER_URL || process.env.NEXT_PUBLIC_API_BASE_URL || "").replace(/\/$/, "") + path;
+  const res = await fetch(url, {
+    headers: { Accept: "application/json" },
+    cache: "no-store",
+  });
+  if (!res.ok) throw new Error(`API request failed with status ${res.status}`);
+  return res.json() as Promise<ChainDto[]>;
 }
 
 export type ChainCoinDto = {
@@ -920,9 +935,17 @@ export async function getChainCoins(
   const search = new URLSearchParams();
   if (limit != null) search.set("limit", String(limit));
   const query = search.toString();
-  return fetchJson<ChainCoinDto[]>(
-    `/api/v1/chains/${encodeURIComponent(chainName)}/coins${query ? `?${query}` : ""}`,
-  );
+  const path = `/api/v1/chains/${encodeURIComponent(chainName)}/coins${query ? `?${query}` : ""}`;
+  const url =
+    typeof window !== "undefined"
+      ? path
+      : (process.env.API_SERVER_URL || process.env.NEXT_PUBLIC_API_BASE_URL || "").replace(/\/$/, "") + path;
+  const res = await fetch(url, {
+    headers: { Accept: "application/json" },
+    cache: "no-store",
+  });
+  if (!res.ok) return [];
+  return res.json() as Promise<ChainCoinDto[]>;
 }
 
 export async function getSignalsLeaderboard(params?: {
