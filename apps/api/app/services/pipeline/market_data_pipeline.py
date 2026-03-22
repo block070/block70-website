@@ -62,6 +62,8 @@ class MarketDataPipeline:
                 coin.twitter = coin_data.get("twitter")
             if coin_data.get("discord") is not None:
                 coin.discord = coin_data.get("discord")
+            if coin_data.get("telegram") is not None:
+                coin.telegram = coin_data.get("telegram")
             if coin_data.get("logo_url") is not None:
                 coin.logo_url = coin_data.get("logo_url")
             if coin_data.get("category") is not None:

@@ -224,7 +224,7 @@ export default async function CoinDetailPage({ params }: { params: Params }) {
             whitepaperUrl={coin.whitepaper_url ?? undefined}
             explorerUrl={coin.explorer_url ?? undefined}
             twitterHandle={coin.twitter ?? undefined}
-            telegramUrl={coin.discord ?? undefined}
+            telegramUrl={coin.telegram ?? undefined}
           />
         </div>
       </section>

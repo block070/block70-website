@@ -26,6 +26,7 @@ class Coin(Base):
     explorer_url: Mapped[Optional[str]] = mapped_column(String(512), nullable=True)
     twitter: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)  # screen name for X/Twitter
     discord: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    telegram: Mapped[Optional[str]] = mapped_column(String(512), nullable=True)  # t.me URL
 
     chain: Mapped[Optional[str]] = mapped_column(String(64), nullable=True, index=True)
     category: Mapped[Optional[str]] = mapped_column(String(128), nullable=True, index=True)

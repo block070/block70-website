@@ -43,6 +43,7 @@ class CoinInfo(BaseModel):
     explorer_url: Optional[str] = None
     twitter: Optional[str] = None
     discord: Optional[str] = None
+    telegram: Optional[str] = None
     chain: Optional[str] = None
     category: Optional[str] = None
     market_cap_rank: Optional[int] = None

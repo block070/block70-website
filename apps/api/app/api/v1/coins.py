@@ -398,6 +398,8 @@ def _enrich_coin_from_coingecko(coin: Coin, db: Session) -> tuple[Coin, list]:
         exp = coin_data.get("explorer_url")
         if exp and hasattr(coin, "explorer_url"):
             coin.explorer_url = exp
+        if coin_data.get("telegram") and hasattr(coin, "telegram"):
+            coin.telegram = coin_data.get("telegram")
         coin.price = md_data.get("price") or coin.price
         coin.market_cap = md_data.get("market_cap") or coin.market_cap
         coin.volume_24h = md_data.get("volume_24h") or coin.volume_24h
@@ -449,10 +451,27 @@ def _resolve_coin(db: Session, slug_or_symbol: str) -> Optional[Coin]:
 
 def _fetch_coin_from_coingecko(slug: str) -> CoinDetailResponse:
     """Fallback: fetch coin directly from CoinGecko when not in DB."""
-    from app.services.connectors.coingecko_connector import fetch_coin_details
+    from app.services.connectors.coingecko_connector import fetch_coin_details, search_coins
 
-    _coingecko_throttle()
-    payload = fetch_coin_details(slug, vs_currency="usd")
+    slug_clean = slug.lower().strip()
+    coin_id = slug_clean
+
+    try:
+        _coingecko_throttle()
+        payload = fetch_coin_details(coin_id, vs_currency="usd")
+    except Exception:
+        # Slug may differ from CoinGecko id; try search to resolve
+        try:
+            _coingecko_throttle()
+            hits = search_coins(slug_clean)
+            if hits and isinstance(hits[0], dict) and hits[0].get("id"):
+                coin_id = hits[0]["id"]
+                _coingecko_throttle()
+                payload = fetch_coin_details(coin_id, vs_currency="usd")
+            else:
+                raise
+        except Exception:
+            raise
     c = payload.get("coin") or {}
     md = payload.get("market_data") or {}
 
@@ -468,6 +487,7 @@ def _fetch_coin_from_coingecko(slug: str) -> CoinDetailResponse:
         explorer_url=c.get("explorer_url"),
         twitter=c.get("twitter"),
         discord=c.get("discord"),
+        telegram=c.get("telegram"),
         chain=c.get("chain"),
         category=c.get("category"),
         market_cap_rank=c.get("market_cap_rank"),

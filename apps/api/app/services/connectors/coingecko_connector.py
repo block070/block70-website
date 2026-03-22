@@ -46,6 +46,15 @@ def fetch_all_coins(vs_currency: str = "usd", per_page: int = 250, page: int = 1
     return [normalize_market_coin(item) for item in data]
 
 
+def search_coins(query: str) -> List[Dict[str, Any]]:
+    """
+    Search coins via CoinGecko /search endpoint.
+    Returns [{id, name, symbol, ...}, ...]. Used to resolve slugs when direct fetch fails.
+    """
+    data = _get("/search", params={"query": query})
+    return data.get("coins") or []
+
+
 def fetch_coin_details(coin_id: str, vs_currency: str = "usd") -> Dict[str, Any]:
     """
     Fetch detailed data for a single coin from CoinGecko's /coins/{id} endpoint.
@@ -113,6 +122,8 @@ def normalize_coin_detail(raw: Dict[str, Any], vs_currency: str = "usd") -> Dict
     explorer = (blockchain_sites[0] or None) if blockchain_sites else None
     chat_url = links.get("chat_url") or []
     discord_url = (chat_url[0] or None) if chat_url else None
+    tg_id = links.get("telegram_channel_identifier")
+    telegram_url = f"https://t.me/{tg_id}" if tg_id and isinstance(tg_id, str) else None
 
     return {
         "coin": {
@@ -128,6 +139,7 @@ def normalize_coin_detail(raw: Dict[str, Any], vs_currency: str = "usd") -> Dict
             "explorer_url": explorer,
             "twitter": links.get("twitter_screen_name"),
             "discord": discord_url,
+            "telegram": telegram_url,
             "chain": None,
             "category": (raw.get("categories") or [None])[0],
             "market_cap": market_cap,

@@ -109,7 +109,7 @@ export function CoinLinks({
                   rel="noreferrer"
                   className="text-emerald-300 hover:text-emerald-200"
                 >
-                  {telegramUrl}
+                  {telegramUrl.replace(/^https?:\/\/t\.me\/?/, "t.me/")}
                 </a>
               ) : (
                 "—"
