@@ -5,10 +5,10 @@ import { API_BASE_URL } from "@/lib/api";
 import { TokenDiscussionFeed } from "@/components/coins/token-discussion-feed";
 import { withTimeout } from "@/lib/with-timeout";
 
-type Params = { params: Promise<{ slug: string }> };
+type PageProps = { params: Promise<{ slug: string }> | { slug: string } };
 
-export async function generateMetadata({ params }: Params) {
-  const { slug } = await params;
+export async function generateMetadata({ params }: PageProps) {
+  const { slug } = await Promise.resolve(params);
   try {
     const data = await getCoinBySlugOrMock(slug);
     return {
@@ -22,8 +22,8 @@ export async function generateMetadata({ params }: Params) {
 
 const FETCH_TIMEOUT_MS = 8_000;
 
-export default async function CoinCommunityPage({ params }: Params) {
-  const { slug } = await params;
+export default async function CoinCommunityPage({ params }: PageProps) {
+  const { slug } = await Promise.resolve(params);
   let coin;
   try {
     const data = await withTimeout(getCoinBySlugOrMock(slug), FETCH_TIMEOUT_MS);

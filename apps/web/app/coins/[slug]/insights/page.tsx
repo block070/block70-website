@@ -5,10 +5,10 @@ import { getAIInsightsForToken } from "@/lib/api";
 import { InsightCard } from "@/components/ai/insight-card";
 import { withTimeout } from "@/lib/with-timeout";
 
-type Params = { params: Promise<{ slug: string }> };
+type PageProps = { params: Promise<{ slug: string }> | { slug: string } };
 
-export async function generateMetadata({ params }: { params: Params }) {
-  const { slug } = await params;
+export async function generateMetadata({ params }: PageProps) {
+  const { slug } = await Promise.resolve(params);
   try {
     const data = await getCoinBySlugOrMock(slug);
     return {
@@ -22,8 +22,8 @@ export async function generateMetadata({ params }: { params: Params }) {
 
 const FETCH_TIMEOUT_MS = 8_000;
 
-export default async function CoinInsightsPage({ params }: { params: Params }) {
-  const { slug } = await params;
+export default async function CoinInsightsPage({ params }: PageProps) {
+  const { slug } = await Promise.resolve(params);
   let data;
   try {
     data = await withTimeout(getCoinBySlugOrMock(slug), FETCH_TIMEOUT_MS);
