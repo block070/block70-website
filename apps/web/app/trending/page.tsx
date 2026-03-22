@@ -14,7 +14,8 @@ export const revalidate = 60;
 
 export const metadata = {
   title: "Trending · Block70 Crypto Data",
-  description: "Live trending coins from CoinGecko, proxied via Block70.",
+  description:
+    "Discover the cryptocurrencies gaining the most attention right now. Block70's Trending page surfaces fast-moving coins based on market activity, volume spikes, and momentum signals—giving you a clear view of where interest is building so you can spot opportunities before they fully develop.",
 };
 
 function mockToCoins(): Coin[] {
@@ -116,7 +117,11 @@ export default async function TrendingPage() {
       <header className="space-y-2">
         <h1 className="text-2xl font-semibold tracking-tight">Trending</h1>
         <p className="text-sm text-slate-400">
-          Live CoinGecko trending coins, proxied via the Block70 backend.
+          Discover the cryptocurrencies gaining the most attention right now.
+          Block70&apos;s Trending page surfaces fast-moving coins based on market
+          activity, volume spikes, and momentum signals—giving you a clear view
+          of where interest is building so you can spot opportunities before
+          they fully develop.
         </p>
       </header>
       {isFallback && (

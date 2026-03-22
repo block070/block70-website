@@ -9,7 +9,7 @@ export const revalidate = 60;
 export const metadata = {
   title: "Categories · Block70 Crypto Data",
   description:
-    "Crypto asset categories with market cap and 24h volume. Click through to explore coins by category.",
+    "Break down the crypto market by sector to understand where capital and attention are flowing. From DeFi and AI to gaming and infrastructure, Block70's Categories page helps you track performance across narratives, compare sector strength, and identify which areas of the market are heating up or cooling off.",
 };
 
 const VALID_LIMITS = [10, 25, 50, 100, 200] as const;
@@ -49,7 +49,11 @@ export default async function CategoriesPage({ searchParams }: PageProps) {
           Categories
         </h1>
         <p className="text-sm text-[var(--b70-text-muted)]">
-          Explore crypto by category. Market cap and 24h volume aggregated across all coins in each category.
+          Break down the crypto market by sector to understand where capital and
+          attention are flowing. From DeFi and AI to gaming and infrastructure,
+          Block70&apos;s Categories page helps you track performance across narratives,
+          compare sector strength, and identify which areas of the market are
+          heating up or cooling off.
         </p>
       </header>
 

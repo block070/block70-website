@@ -13,7 +13,7 @@ export const revalidate = 60;
 export const metadata = {
   title: "Coins · Block70 Crypto Data",
   description:
-    "Market data for majors, aligned with the Block70 intelligence system.",
+    "Explore the full cryptocurrency market in one place with real-time price data, market trends, and key performance indicators. Block70's Coins page goes beyond basic tracking by highlighting momentum, volume shifts, and emerging signals—helping you quickly identify which assets are gaining strength, losing traction, or setting up for potential moves.",
 };
 
 const VALID_LIMITS = [10, 25, 50, 100, 200] as const;
@@ -114,8 +114,11 @@ export default async function CoinsPage({ searchParams }: PageProps) {
           Market overview
         </h1>
         <p className="text-sm text-slate-400">
-          A CoinGecko-style view, wired into the Block70 intelligence fabric.
-          Data from API when available; otherwise mock majors.
+          Explore the full cryptocurrency market in one place with real-time price
+          data, market trends, and key performance indicators. Block70&apos;s Coins
+          page goes beyond basic tracking by highlighting momentum, volume shifts,
+          and emerging signals—helping you quickly identify which assets are
+          gaining strength, losing traction, or setting up for potential moves.
         </p>
       </header>
       {isFallback && (
