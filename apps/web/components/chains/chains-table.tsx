@@ -9,7 +9,19 @@ import {
 } from "@/lib/format";
 import { ChainSparkline } from "./chain-sparkline";
 import { ChainRowExpanded } from "./chain-row-expanded";
+import { MomentumCell } from "./momentum-cell";
 import { ChevronDown, ChevronRight } from "lucide-react";
+
+function whyItIsMoving(chain: ChainDto): string {
+  if (chain.netflow_24h > 0) {
+    if (chain.tvl_24h_change > 5) return "Capital inflow increasing sharply";
+    return "Capital inflow increasing";
+  }
+  if (chain.netflow_24h < 0) return "Capital rotating out";
+  if (chain.tvl_24h_change > 3) return "Gradual accumulation";
+  if (chain.tvl_24h_change < -3) return "Profit-taking pressure";
+  return "Stable flows";
+}
 
 export type SortKey = "netflow" | "tvl" | "momentum" | "tvl_change" | "declining";
 
@@ -78,6 +90,12 @@ export const ChainsTable = memo(function ChainsTable({
 
   const sorted = useMemo(() => sortChains(chains, sortBy), [chains, sortBy]);
 
+  const momentumRange = useMemo(() => {
+    if (sorted.length === 0) return { min: 0, max: 100 };
+    const scores = sorted.map((c) => c.momentum_score);
+    return { min: Math.min(...scores), max: Math.max(...scores) };
+  }, [sorted]);
+
   const toggleExpand = (key: string) => {
     setExpanded((prev) => {
       const next = new Set(prev);
@@ -88,9 +106,9 @@ export const ChainsTable = memo(function ChainsTable({
   };
 
   return (
-    <div className="overflow-hidden rounded-xl border border-slate-800 bg-slate-950/60">
+    <div className="overflow-hidden rounded-xl border border-slate-800/80 bg-slate-950/40">
       <table className="min-w-full text-left text-xs">
-        <thead className="bg-slate-900/80 text-slate-400">
+        <thead className="bg-slate-900/60 text-slate-400">
           <tr>
             <th className="w-8 px-2 py-2"></th>
             <th className="px-3 py-2 font-medium">Chain Name</th>
@@ -102,6 +120,7 @@ export const ChainsTable = memo(function ChainsTable({
               ascending={true}
               onClick={() => onSortChange("netflow")}
             />
+            <th className="px-3 py-2 font-medium">Why It&apos;s Moving</th>
             <th className="px-3 py-2 text-center font-medium">7D Activity</th>
             <SortHeader
               label="Momentum"
@@ -169,24 +188,25 @@ export const ChainsTable = memo(function ChainsTable({
                   >
                     {formatNetflow(chain.netflow_24h)}
                   </td>
+                  <td className="max-w-[140px] px-3 py-2 text-slate-400">
+                    {whyItIsMoving(chain)}
+                  </td>
                   <td className="px-3 py-2">
                     <div className="flex justify-center">
                       <ChainSparkline chainName={chain.name} tvl={chain.tvl} />
                     </div>
                   </td>
-                  <td
-                    className={`px-3 py-2 text-right ${
-                      chain.momentum_score >= 0
-                        ? "text-emerald-400"
-                        : "text-red-400"
-                    }`}
-                  >
-                    {chain.momentum_score.toFixed(2)}
+                  <td className="px-3 py-2">
+                    <MomentumCell
+                      score={chain.momentum_score}
+                      minScore={momentumRange.min}
+                      maxScore={momentumRange.max}
+                    />
                   </td>
                 </tr>
                 {isExpanded && (
                   <tr>
-                    <td colSpan={7} className="p-0">
+                    <td colSpan={8} className="p-0">
                       <ChainRowExpanded chainName={chain.name} />
                     </td>
                   </tr>

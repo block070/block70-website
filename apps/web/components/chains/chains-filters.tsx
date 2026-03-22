@@ -6,7 +6,6 @@ import { clsx } from "clsx";
 const FILTERS: { key: SortKey; label: string }[] = [
   { key: "netflow", label: "Top Inflow" },
   { key: "tvl_change", label: "Top Gainers" },
-  { key: "momentum", label: "Most Active" },
   { key: "declining", label: "Declining" },
 ];
 

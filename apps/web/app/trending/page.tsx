@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { Suspense } from "react";
 import {
   getTrendingMarketCoins,
   getMarketCoins,
@@ -6,6 +7,7 @@ import {
   type MarketCoin,
 } from "@/lib/api";
 import { CoinTable } from "@/components/market/coin-table";
+import { ChainContextBanner } from "@/components/trending/chain-context-banner";
 import { TRENDING_COINS } from "@/lib/crypto-mock";
 import type { Coin } from "@/lib/crypto-mock";
 import { withTimeout } from "@/lib/with-timeout";
@@ -124,6 +126,9 @@ export default async function TrendingPage() {
           they fully develop.
         </p>
       </header>
+      <Suspense fallback={null}>
+        <ChainContextBanner />
+      </Suspense>
       {isFallback && (
         <div className="rounded-xl border border-amber-900/60 bg-amber-950/40 p-3 text-xs text-amber-200">
           Showing sample data — API temporarily unavailable.{" "}

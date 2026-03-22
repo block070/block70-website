@@ -13,6 +13,7 @@ import { getPremiumAlerts } from "@/lib/api";
 type Props = {
   initialOpportunities: Opportunity[];
   backendError: string | null;
+  initialChainFilter?: string;
 };
 
 const TYPES = ["arbitrage", "mining", "wallet", "airdrop", "node"];
@@ -28,9 +29,10 @@ const PLAN_RANK: Record<PlanType, number> = {
 export function OpportunitiesListClient({
   initialOpportunities,
   backendError,
+  initialChainFilter = "",
 }: Props) {
   const [typeFilter, setTypeFilter] = useState<string | "">("");
-  const [chainFilter, setChainFilter] = useState("");
+  const [chainFilter, setChainFilter] = useState(initialChainFilter);
   const [minScoreFilter, setMinScoreFilter] = useState<string>("");
   const [advancedFilters, setAdvancedFilters] = useState<AdvancedFiltersValue>({
     roi: "",
@@ -85,8 +87,10 @@ export function OpportunitiesListClient({
   const filtered = useMemo(() => {
     return initialOpportunities.filter((op) => {
       if (typeFilter && op.type !== typeFilter) return false;
-      if (chainFilter && op.chain && !op.chain.toLowerCase().includes(chainFilter.toLowerCase())) {
-        return false;
+      if (chainFilter && op.chain) {
+        const slugNorm = chainFilter.toLowerCase().replace(/-/g, " ");
+        const chainNorm = op.chain.toLowerCase();
+        if (!chainNorm.includes(slugNorm)) return false;
       }
       const minScore = parseFloat(minScoreFilter);
       if (!Number.isNaN(minScore) && op.total_score * 100 < minScore) {

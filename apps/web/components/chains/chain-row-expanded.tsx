@@ -1,118 +1,91 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import Link from "next/link";
+import useSWR from "swr";
 import {
   getChainExpansion,
   type ChainExpansionDto,
 } from "@/lib/api";
-import { formatPrice, formatChangePct, formatCompactUsd } from "@/lib/format";
+import { formatCompactUsd } from "@/lib/format";
 import { Skeleton } from "@/components/ui/skeleton";
+
+function chainToSlug(name: string): string {
+  return name.toLowerCase().replace(/\s+/g, "-").replace(/mainnet/i, "").trim();
+}
 
 type Props = { chainName: string };
 
+const expansionFetcher = (key: string) => {
+  const [name, limit] = JSON.parse(key) as [string, number];
+  return getChainExpansion(name, limit);
+};
+
 export function ChainRowExpanded({ chainName }: Props) {
-  const [data, setData] = useState<ChainExpansionDto | null>(null);
-  const [loading, setLoading] = useState(true);
+  const { data, isLoading } = useSWR<ChainExpansionDto>(
+    JSON.stringify([chainName, 3]),
+    expansionFetcher,
+    { revalidateOnFocus: false, dedupingInterval: 60_000 }
+  );
 
-  useEffect(() => {
-    let cancelled = false;
-    setLoading(true);
-    getChainExpansion(chainName, 5)
-      .then((d) => {
-        if (!cancelled) setData(d);
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [chainName]);
+  const protocols = (data?.protocols ?? []).slice(0, 3);
+  const chainSlug = chainToSlug(chainName);
+  const trendingUrl = `/trending${chainSlug ? `?chain=${encodeURIComponent(chainSlug)}` : ""}`;
+  const opportunitiesUrl = `/opportunities${chainSlug ? `?chain=${encodeURIComponent(chainSlug)}` : ""}`;
 
-  if (loading) {
+  if (isLoading) {
     return (
-      <div className="border-t border-slate-800 bg-slate-950/40 px-4 py-3">
+      <div className="border-t border-slate-800 bg-slate-950/40 px-4 py-4">
         <div className="flex gap-4">
-          {[1, 2, 3, 4, 5].map((i) => (
-            <Skeleton key={i} className="h-8 w-24" />
+          {[1, 2, 3].map((i) => (
+            <Skeleton key={i} className="h-16 w-32" />
           ))}
         </div>
       </div>
     );
   }
 
-  const hasProtocols = data?.protocols && data.protocols.length > 0;
-  const hasCoins = data?.coins && data.coins.length > 0;
-
-  if (!hasProtocols && !hasCoins) {
-    return (
-      <div className="border-t border-slate-800 bg-slate-950/40 px-4 py-3 text-xs text-slate-500">
-        No protocols or coin data for this chain yet.
-      </div>
-    );
-  }
-
   return (
-    <div className="border-t border-slate-800 bg-slate-950/40 px-4 py-3">
-      {hasProtocols && (
-        <section className="mb-4">
-          <p className="mb-2 text-[11px] uppercase tracking-wide text-slate-400">
-            Top protocols
-          </p>
-          <div className="grid grid-cols-2 gap-x-6 gap-y-2 sm:grid-cols-3 md:grid-cols-5">
-            {data!.protocols.map((p) => (
-              <div
-                key={`${p.name}-${p.tvl}`}
-                className="flex flex-col rounded px-2 py-1.5 hover:bg-slate-800/60"
-              >
-                <span className="text-xs font-medium text-slate-200">
-                  {p.name}
-                </span>
-                <span className="text-[11px] text-slate-500">{p.category}</span>
-                <span className="text-[11px] text-emerald-400">
-                  {formatCompactUsd(p.tvl)} TVL
-                </span>
-              </div>
-            ))}
-          </div>
-        </section>
+    <div className="border-t border-slate-800 bg-slate-950/40 px-4 py-4">
+      <p className="mb-3 text-[11px] uppercase tracking-wide text-slate-400">
+        Top Activity on This Chain
+      </p>
+
+      {protocols.length > 0 ? (
+        <div className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
+          {protocols.map((p) => (
+            <div
+              key={`${p.name}-${p.tvl}`}
+              className="rounded-lg border border-slate-800 bg-slate-900/60 px-3 py-2"
+            >
+              <span className="text-sm font-medium text-slate-200">{p.name}</span>
+              <span className="mx-1.5 text-slate-600">·</span>
+              <span className="text-[11px] text-slate-500">{p.category}</span>
+              <span className="block text-xs text-emerald-400">
+                {formatCompactUsd(p.tvl)} TVL
+              </span>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <p className="mb-4 text-xs text-slate-500">
+          No protocol activity data for this chain yet.
+        </p>
       )}
-      {hasCoins && (
-        <section>
-          <p className="mb-2 text-[11px] uppercase tracking-wide text-slate-400">
-            Top coins
-          </p>
-          <div className="grid grid-cols-2 gap-x-6 gap-y-2 sm:grid-cols-3 md:grid-cols-5">
-            {data!.coins.map((c) => (
-              <Link
-                key={c.slug}
-                href={`/coins/${c.slug}`}
-                className="flex items-center justify-between rounded px-2 py-1.5 hover:bg-slate-800/60"
-              >
-                <span className="text-xs font-medium text-slate-200">
-                  {c.name}
-                  <span className="ml-1 text-slate-500">{c.symbol}</span>
-                </span>
-                <span className="text-right">
-                  <span className="text-xs text-slate-300">
-                    {formatPrice(c.price)}
-                  </span>
-                  <span
-                    className={`ml-1.5 text-[11px] ${
-                      c.change_24h != null && c.change_24h >= 0
-                        ? "text-emerald-400"
-                        : "text-red-400"
-                    }`}
-                  >
-                    {formatChangePct(c.change_24h ?? 0)}
-                  </span>
-                </span>
-              </Link>
-            ))}
-          </div>
-        </section>
-      )}
+
+      <div className="flex flex-wrap gap-2">
+        <Link
+          href={trendingUrl}
+          className="rounded-lg border border-slate-700 bg-slate-800/60 px-3 py-2 text-xs font-medium text-slate-200 transition hover:border-slate-600 hover:bg-slate-700/60"
+        >
+          View Trending on this Chain
+        </Link>
+        <Link
+          href={opportunitiesUrl}
+          className="rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-3 py-2 text-xs font-medium text-emerald-400 transition hover:bg-emerald-500/20"
+        >
+          Explore Opportunities
+        </Link>
+      </div>
     </div>
   );
 }

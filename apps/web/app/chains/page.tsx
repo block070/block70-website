@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import useSWR from "swr";
 import { getChains, type ChainDto } from "@/lib/api";
 import { ChainsStatCards } from "@/components/chains/chains-stat-cards";
-import { MoneyFlowSection } from "@/components/chains/money-flow-section";
+import { WhereMoneyMoving } from "@/components/chains/where-money-moving";
 import { ChainsTable, type SortKey } from "@/components/chains/chains-table";
 import { ChainsFilters } from "@/components/chains/chains-filters";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -94,11 +94,14 @@ function ChainsPageContent() {
         </>
       ) : chains && chains.length > 0 ? (
         <>
-          <ChainsStatCards chains={chains} />
-          <MoneyFlowSection chains={chains} />
+          <WhereMoneyMoving chains={chains} />
 
-          <section className="space-y-4">
-            <h2 className="text-lg font-semibold text-slate-50">
+          <section className="pt-8">
+            <ChainsStatCards chains={chains} />
+          </section>
+
+          <section className="space-y-4 pt-8">
+            <h2 className="text-lg font-semibold text-slate-400">
               Chain Leaderboard
             </h2>
             <ChainsFilters active={sortBy} onChange={handleSortChange} />

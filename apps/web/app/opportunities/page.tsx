@@ -8,7 +8,10 @@ import { withTimeout } from "@/lib/with-timeout";
 
 const FETCH_TIMEOUT_MS = 8_000;
 
-export default async function OpportunitiesPage() {
+type Props = { searchParams: Promise<{ chain?: string }> };
+
+export default async function OpportunitiesPage({ searchParams }: Props) {
+  const { chain } = await searchParams;
   let opportunities: Opportunity[] = [];
   let topScanner: Awaited<ReturnType<typeof getOpportunitiesTop>> = [];
   let backendError: string | null = null;
@@ -72,6 +75,7 @@ export default async function OpportunitiesPage() {
       <OpportunitiesListClient
         initialOpportunities={opportunities}
         backendError={backendError}
+        initialChainFilter={chain ?? ""}
       />
     </div>
   );
