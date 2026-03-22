@@ -492,6 +492,61 @@ def _resolve_coin(db: Session, slug_or_symbol: str) -> Optional[Coin]:
     return coin
 
 
+def _fetch_coin_from_markets(slug: str) -> Optional[CoinDetailResponse]:
+    """
+    Fallback: find coin in CoinGecko /coins/markets (same source as /coins list).
+    Returns price, 24h, 7d, market cap, 24h volume for coins that appear on the list.
+    """
+    from app.services.connectors.coingecko_connector import fetch_all_coins
+
+    slug_lower = slug.lower().strip()
+    for page in range(1, TOTAL_PAGES + 1):
+        try:
+            _coingecko_throttle()
+            items = fetch_all_coins(vs_currency="usd", per_page=COINS_PER_PAGE, page=page)
+            for cg in items:
+                if (cg.get("slug") or "").lower() == slug_lower:
+                    coin_info = CoinInfo(
+                        id=cg.get("market_cap_rank") or 0,
+                        name=cg.get("name") or slug_lower,
+                        symbol=(cg.get("symbol") or "?").upper(),
+                        slug=cg.get("slug") or slug_lower,
+                        description=None,
+                        logo_url=cg.get("logo_url"),
+                        website=None,
+                        whitepaper_url=None,
+                        explorer_url=None,
+                        twitter=None,
+                        discord=None,
+                        telegram=None,
+                        chain=None,
+                        category=None,
+                        market_cap_rank=cg.get("market_cap_rank"),
+                        market_cap=cg.get("market_cap"),
+                        price=cg.get("price"),
+                        volume_24h=cg.get("volume_24h"),
+                        circulating_supply=cg.get("circulating_supply"),
+                        total_supply=cg.get("total_supply"),
+                    )
+                    md_point = MarketDataPoint(
+                        timestamp=datetime.now(timezone.utc),
+                        price=cg.get("price") or 0.0,
+                        market_cap=cg.get("market_cap"),
+                        volume_24h=cg.get("volume_24h"),
+                        price_change_24h=cg.get("price_change_24h"),
+                        price_change_7d=cg.get("price_change_7d"),
+                    )
+                    return CoinDetailResponse(
+                        coin=coin_info,
+                        market_data=[md_point],
+                        narratives=[],
+                        news=[],
+                    )
+        except Exception:
+            break
+    return None
+
+
 def _make_stub_coin_response(slug: str) -> CoinDetailResponse:
     """Return a minimal valid coin page so /coins/{slug} never 404s."""
     name = slug.replace("-", " ").replace("_", " ").title()
@@ -612,8 +667,12 @@ def get_coin_detail(
             _persist_coin_from_coingecko(db, slug.lower().strip(), response)
             return response
         except Exception:
-            # Never 404: return stub so every /coins/{slug} link has a page
-            return _make_stub_coin_response(slug.lower().strip())
+            pass
+        # Same source as /coins list: fetch from markets so price, 24h, 7d, market cap, volume are available
+        markets_response = _fetch_coin_from_markets(slug.lower().strip())
+        if markets_response is not None:
+            return markets_response
+        return _make_stub_coin_response(slug.lower().strip())
 
     # Try to enrich with live CoinGecko data (price, 24h%, 7d%, description, links)
     md_rows = (
@@ -639,6 +698,22 @@ def get_coin_detail(
     if enriched_md:
         coin = enriched_coin
         md_points = enriched_md
+    elif not md_points:
+        # No MarketData and enrichment failed; use markets (same source as /coins list)
+        markets_response = _fetch_coin_from_markets(coin.slug)
+        if markets_response is not None and markets_response.market_data:
+            md_points = markets_response.market_data
+            mc = markets_response.coin
+            if mc.price is not None:
+                coin.price = mc.price
+            if mc.market_cap is not None:
+                coin.market_cap = mc.market_cap
+            if mc.volume_24h is not None:
+                coin.volume_24h = mc.volume_24h
+            if mc.market_cap_rank is not None:
+                coin.market_cap_rank = mc.market_cap_rank
+            if mc.logo_url and not coin.logo_url:
+                coin.logo_url = mc.logo_url
 
     # Narratives
     cn_rows = (
