@@ -185,9 +185,18 @@ def _shutdown_scheduler() -> None:
         _scheduler.shutdown(wait=False)
 
 
+def _health_response() -> dict:
+    return {"status": "ok"}
+
+
 @app.get("/health")
 def health_check() -> dict:
-    return {"status": "ok"}
+    return _health_response()
+
+
+@app.get("/api/v1/health")
+def health_check_v1() -> dict:
+    return _health_response()
 
 
 @app.get("/sitemap.xml", response_class=PlainTextResponse)
