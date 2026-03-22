@@ -39,6 +39,7 @@ services:
       context: ./apps/web
       args:
         NEXT_PUBLIC_API_BASE_URL: ${NEXT_PUBLIC_API_BASE_URL}
+        API_SERVER_URL: "http://api:8000"
     container_name: block70-web
     env_file:
       - .env
