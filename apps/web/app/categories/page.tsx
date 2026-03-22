@@ -104,19 +104,19 @@ export default async function CategoriesPage({ searchParams }: PageProps) {
                     {formatChangePct(cat.market_cap_change_24h ?? NaN)}
                   </td>
                   <td className="px-4 py-3">
-                    <div className="flex flex-wrap gap-x-3 gap-y-1">
-                      {Array.isArray(cat.top_coins) && cat.top_coins.length > 0
-                        ? cat.top_coins.slice(0, 5).map(({ slug, symbol }) => (
+                    {Array.isArray(cat.top_coins) && cat.top_coins.length > 0
+                      ? cat.top_coins.slice(0, 5).map(({ slug, symbol }, idx) => (
+                          <span key={slug}>
+                            {idx > 0 && " "}
                             <Link
-                              key={slug}
                               href={`/coins/${slug}`}
                               className="text-xs font-medium text-[var(--b70-text)] hover:text-crypto-blue hover:underline"
                             >
-                              {symbol || slug}
+                              {idx + 1}. {symbol || slug}
                             </Link>
-                          ))
-                        : "—"}
-                    </div>
+                          </span>
+                        ))
+                      : "—"}
                   </td>
                 </tr>
               ))}

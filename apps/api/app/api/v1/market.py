@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import time
-from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Any, Dict, List
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -19,14 +18,26 @@ from app.services.connectors.coingecko_connector import (
 
 router = APIRouter(prefix="/api/v1/market", tags=["market"])
 
-# Fallback for common CoinGecko slugs when not in DB
+# Fallback for common CoinGecko slugs when not in DB or when symbol is slug-like
 SLUG_TO_SYMBOL: Dict[str, str] = {
     "bitcoin": "BTC", "ethereum": "ETH", "tether": "USDT", "binancecoin": "BNB",
     "usd-coin": "USDC", "ripple": "XRP", "solana": "SOL", "staked-ether": "STETH",
     "cardano": "ADA", "dogecoin": "DOGE", "avalanche-2": "AVAX", "chainlink": "LINK",
     "tron": "TRX", "polkadot": "DOT", "bitcoin-cash": "BCH", "uniswap": "UNI",
     "matic-network": "MATIC", "shiba-inu": "SHIB", "litecoin": "LTC", "dai": "DAI",
+    "monero": "XMR", "usds": "USDS", "wrapped-bitcoin": "WBTC", "first-digital-usd": "FDUSD",
+    "aave-v3-weth": "WETH", "aave-weth": "WETH", "leo-token": "LEO",
+    "mantle": "MNT", "the-open-network": "TON", "tokenize-xchange": "TKX",
+    "hyperliquid": "HYPE", "usd1": "USD1", "euro-coin": "EURC",
 }
+
+
+def _normalize_symbol(slug: str, raw_symbol: str) -> str:
+    """Return display symbol; use SLUG_TO_SYMBOL when symbol is empty or looks like a slug."""
+    s = (raw_symbol or "").strip().upper()
+    if s and len(s) <= 6 and "-" not in s:
+        return s
+    return SLUG_TO_SYMBOL.get(slug.lower(), s or slug.upper() if len(slug) <= 5 else slug.upper())
 
 
 def _serialize_market_item(item: Dict[str, Any]) -> Dict[str, Any]:
@@ -140,7 +151,7 @@ def _load_categories_fallback_from_db(db: Session) -> List[Dict[str, Any]]:
             if cat not in top_coins_by_cat:
                 top_coins_by_cat[cat] = []
             if len(top_coins_by_cat[cat]) < 5:
-                top_coins_by_cat[cat].append({"slug": slug, "symbol": (symbol or "").upper() or slug})
+                top_coins_by_cat[cat].append({"slug": slug, "symbol": _normalize_symbol(slug, symbol)})
 
     # Get market_cap_change_24h per category (weighted avg from top coins' MarketData)
     change_by_cat: Dict[str, float] = {}
@@ -201,25 +212,24 @@ def get_market_categories(
                 total = len(items)
                 offset = (page - 1) * limit
                 page_items = items[offset : offset + limit]
-                # Enrich each category with top 5 coins via /coins/markets?category=id
+                # Enrich each category with top 5 coins: /coins/markets?category=id (sequential + delay to avoid rate limit)
                 cat_id_to_items: Dict[str, List[Dict[str, str]]] = {}
-                with ThreadPoolExecutor(max_workers=5) as pool:
-                    futures = {
-                        pool.submit(fetch_coins_by_category, cat.get("id", ""), "usd", 5): cat.get("id", "")
-                        for cat in page_items
-                        if cat.get("id")
-                    }
-                    for future in as_completed(futures):
-                        cat_id = futures[future]
-                        try:
-                            coins_data = future.result()
-                            if coins_data:
-                                cat_id_to_items[cat_id] = [
-                                    {"slug": c["id"], "symbol": c.get("symbol") or c["id"].upper()}
-                                    for c in coins_data[:5]
-                                ]
-                        except Exception:
-                            pass
+                for cat in page_items:
+                    cid = cat.get("id")
+                    if not cid:
+                        continue
+                    if cat_id_to_items:
+                        time.sleep(0.35)
+                    try:
+                        coins_data = fetch_coins_by_category(cid, "usd", 5)
+                        if coins_data:
+                            cat_id_to_items[cid] = [
+                                {"slug": c["id"], "symbol": _normalize_symbol(c["id"], c.get("symbol"))}
+                                for c in coins_data[:5]
+                            ]
+                    except Exception:
+                        pass
+                # Supplement categories with <5 coins from DB; fallback for failed fetches
                 fallback_slugs = [
                     s for cat in page_items
                     if cat.get("id") not in cat_id_to_items
@@ -230,20 +240,34 @@ def get_market_categories(
                     rows = db.query(Coin.slug, Coin.symbol).filter(
                         Coin.slug.in_(list(dict.fromkeys(fallback_slugs)))
                     ).all()
-                    slug_to_symbol = {s: (sym or "").upper() or s for s, sym in rows}
+                    slug_to_symbol = {s: _normalize_symbol(s, sym) for s, sym in rows}
                 for cat in page_items:
                     cid = cat.get("id")
-                    if cid and cid in cat_id_to_items:
-                        cat["top_coins"] = cat_id_to_items[cid]
-                    else:
+                    cat_name = (cat.get("name") or "").strip()
+                    existing = cat_id_to_items.get(cid) if cid else []
+                    if len(existing) < 5:
+                        have_slugs = {c["slug"] for c in existing}
+                        extra = []
+                        if cat_name or cid:
+                            q = db.query(Coin.slug, Coin.symbol).filter(
+                                Coin.market_cap.isnot(None),
+                            )
+                            if have_slugs:
+                                q = q.filter(Coin.slug.notin_(have_slugs))
+                            if cat_name:
+                                q = q.filter(Coin.category.ilike(f"%{cat_name}%"))
+                            elif cid:
+                                q = q.filter(Coin.category.ilike(f"%{cid}%"))
+                            for slug, sym in q.order_by(Coin.market_cap.desc().nullslast()).limit(5 - len(existing)).all():
+                                extra.append({"slug": slug, "symbol": _normalize_symbol(slug, sym)})
+                        existing = existing + extra
+                    if not existing and cid:
                         slugs = (cat.get("top_3_coins_id") or [])[:5]
-                        cat["top_coins"] = [
-                            {
-                                "slug": s,
-                                "symbol": slug_to_symbol.get(s) or SLUG_TO_SYMBOL.get(s, s.upper() if len(s) <= 5 else s),
-                            }
+                        existing = [
+                            {"slug": s, "symbol": slug_to_symbol.get(s) or _normalize_symbol(s, None)}
                             for s in slugs
                         ]
+                    cat["top_coins"] = existing[:5]
                 return {"items": page_items, "total": total}
         except Exception:
             if attempt == 0:
