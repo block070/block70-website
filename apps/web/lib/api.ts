@@ -221,10 +221,12 @@ export type MarketCoin = {
 export async function getMarketCoins(params?: {
   limit?: number;
   page?: number;
+  light?: boolean;
 }): Promise<MarketCoin[]> {
   const search = new URLSearchParams();
   if (params?.limit != null) search.set("limit", String(params.limit));
   if (params?.page != null) search.set("page", String(params.page));
+  if (params?.light) search.set("light", "1");
   const query = search.toString();
   return fetchJson<MarketCoin[]>(`/api/v1/market/coins${query ? `?${query}` : ""}`);
 }

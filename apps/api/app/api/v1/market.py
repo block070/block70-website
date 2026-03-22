@@ -1,16 +1,15 @@
 from __future__ import annotations
 
-import hashlib
-import json
 import time
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy import or_
+from sqlalchemy import func, or_
 from sqlalchemy.orm import Session
 
 from app.db import get_db
 from app.models import Coin, MarketData
+from app.services.connectors.market_cache import market_cache_get, market_cache_set
 from app.services.connectors.coingecko_connector import (
     fetch_all_coins,
     fetch_coins_by_category,
@@ -21,30 +20,7 @@ from app.services.connectors.coingecko_connector import (
 
 router = APIRouter(prefix="/api/v1/market", tags=["market"])
 
-# In-memory cache for categories (avoids CoinGecko rate limits on refresh)
-_CATEGORIES_CACHE: Dict[str, Tuple[Dict[str, Any], float]] = {}
 _CATEGORIES_CACHE_TTL = 300  # 5 minutes
-
-
-def _categories_cache_key(order: str, limit: int, page: int) -> str:
-    return hashlib.sha256(json.dumps({"order": order, "limit": limit, "page": page}).encode()).hexdigest()
-
-
-def _get_cached_categories(order: str, limit: int, page: int) -> Optional[Dict[str, Any]]:
-    key = _categories_cache_key(order, limit, page)
-    entry = _CATEGORIES_CACHE.get(key)
-    if not entry:
-        return None
-    cached, ts = entry
-    if time.time() - ts > _CATEGORIES_CACHE_TTL:
-        del _CATEGORIES_CACHE[key]
-        return None
-    return cached
-
-
-def _set_cached_categories(order: str, limit: int, page: int, data: Dict[str, Any]) -> None:
-    key = _categories_cache_key(order, limit, page)
-    _CATEGORIES_CACHE[key] = (data, time.time())
 
 # Fallback for common CoinGecko slugs when not in DB or when symbol is slug-like
 SLUG_TO_SYMBOL: Dict[str, str] = {
@@ -73,23 +49,27 @@ def _normalize_symbol(slug: str, raw_symbol: str) -> str:
     return SLUG_TO_SYMBOL.get(slug.lower(), s or slug.upper() if len(slug) <= 5 else slug.upper())
 
 
-def _serialize_market_item(item: Dict[str, Any]) -> Dict[str, Any]:
-    return {
+def _serialize_market_item(item: Dict[str, Any], light: bool = False) -> Dict[str, Any]:
+    base = {
         "name": item.get("name"),
         "symbol": item.get("symbol"),
         "price": item.get("price"),
         "change_24h": item.get("price_change_24h"),
-        "change_7d": item.get("price_change_7d"),
-        "market_cap": item.get("market_cap"),
-        "volume": item.get("volume_24h"),
+        "volume": item.get("volume_24h") if "volume_24h" in (item or {}) else item.get("volume"),
         "slug": item.get("slug"),
-        "logo_url": item.get("logo_url"),
     }
+    if light:
+        return base  # Minimal: name, price, 24h%, volume, slug
+    base["change_7d"] = item.get("price_change_7d")
+    base["market_cap"] = item.get("market_cap")
+    base["logo_url"] = item.get("logo_url") or item.get("image")
+    return base
 
 
-def _load_market_fallback_from_db(db: Session, *, limit: int) -> List[Dict[str, Any]]:
+def _load_market_fallback_from_db(db: Session, *, limit: int, light: bool = False) -> List[Dict[str, Any]]:
     """
     Return last-known-good market snapshot from DB when CoinGecko is unavailable.
+    Uses batched MarketData query to avoid N+1.
     """
     coins = (
         db.query(Coin)
@@ -97,28 +77,44 @@ def _load_market_fallback_from_db(db: Session, *, limit: int) -> List[Dict[str, 
         .limit(limit)
         .all()
     )
+    if not coins:
+        return []
+    coin_ids = [c.id for c in coins]
+    # Subquery: latest timestamp per coin
+    subq = (
+        db.query(MarketData.coin_id, func.max(MarketData.timestamp).label("max_ts"))
+        .filter(MarketData.coin_id.in_(coin_ids))
+        .group_by(MarketData.coin_id)
+        .subquery()
+    )
+    latest_md = (
+        db.query(MarketData)
+        .join(subq, (MarketData.coin_id == subq.c.coin_id) & (MarketData.timestamp == subq.c.max_ts))
+        .filter(MarketData.coin_id.in_(coin_ids))
+        .all()
+    )
+    md_by_coin: Dict[int, Any] = {m.coin_id: m for m in latest_md}
 
     rows: List[Dict[str, Any]] = []
     for coin in coins:
-        latest_md = (
-            db.query(MarketData)
-            .filter(MarketData.coin_id == coin.id)
-            .order_by(MarketData.timestamp.desc())
-            .first()
-        )
-        rows.append(
-            {
-                "name": coin.name,
-                "symbol": coin.symbol,
-                "price": latest_md.price if latest_md and latest_md.price is not None else coin.price,
-                "change_24h": latest_md.price_change_24h if latest_md else None,
-                "change_7d": latest_md.price_change_7d if latest_md else None,
-                "market_cap": latest_md.market_cap if latest_md and latest_md.market_cap is not None else coin.market_cap,
-                "volume": latest_md.volume_24h if latest_md and latest_md.volume_24h is not None else coin.volume_24h,
-                "slug": coin.slug,
+        m = md_by_coin.get(coin.id)
+        base = {
+            "name": coin.name,
+            "symbol": coin.symbol,
+            "price": m.price if m and m.price is not None else coin.price,
+            "change_24h": m.price_change_24h if m else None,
+            "volume": m.volume_24h if m and m.volume_24h is not None else coin.volume_24h,
+            "slug": coin.slug,
+        }
+        if light:
+            rows.append(base)
+        else:
+            rows.append({
+                **base,
+                "change_7d": m.price_change_7d if m else None,
+                "market_cap": m.market_cap if m and m.market_cap is not None else coin.market_cap,
                 "logo_url": coin.logo_url,
-            }
-        )
+            })
     return rows
 
 
@@ -127,6 +123,7 @@ def get_market_coins(
     db: Session = Depends(get_db),
     limit: int = Query(50, ge=1, le=100),
     page: int = Query(1, ge=1, le=10),
+    light: bool = Query(False, description="Reduce payload to name, price, change_24h, volume, slug"),
 ) -> List[Dict[str, Any]]:
     """
     Return live market coins from CoinGecko /coins/markets.
@@ -138,11 +135,17 @@ def get_market_coins(
     - page=<page>
     - price_change_percentage=24h,7d
     """
+    cache_key_params = {"limit": limit, "page": page, "light": light}
+    cached = market_cache_get("coins", 30, **cache_key_params)
+    if cached is not None:
+        return cached
     try:
         items = fetch_all_coins(vs_currency="usd", per_page=limit, page=page)
-        return [_serialize_market_item(item) for item in items]
+        result = [_serialize_market_item(item, light=light) for item in items]
+        market_cache_set("coins", 30, result, **cache_key_params)
+        return result
     except Exception as exc:  # pragma: no cover - network errors
-        fallback_rows = _load_market_fallback_from_db(db, limit=limit)
+        fallback_rows = _load_market_fallback_from_db(db, limit=limit, light=light)
         if fallback_rows:
             return fallback_rows
         raise HTTPException(status_code=502, detail="Failed to load CoinGecko market data and no fallback snapshot available") from exc
@@ -239,7 +242,7 @@ def get_market_categories(
     Top 5 coins from CoinGecko /coins/markets?category=id (sequential, rate-limited).
     Response cached 5 min to avoid rate limits.
     """
-    cached = _get_cached_categories(order, limit, page)
+    cached = market_cache_get("categories", _CATEGORIES_CACHE_TTL, order=order, limit=limit, page=page)
     if cached is not None:
         return cached
     for attempt in range(3):
@@ -306,7 +309,7 @@ def get_market_categories(
                             seen.add(slug)
                     cat["top_coins"] = merged[:5]
                 result = {"items": page_items, "total": total}
-                _set_cached_categories(order, limit, page, result)
+                market_cache_set("categories", _CATEGORIES_CACHE_TTL, result, order=order, limit=limit, page=page)
                 return result
         except Exception as exc:
             backoff = 10 if getattr(exc, "response", None) and getattr(exc.response, "status_code", None) == 429 else 2
@@ -341,10 +344,14 @@ def get_trending_market_coins(
     - coingecko_id
     - score
     """
+    cached = market_cache_get("trending", 300, limit=limit)
+    if cached is not None:
+        return cached
     try:
         items = fetch_trending_coins()
+        result = items[:limit]
+        market_cache_set("trending", 300, result, limit=limit)
+        return result
     except Exception as exc:  # pragma: no cover - network errors
         raise HTTPException(status_code=502, detail="Failed to load CoinGecko trending data") from exc
-
-    return items[:limit]
 

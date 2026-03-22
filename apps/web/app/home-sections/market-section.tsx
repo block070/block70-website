@@ -1,9 +1,14 @@
+import dynamic from "next/dynamic";
 import { getMarketCoins } from "@/lib/api";
 import { HeroMarketOverview } from "@/components/home/hero-market-overview";
 import { MarketStatsBar } from "@/components/home/market-stats-bar";
 import { GainersLosers } from "@/components/market/gainers-losers";
-import { MarketHeatmap } from "@/components/market/market-heatmap";
 import { withTimeout } from "@/lib/with-timeout";
+
+const MarketHeatmap = dynamic(
+  () => import("@/components/market/market-heatmap").then((m) => ({ default: m.MarketHeatmap })),
+  { ssr: true, loading: () => <div className="h-64 rounded-xl border border-[var(--b70-border)] bg-[var(--b70-card)] animate-pulse" /> }
+);
 
 const FETCH_TIMEOUT_MS = 6_000;
 
