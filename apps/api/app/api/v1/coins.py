@@ -74,20 +74,25 @@ def _fetch_coingecko_price_changes(limit: int, max_pages: int = 2) -> dict[str, 
     return out
 
 
-def _fetch_coins_from_coingecko(page: int) -> List[CoinListItem]:
+def _fetch_coins_from_coingecko(page: int, limit: int) -> List[CoinListItem]:
     """
-    Fetch a page of coins (100 per page) from CoinGecko, up to 2000 total.
-    Uses per_page=100 so each page needs only one CoinGecko request.
+    Fetch a page of coins from CoinGecko.
+    Uses per_page=100 for API calls; slices to requested limit.
     Throttled to respect free tier rate limits.
     """
     from app.services.connectors.coingecko_connector import fetch_all_coins
 
+    start_idx = (page - 1) * limit
+    cg_page = (start_idx // COINS_PER_PAGE) + 1
+    offset_in_page = start_idx % COINS_PER_PAGE
+
     _coingecko_throttle()
-    items = fetch_all_coins(vs_currency="usd", per_page=COINS_PER_PAGE, page=page)
+    items = fetch_all_coins(vs_currency="usd", per_page=COINS_PER_PAGE, page=cg_page)
+    items = items[offset_in_page : offset_in_page + limit]
 
     result: List[CoinListItem] = []
     for i, cg in enumerate(items):
-        rank = (page - 1) * COINS_PER_PAGE + i + 1
+        rank = (page - 1) * limit + i + 1
         coin_id = cg.get("market_cap_rank") or rank
         coin_info = CoinInfo(
             id=coin_id,
@@ -122,7 +127,7 @@ def _fetch_coins_from_coingecko(page: int) -> List[CoinListItem]:
     return result
 
 
-def _fetch_coins_from_coinmarketcap(page: int) -> List[CoinListItem]:
+def _fetch_coins_from_coinmarketcap(page: int, limit: int) -> List[CoinListItem]:
     """
     Fetch a page of coins from CoinMarketCap listings/latest.
     Used as fallback when CoinGecko returns empty (pages 6+ on free tier).
@@ -130,12 +135,12 @@ def _fetch_coins_from_coinmarketcap(page: int) -> List[CoinListItem]:
     """
     from app.services.connectors.coinmarketcap_connector import fetch_listings_latest
 
-    start = (page - 1) * COINS_PER_PAGE + 1
-    items = fetch_listings_latest(start=start, limit=COINS_PER_PAGE)
+    start = (page - 1) * limit + 1
+    items = fetch_listings_latest(start=start, limit=limit)
 
     result: List[CoinListItem] = []
     for i, cmc in enumerate(items):
-        rank = (page - 1) * COINS_PER_PAGE + i + 1
+        rank = (page - 1) * limit + i + 1
         coin_id = cmc.get("market_cap_rank") or rank
         coin_info = CoinInfo(
             id=coin_id,
@@ -173,7 +178,7 @@ def _fetch_coins_from_coinmarketcap(page: int) -> List[CoinListItem]:
 @router.get("", response_model=List[CoinListItem])
 def list_coins(
     limit: int = Query(100, ge=1, le=500),
-    page: int = Query(1, ge=1, le=TOTAL_PAGES, description="Page for paginated list (1-20, 100 coins each)"),
+    page: int = Query(1, ge=1, le=500, description="Page for paginated list"),
     category: Optional[str] = Query(None, description="Filter by category (e.g. AI, DePIN, Gaming, Layer 2)"),
     db: Session = Depends(get_db),
 ) -> List[CoinListItem]:
@@ -186,7 +191,7 @@ def list_coins(
     # CoinGecko free API limits to ~500 coins; CMC fallback covers pages 6-20
     if category is None:
         try:
-            cg_items = _fetch_coins_from_coingecko(page)
+            cg_items = _fetch_coins_from_coingecko(page, limit)
             if cg_items:
                 _coins_list_cache.set(cache_key, cg_items, COINS_LIST_CACHE_TTL)
                 return cg_items
@@ -196,7 +201,7 @@ def list_coins(
         # Try CoinMarketCap fallback when CMC_API_KEY is set
         if os.getenv("CMC_API_KEY", "").strip():
             try:
-                cmc_items = _fetch_coins_from_coinmarketcap(page)
+                cmc_items = _fetch_coins_from_coinmarketcap(page, limit)
                 if cmc_items:
                     _coins_list_cache.set(cache_key, cmc_items, COINS_LIST_CACHE_TTL)
                     return cmc_items

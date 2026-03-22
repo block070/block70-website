@@ -2,7 +2,7 @@ import { CoinTable } from "@/components/market/coin-table";
 import { CoinsPagination } from "@/components/market/coins-pagination";
 import { MarketStats } from "@/components/market/market-stats";
 import { COINS } from "@/lib/crypto-mock";
-import { getCoinsList, TOTAL_PAGES } from "@/lib/coins";
+import { getCoinsList, TOTAL_COINS_PAGINATED } from "@/lib/coins";
 
 export const metadata = {
   title: "Coins · Block70 Crypto Data",
@@ -10,11 +10,14 @@ export const metadata = {
     "Market data for majors, aligned with the Block70 intelligence system.",
 };
 
+const VALID_LIMITS = [10, 25, 50, 100, 200] as const;
+
 function apiCoinsToMockShape(
   list: Awaited<ReturnType<typeof getCoinsList>>,
-  page: number
+  page: number,
+  limit: number
 ): typeof COINS {
-  const rankOffset = (page - 1) * 100;
+  const rankOffset = (page - 1) * limit;
   return list.map((item, i) => ({
     id: String(item.coin.id),
     slug: item.coin.slug,
@@ -36,18 +39,26 @@ function apiCoinsToMockShape(
 }
 
 type PageProps = {
-  searchParams: Promise<{ page?: string }>;
+  searchParams: Promise<{ page?: string; limit?: string }>;
 };
 
 export default async function CoinsPage({ searchParams }: PageProps) {
-  const { page: pageParam } = await searchParams;
-  const page = Math.min(Math.max(1, parseInt(pageParam ?? "1", 10) || 1), TOTAL_PAGES);
+  const { page: pageParam, limit: limitParam } = await searchParams;
+  const parsedLimit = parseInt(limitParam ?? "100", 10) || 100;
+  const limit = (VALID_LIMITS as readonly number[]).includes(parsedLimit)
+    ? (parsedLimit as (typeof VALID_LIMITS)[number])
+    : 100;
+  const totalPages = Math.max(1, Math.ceil(TOTAL_COINS_PAGINATED / limit));
+  const page = Math.min(
+    Math.max(1, parseInt(pageParam ?? "1", 10) || 1),
+    totalPages
+  );
 
   let coins = COINS;
   try {
-    const list = await getCoinsList({ limit: 100, page });
+    const list = await getCoinsList({ limit, page });
     if (list.length > 0) {
-      coins = apiCoinsToMockShape(list, page);
+      coins = apiCoinsToMockShape(list, page, limit);
     }
   } catch {
     // use mock COINS
@@ -72,9 +83,11 @@ export default async function CoinsPage({ searchParams }: PageProps) {
           </p>
         </div>
         <CoinTable coins={coins} />
-        <div className="flex justify-center pt-4">
-          <CoinsPagination currentPage={page} totalPages={TOTAL_PAGES} />
-        </div>
+        <CoinsPagination
+          currentPage={page}
+          totalPages={totalPages}
+          limit={limit}
+        />
       </section>
     </div>
   );
