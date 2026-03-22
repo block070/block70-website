@@ -130,6 +130,15 @@ curl -X POST http://localhost:8000/api/v1/ai/insights/seed-examples
 
 When you **do** deploy, you run the same stack (DB + API + workers/scheduler) in your environment and point the frontend at the deployed API; the site will still show real information from the database, not mock.
 
+### 5. (Optional) CoinMarketCap fallback for pages 6–20
+
+CoinGecko’s free tier typically limits the coins list to the first ~500 coins. Pages 6–20 of the Coins page can use **CoinMarketCap** as a fallback when configured:
+
+1. Sign up for a free API key at [coinmarketcap.com/api](https://coinmarketcap.com/api/)
+2. Set the env var: `CMC_API_KEY=your-api-key`
+
+With this set, when CoinGecko returns empty for pages 6+, the API will fetch from CoinMarketCap instead. Both sources are cached for 90 seconds to stay under rate limits.
+
 ---
 
 ## If pages are still empty

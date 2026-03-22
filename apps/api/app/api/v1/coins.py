@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import os
+import time
 from datetime import datetime, timezone
 from typing import List, Optional
 
@@ -16,6 +18,7 @@ from app.schemas.coin_api import (
     NarrativeRead,
     NewsArticleRead,
 )
+from app.services.news.cache import TTLCache
 
 
 router = APIRouter(prefix="/api/v1/coins", tags=["coins"])
@@ -25,18 +28,39 @@ COINS_PER_PAGE = 100
 TOTAL_COINS_PAGINATED = 2000
 TOTAL_PAGES = TOTAL_COINS_PAGINATED // COINS_PER_PAGE  # 20
 
+# Cache coins list to avoid exceeding CoinGecko rate limits (~30/min free tier).
+# 90s TTL keeps data fresh while reducing redundant API calls.
+_coins_list_cache = TTLCache()
+COINS_LIST_CACHE_TTL = 90
 
-def _fetch_coingecko_price_changes(limit: int) -> dict[str, dict]:
+# Minimum seconds between CoinGecko requests to stay under ~30/min.
+COINGECKO_MIN_INTERVAL = 2.5
+_last_coingecko_call: float = 0
+
+
+def _coingecko_throttle() -> None:
+    """Ensure we don't exceed CoinGecko free tier (~30 req/min)."""
+    global _last_coingecko_call
+    now = time.time()
+    elapsed = now - _last_coingecko_call
+    if elapsed < COINGECKO_MIN_INTERVAL and _last_coingecko_call > 0:
+        time.sleep(COINGECKO_MIN_INTERVAL - elapsed)
+    _last_coingecko_call = time.time()
+
+
+def _fetch_coingecko_price_changes(limit: int, max_pages: int = 2) -> dict[str, dict]:
     """
-    Fetch price_change_24h and price_change_7d from CoinGecko /coins/markets
-    for coins missing this data in DB. Returns {slug: {price_change_24h, price_change_7d}}.
+    Fetch price_change_24h and price_change_7d from CoinGecko /coins/markets.
+    Returns {slug: {price_change_24h, price_change_7d}}.
+    Capped at max_pages to avoid rate limits (free tier ~30 req/min).
     """
     from app.services.connectors.coingecko_connector import fetch_all_coins
 
     out: dict[str, dict] = {}
     try:
-        pages_needed = max(1, (limit + 249) // 250)
+        pages_needed = min(max_pages, max(1, (limit + 249) // 250))
         for page in range(1, pages_needed + 1):
+            _coingecko_throttle()
             items = fetch_all_coins(vs_currency="usd", per_page=250, page=page)
             for item in items:
                 slug = item.get("slug")
@@ -54,9 +78,11 @@ def _fetch_coins_from_coingecko(page: int) -> List[CoinListItem]:
     """
     Fetch a page of coins (100 per page) from CoinGecko, up to 2000 total.
     Uses per_page=100 so each page needs only one CoinGecko request.
+    Throttled to respect free tier rate limits.
     """
     from app.services.connectors.coingecko_connector import fetch_all_coins
 
+    _coingecko_throttle()
     items = fetch_all_coins(vs_currency="usd", per_page=COINS_PER_PAGE, page=page)
 
     result: List[CoinListItem] = []
@@ -96,6 +122,54 @@ def _fetch_coins_from_coingecko(page: int) -> List[CoinListItem]:
     return result
 
 
+def _fetch_coins_from_coinmarketcap(page: int) -> List[CoinListItem]:
+    """
+    Fetch a page of coins from CoinMarketCap listings/latest.
+    Used as fallback when CoinGecko returns empty (pages 6+ on free tier).
+    Requires CMC_API_KEY env var.
+    """
+    from app.services.connectors.coinmarketcap_connector import fetch_listings_latest
+
+    start = (page - 1) * COINS_PER_PAGE + 1
+    items = fetch_listings_latest(start=start, limit=COINS_PER_PAGE)
+
+    result: List[CoinListItem] = []
+    for i, cmc in enumerate(items):
+        rank = (page - 1) * COINS_PER_PAGE + i + 1
+        coin_id = cmc.get("market_cap_rank") or rank
+        coin_info = CoinInfo(
+            id=coin_id,
+            name=cmc.get("name") or "",
+            symbol=(cmc.get("symbol") or "").upper(),
+            slug=cmc.get("slug") or "",
+            description=None,
+            logo_url=cmc.get("logo_url"),
+            website=None,
+            whitepaper_url=None,
+            explorer_url=None,
+            twitter=None,
+            discord=None,
+            chain=None,
+            category=None,
+            market_cap_rank=cmc.get("market_cap_rank"),
+            market_cap=cmc.get("market_cap"),
+            price=cmc.get("price"),
+            volume_24h=cmc.get("volume_24h"),
+            circulating_supply=cmc.get("circulating_supply"),
+            total_supply=cmc.get("total_supply"),
+        )
+        md_point = MarketDataPoint(
+            timestamp=datetime.now(timezone.utc),
+            price=cmc.get("price") or 0.0,
+            market_cap=cmc.get("market_cap"),
+            volume_24h=cmc.get("volume_24h"),
+            price_change_24h=cmc.get("price_change_24h"),
+            price_change_7d=cmc.get("price_change_7d"),
+        )
+        result.append(CoinListItem(coin=coin_info, latest_market_data=md_point))
+    return result
+
+
 @router.get("", response_model=List[CoinListItem])
 def list_coins(
     limit: int = Query(100, ge=1, le=500),
@@ -103,16 +177,31 @@ def list_coins(
     category: Optional[str] = Query(None, description="Filter by category (e.g. AI, DePIN, Gaming, Layer 2)"),
     db: Session = Depends(get_db),
 ) -> List[CoinListItem]:
-    # When no category filter, try CoinGecko first; fall back to DB on failure or empty
-    # (CoinGecko free API typically limits /coins/markets to first ~500 coins, so pages 6+ may return empty)
+    cache_key = f"coins:{page}:{limit}:{category or ''}"
+    cached = _coins_list_cache.get(cache_key)
+    if cached is not None:
+        return cached
+
+    # When no category filter: CoinGecko first, then CoinMarketCap (if configured), then DB
+    # CoinGecko free API limits to ~500 coins; CMC fallback covers pages 6-20
     if category is None:
         try:
             cg_items = _fetch_coins_from_coingecko(page)
             if cg_items:
+                _coins_list_cache.set(cache_key, cg_items, COINS_LIST_CACHE_TTL)
                 return cg_items
         except Exception:
             pass
-        # Fall through to DB when CoinGecko fails or returns empty
+
+        # Try CoinMarketCap fallback when CMC_API_KEY is set
+        if os.getenv("CMC_API_KEY", "").strip():
+            try:
+                cmc_items = _fetch_coins_from_coinmarketcap(page)
+                if cmc_items:
+                    _coins_list_cache.set(cache_key, cmc_items, COINS_LIST_CACHE_TTL)
+                    return cmc_items
+            except Exception:
+                pass
 
     q = db.query(Coin).order_by(Coin.market_cap.desc().nullslast())
     if category:
@@ -169,6 +258,8 @@ def list_coins(
             )
         )
 
+    if items:
+        _coins_list_cache.set(cache_key, items, COINS_LIST_CACHE_TTL)
     return items
 
 
