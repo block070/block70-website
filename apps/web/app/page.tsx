@@ -58,6 +58,16 @@ const AirdropHighlights = dynamic(
 
 export const revalidate = 60;
 
+const HOME_PAGE_FETCH_TIMEOUT_MS = 15_000;
+
+/** Wraps a promise with a timeout so slow/hanging API calls don't block the page. */
+async function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
+  const timeout = new Promise<never>((_, reject) =>
+    setTimeout(() => reject(new Error("Request timeout")), ms)
+  );
+  return Promise.race([promise, timeout]);
+}
+
 function SignalsFeedSkeleton() {
   return (
     <section className="rounded-xl border border-slate-800 bg-slate-950/70 p-4">
@@ -140,53 +150,70 @@ export default async function HomePage() {
   let newsError: string | null = null;
   let marketError: string | null = null;
 
-  try {
-    marketCoins = await getMarketCoins({ limit: 50, page: 1 });
-  } catch (err) {
-    marketError = err instanceof Error ? err.message : "Unknown error";
-    marketCoins = [];
-  }
-  try {
-    const opps = await getOpportunities();
-    opportunities = opps.sort((a, b) => (b.total_score ?? 0) - (a.total_score ?? 0));
-  } catch (err) {
-    opportunitiesError = err instanceof Error ? err.message : "Unknown error";
-    opportunities = [];
+  const timeout = HOME_PAGE_FETCH_TIMEOUT_MS;
+
+  const [
+    marketResult,
+    oppsResult,
+    signalsResult,
+    walletsResult,
+    trendingResult,
+    airdropsResult,
+    newsResult,
+  ] = await Promise.allSettled([
+    withTimeout(getMarketCoins({ limit: 50, page: 1 }), timeout),
+    withTimeout(getOpportunities(), timeout),
+    withTimeout(getSignalsLatest({ limit: 10 }), timeout),
+    withTimeout(getWalletLeaderboard(), timeout),
+    withTimeout(getSignalsTrending({ hours: 24, limit: 12 }), timeout),
+    withTimeout(getAirdrops(), timeout),
+    withTimeout(getNewsArticles({ limit: 8 }), timeout),
+  ]);
+
+  if (marketResult.status === "fulfilled") {
+    marketCoins = marketResult.value;
+  } else {
+    marketError = marketResult.reason instanceof Error ? marketResult.reason.message : "Unknown error";
   }
 
-  try {
-    signals = await getSignalsLatest({ limit: 10 });
-  } catch (err) {
-    signalsError = err instanceof Error ? err.message : "Unknown error";
-    signals = [];
+  if (oppsResult.status === "fulfilled") {
+    opportunities = oppsResult.value.sort((a, b) => (b.total_score ?? 0) - (a.total_score ?? 0));
+  } else {
+    opportunitiesError =
+      oppsResult.reason instanceof Error ? oppsResult.reason.message : "Unknown error";
   }
 
-  try {
-    walletLeaderboard = await getWalletLeaderboard();
-  } catch (err) {
-    walletsError = err instanceof Error ? err.message : "Unknown error";
-    walletLeaderboard = [];
+  if (signalsResult.status === "fulfilled") {
+    signals = signalsResult.value;
+  } else {
+    signalsError = signalsResult.reason instanceof Error ? signalsResult.reason.message : "Unknown error";
   }
 
-  try {
-    trending = await getSignalsTrending({ hours: 24, limit: 12 });
-  } catch (err) {
-    trendingError = err instanceof Error ? err.message : "Unknown error";
-    trending = [];
+  if (walletsResult.status === "fulfilled") {
+    walletLeaderboard = walletsResult.value;
+  } else {
+    walletsError =
+      walletsResult.reason instanceof Error ? walletsResult.reason.message : "Unknown error";
   }
 
-  try {
-    airdrops = await getAirdrops();
-  } catch (err) {
-    airdropsError = err instanceof Error ? err.message : "Unknown error";
-    airdrops = [];
+  if (trendingResult.status === "fulfilled") {
+    trending = trendingResult.value;
+  } else {
+    trendingError =
+      trendingResult.reason instanceof Error ? trendingResult.reason.message : "Unknown error";
   }
 
-  try {
-    news = await getNewsArticles({ limit: 8 });
-  } catch (err) {
-    newsError = err instanceof Error ? err.message : "Unknown error";
-    news = [];
+  if (airdropsResult.status === "fulfilled") {
+    airdrops = airdropsResult.value;
+  } else {
+    airdropsError =
+      airdropsResult.reason instanceof Error ? airdropsResult.reason.message : "Unknown error";
+  }
+
+  if (newsResult.status === "fulfilled") {
+    news = newsResult.value;
+  } else {
+    newsError = newsResult.reason instanceof Error ? newsResult.reason.message : "Unknown error";
   }
 
   const validMarket = marketCoins.filter(
