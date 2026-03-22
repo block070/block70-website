@@ -4,13 +4,13 @@ import time
 from typing import Any, Dict, List
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
 from app.db import get_db
 from app.models import Coin, MarketData
 from app.services.connectors.coingecko_connector import (
     fetch_all_coins,
-    fetch_coins_by_category,
     fetch_coins_categories,
     fetch_trending_coins,
 )
@@ -29,6 +29,11 @@ SLUG_TO_SYMBOL: Dict[str, str] = {
     "aave-v3-weth": "WETH", "aave-weth": "WETH", "leo-token": "LEO",
     "mantle": "MNT", "the-open-network": "TON", "tokenize-xchange": "TKX",
     "hyperliquid": "HYPE", "usd1": "USD1", "euro-coin": "EURC",
+    "curve-dao-token": "CRV", "gnosis": "GNO", "optimism": "OP", "arbitrum": "ARB",
+    "echelon-prime": "PRIME", "great-ape": "GREAT", "sun-token": "SUN",
+    "fetch-ai": "FET", "bittensor": "TAO", "singularitynet": "AGIX", "render-token": "RENDER",
+    "internet-protocol": "IP", "io-net": "IO", "2-2": "2Z", "iota": "IOTA",
+    "true-usd": "TUSD", "paxos-standard": "PAX", "gemini-dollar": "GUSD",
 }
 
 
@@ -201,10 +206,21 @@ def get_market_categories(
     page: int = Query(1, ge=1, le=100),
 ) -> Dict[str, Any]:
     """
-    Return coin categories with market cap and 24h volume from CoinGecko.
-    Falls back to DB aggregation when CoinGecko is unavailable.
+    Return coin categories with market cap, 24h volume, and top 5 coins.
+    Uses stored token data (DB) - same source as /coins page. No per-category CoinGecko calls.
+    Falls back to CoinGecko category list only if DB has no categories.
     Supports pagination via limit and page. Returns { items, total } when limit is used.
     """
+    # Primary: DB aggregation (same data source as coins page)
+    try:
+        all_rows = _load_categories_fallback_from_db(db)
+        if all_rows:
+            total = len(all_rows)
+            offset = (page - 1) * limit
+            return {"items": all_rows[offset : offset + limit], "total": total}
+    except Exception:
+        pass
+    # Fallback: CoinGecko category list, top coins from our DB only (no fetch_coins_by_category)
     for attempt in range(2):
         try:
             items = fetch_coins_categories(order=order)
@@ -212,74 +228,52 @@ def get_market_categories(
                 total = len(items)
                 offset = (page - 1) * limit
                 page_items = items[offset : offset + limit]
-                # Enrich each category with top 5 coins: /coins/markets?category=id (sequential + delay to avoid rate limit)
-                cat_id_to_items: Dict[str, List[Dict[str, str]]] = {}
-                for cat in page_items:
-                    cid = cat.get("id")
-                    if not cid:
-                        continue
-                    if cat_id_to_items:
-                        time.sleep(0.35)
-                    try:
-                        coins_data = fetch_coins_by_category(cid, "usd", 5)
-                        if coins_data:
-                            cat_id_to_items[cid] = [
-                                {"slug": c["id"], "symbol": _normalize_symbol(c["id"], c.get("symbol"))}
-                                for c in coins_data[:5]
-                            ]
-                    except Exception:
-                        pass
-                # Supplement categories with <5 coins from DB; fallback for failed fetches
-                fallback_slugs = [
-                    s for cat in page_items
-                    if cat.get("id") not in cat_id_to_items
-                    for s in (cat.get("top_3_coins_id") or [])[:5]
-                ]
+                all_cg_slugs = list(dict.fromkeys(
+                    s for cat in page_items for s in (cat.get("top_3_coins_id") or [])
+                ))
                 slug_to_symbol: Dict[str, str] = {}
-                if fallback_slugs:
-                    rows = db.query(Coin.slug, Coin.symbol).filter(
-                        Coin.slug.in_(list(dict.fromkeys(fallback_slugs)))
-                    ).all()
+                if all_cg_slugs:
+                    rows = db.query(Coin.slug, Coin.symbol).filter(Coin.slug.in_(all_cg_slugs)).all()
                     slug_to_symbol = {s: _normalize_symbol(s, sym) for s, sym in rows}
+                for s in all_cg_slugs:
+                    if s not in slug_to_symbol:
+                        slug_to_symbol[s] = _normalize_symbol(s, None)
                 for cat in page_items:
                     cid = cat.get("id")
                     cat_name = (cat.get("name") or "").strip()
-                    existing = cat_id_to_items.get(cid) if cid else []
-                    if len(existing) < 5:
-                        have_slugs = {c["slug"] for c in existing}
-                        extra = []
-                        if cat_name or cid:
-                            q = db.query(Coin.slug, Coin.symbol).filter(
-                                Coin.market_cap.isnot(None),
-                            )
-                            if have_slugs:
-                                q = q.filter(Coin.slug.notin_(have_slugs))
-                            if cat_name:
-                                q = q.filter(Coin.category.ilike(f"%{cat_name}%"))
-                            elif cid:
-                                q = q.filter(Coin.category.ilike(f"%{cid}%"))
-                            for slug, sym in q.order_by(Coin.market_cap.desc().nullslast()).limit(5 - len(existing)).all():
-                                extra.append({"slug": slug, "symbol": _normalize_symbol(slug, sym)})
-                        existing = existing + extra
-                    if not existing and cid:
-                        slugs = (cat.get("top_3_coins_id") or [])[:5]
-                        existing = [
-                            {"slug": s, "symbol": slug_to_symbol.get(s) or _normalize_symbol(s, None)}
-                            for s in slugs
-                        ]
-                    cat["top_coins"] = existing[:5]
+                    cg_slugs = (cat.get("top_3_coins_id") or [])[:3]
+                    seen: set = set()
+                    merged: List[Dict[str, str]] = []
+                    for slug in cg_slugs:
+                        if slug not in seen and len(merged) < 5:
+                            merged.append({"slug": slug, "symbol": slug_to_symbol.get(slug, _normalize_symbol(slug, None))})
+                            seen.add(slug)
+                    if len(merged) < 5 and (cat_name or cid):
+                        q = db.query(Coin.slug, Coin.symbol).filter(Coin.market_cap.isnot(None))
+                        if seen:
+                            q = q.filter(Coin.slug.notin_(seen))
+                        or_terms = []
+                        if cat_name:
+                            or_terms.append(Coin.category.ilike(f"%{cat_name}%"))
+                        if cid:
+                            or_terms.append(Coin.category.ilike(f"%{cid}%"))
+                        if "stable" in (cid or "").lower() or "stable" in (cat_name or "").lower():
+                            or_terms.append(Coin.category.ilike("%stablecoin%"))
+                        if "dex" in (cid or "").lower() or "exchange" in (cid or "").lower():
+                            or_terms.append(Coin.category.ilike("%dex%"))
+                            or_terms.append(Coin.category.ilike("%exchange%"))
+                        if or_terms:
+                            q = q.filter(or_(*or_terms))
+                        for slug, sym in q.order_by(Coin.market_cap.desc().nullslast()).limit(5 - len(merged)).all():
+                            merged.append({"slug": slug, "symbol": _normalize_symbol(slug, sym)})
+                            seen.add(slug)
+                    cat["top_coins"] = merged[:5]
                 return {"items": page_items, "total": total}
         except Exception:
             if attempt == 0:
-                time.sleep(2)  # Brief pause before retry (e.g. rate limit)
+                time.sleep(2)
             pass
-    try:
-        all_rows = _load_categories_fallback_from_db(db)
-        total = len(all_rows)
-        offset = (page - 1) * limit
-        return {"items": all_rows[offset : offset + limit], "total": total}
-    except Exception:
-        return {"items": [], "total": 0}
+    return {"items": [], "total": 0}
 
 
 @router.get("/trending", response_model=List[Dict[str, Any]])
