@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { getRadarList, getRadarTop } from "@/lib/api";
 import type { RadarEventDto } from "@/lib/types";
+import { withTimeout } from "@/lib/with-timeout";
 
 export const revalidate = 60;
 
@@ -15,8 +16,8 @@ export default async function RadarDashboardPage() {
 
   try {
     [list, top] = await Promise.all([
-      getRadarList({ hours: 24 }),
-      getRadarTop(),
+      withTimeout(getRadarList({ hours: 24 }), 8_000, []),
+      withTimeout(getRadarTop(), 8_000, []),
     ]);
   } catch {
     // use empty

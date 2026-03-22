@@ -1,13 +1,16 @@
 import { getAirdrops } from "@/lib/api";
 import type { Opportunity } from "@/lib/types";
 import { AirdropsClient } from "./client";
+import { withTimeout } from "@/lib/with-timeout";
+
+export const revalidate = 60;
 
 export default async function AirdropsPage() {
   let opportunities: Opportunity[] = [];
   let backendError: string | null = null;
 
   try {
-    const data = await getAirdrops();
+    const data = await withTimeout(getAirdrops(), 8_000);
     opportunities = data.sort((a, b) => b.total_score - a.total_score);
   } catch (error) {
     backendError =

@@ -2,6 +2,9 @@ import Link from "next/link";
 import { CoinsPagination } from "@/components/market/coins-pagination";
 import { getMarketCategories } from "@/lib/api";
 import { formatCompactUsd, formatChangePct } from "@/lib/format";
+import { withTimeout } from "@/lib/with-timeout";
+
+export const revalidate = 60;
 
 export const metadata = {
   title: "Categories · Block70 Crypto Data",
@@ -10,6 +13,7 @@ export const metadata = {
 };
 
 const VALID_LIMITS = [10, 25, 50, 100, 200] as const;
+const DEFAULT_LIMIT = 100;
 
 type PageProps = {
   searchParams: Promise<{ page?: string; limit?: string }>;
@@ -17,19 +21,19 @@ type PageProps = {
 
 export default async function CategoriesPage({ searchParams }: PageProps) {
   const { page: pageParam, limit: limitParam } = await searchParams;
-  const parsedLimit = parseInt(limitParam ?? "100", 10) || 100;
+  const parsedLimit = parseInt(limitParam ?? String(DEFAULT_LIMIT), 10) || DEFAULT_LIMIT;
   const limit = (VALID_LIMITS as readonly number[]).includes(parsedLimit)
     ? (parsedLimit as (typeof VALID_LIMITS)[number])
-    : 100;
+    : DEFAULT_LIMIT;
   const page = Math.max(1, parseInt(pageParam ?? "1", 10) || 1);
 
+  const FETCH_TIMEOUT_MS = 45_000;
   let result = { items: [] as Awaited<ReturnType<typeof getMarketCategories>>["items"], total: 0 };
   try {
-    result = await getMarketCategories({
-      order: "market_cap_desc",
-      limit,
-      page,
-    });
+    result = await withTimeout(
+      getMarketCategories({ order: "market_cap_desc", limit, page }),
+      FETCH_TIMEOUT_MS
+    );
   } catch {
     // Show empty state
   }

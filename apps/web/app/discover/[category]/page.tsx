@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { getCoinsList } from "@/lib/coins";
+import { withTimeout } from "@/lib/with-timeout";
 import { CoinTable } from "@/components/market/coin-table";
 import { CategoryMarketOverview } from "@/components/discover/category-market-overview";
 import { CATEGORY_DESCRIPTIONS } from "@/lib/category-descriptions";
@@ -88,7 +89,10 @@ export default async function DiscoverCategoryPage({ params }: PageProps) {
   let items: Awaited<ReturnType<typeof getCoinsList>> = [];
 
   try {
-    items = await getCoinsList({ category_slug: category, limit: 100, page: 1 });
+    items = await withTimeout(
+      getCoinsList({ category_slug: category, limit: 100, page: 1 }),
+      6_000
+    );
   } catch {
     // Use empty state
   }

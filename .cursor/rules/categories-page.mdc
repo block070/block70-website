@@ -1,0 +1,28 @@
+---
+description: Categories page must use CoinGecko with 5 top coins, not DB fallback
+globs: apps/web/app/categories/**/*,apps/api/app/api/v1/market.py,apps/api/app/services/connectors/coingecko_connector.py
+alwaysApply: false
+---
+
+# Categories Page Rules
+
+**Do not revert the Categories page to mock/DB-only behavior.**
+
+## Required behavior
+
+- **Data source**: Primary = CoinGecko (`/coins/categories` + `/coins/markets?category=id`). Fallback to DB only when CoinGecko fails entirely.
+- **Count**: Hundreds of categories (100+), not ~7.
+- **Top coins**: Exactly **5** symbols per category, formatted as `1. SYM 2. SYM 3. SYM 4. SYM 5. SYM`.
+- **Symbols**: Use coin symbols (BTC, ETH, USDT), not names or slugs in the "Top Coins" column.
+
+## Implementation
+
+- Backend (`market.py`): Use `fetch_coins_categories` then `fetch_coins_by_category(category_id, "usd", 5)` per category.
+- Cache CoinGecko response 5 min to avoid rate limits.
+- Frontend: `top_coins: [{ slug, symbol }]` — render `1. symbol 2. symbol ...` (up to 5).
+
+## What to avoid
+
+- Do **not** reduce to 7 categories or 2–3 top coins.
+- Do **not** remove the CoinGecko path or cache.
+- Do **not** rely solely on `_load_categories_fallback_from_db` for the main response.

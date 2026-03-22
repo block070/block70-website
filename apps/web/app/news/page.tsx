@@ -1,5 +1,6 @@
 import { getLatestNews } from "@/lib/api";
 import { NewsFeed } from "@/components/news/news-feed";
+import { withTimeout } from "@/lib/with-timeout";
 
 export const metadata = {
   title: "News · Block70",
@@ -7,11 +8,16 @@ export const metadata = {
     "Curated macro and infrastructure stories that matter for Block70 operators.",
 };
 
+export const revalidate = 60;
+
 export default async function NewsPage() {
   let articles: Awaited<ReturnType<typeof getLatestNews>> = [];
   let errorMessage: string | null = null;
   try {
-    articles = await getLatestNews({ limit: 100 });
+    articles = await withTimeout(
+      getLatestNews({ limit: 50 }),
+      8_000
+    );
   } catch (err) {
     errorMessage = err instanceof Error ? err.message : "Unknown error";
   }

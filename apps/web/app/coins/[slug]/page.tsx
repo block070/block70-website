@@ -15,6 +15,7 @@ import type { Coin } from "@/lib/crypto-mock";
 import { getCoinBySlugOrMock, type CoinInfoDto, type MarketDataPointDto } from "@/lib/coins";
 import { getNewsForCoin, getSignalsForToken } from "@/lib/api";
 import { getSentiment } from "@/lib/sentiment-api";
+import { withTimeout } from "@/lib/with-timeout";
 
 function coinToHeaderShape(coin: CoinInfoDto, latestMd?: MarketDataPointDto | null): Coin {
   return {
@@ -50,10 +51,15 @@ export async function generateMetadata({ params }: { params: Params }) {
   }
 }
 
+const COIN_FETCH_TIMEOUT_MS = 8_000;
+
 export default async function CoinDetailPage({ params }: { params: Params }) {
   let data;
   try {
-    data = await getCoinBySlugOrMock(params.slug);
+    data = await withTimeout(
+      getCoinBySlugOrMock(params.slug),
+      COIN_FETCH_TIMEOUT_MS
+    );
   } catch {
     notFound();
   }
@@ -64,24 +70,15 @@ export default async function CoinDetailPage({ params }: { params: Params }) {
   const coinForHeader: Coin = coinToHeaderShape(coin, series[0]);
   const symbol = coin.symbol.toUpperCase();
 
-  let signals: Awaited<ReturnType<typeof getSignalsForToken>> = [];
-  let coinNews: Awaited<ReturnType<typeof getNewsForCoin>> = [];
-  let sentiment: Awaited<ReturnType<typeof getSentiment>> | null = null;
-  try {
-    signals = await getSignalsForToken(symbol, { limit: 5 });
-  } catch {
-    // ignore
-  }
-  try {
-    coinNews = await getNewsForCoin(symbol, { limit: 10 });
-  } catch {
-    coinNews = [];
-  }
-  try {
-    sentiment = await getSentiment(symbol);
-  } catch {
-    // ignore
-  }
+  const FETCH_TIMEOUT_MS = 5_000;
+  const [signalsRes, newsRes, sentimentRes] = await Promise.allSettled([
+    withTimeout(getSignalsForToken(symbol, { limit: 5 }), FETCH_TIMEOUT_MS, []),
+    withTimeout(getNewsForCoin(symbol, { limit: 10 }), FETCH_TIMEOUT_MS, []),
+    withTimeout(getSentiment(symbol), FETCH_TIMEOUT_MS).catch(() => null),
+  ]);
+  const signals = signalsRes.status === "fulfilled" ? signalsRes.value : [];
+  const coinNews = newsRes.status === "fulfilled" ? newsRes.value : [];
+  const sentiment = sentimentRes.status === "fulfilled" ? sentimentRes.value : null;
 
   const renderedNews = coinNews.length > 0 ? coinNews : fallbackNews;
 

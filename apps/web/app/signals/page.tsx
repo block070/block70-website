@@ -2,6 +2,7 @@ import { getSignalsLatest } from "@/lib/api";
 import { RiskWarningBanner } from "@/components/legal/risk-warning-banner";
 import { RiskBadge } from "@/components/legal/risk-badge";
 import { SignalsFeedClient } from "./signals-feed-client";
+import { withTimeout } from "@/lib/with-timeout";
 
 export const revalidate = 30;
 
@@ -10,7 +11,10 @@ export default async function SignalsPage() {
   let error: string | null = null;
 
   try {
-    initialSignals = await getSignalsLatest({ limit: 80 });
+    initialSignals = await withTimeout(
+      getSignalsLatest({ limit: 50 }),
+      8_000
+    );
   } catch {
     error = "Unable to load the signals feed. Please try again shortly.";
   }

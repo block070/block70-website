@@ -4,6 +4,9 @@ import { OpportunitiesListClient } from "./client";
 import { Card, CardHeader } from "@/components/ui/card";
 import { RiskWarningBanner } from "@/components/legal/risk-warning-banner";
 import { RiskBadge } from "@/components/legal/risk-badge";
+import { withTimeout } from "@/lib/with-timeout";
+
+const FETCH_TIMEOUT_MS = 8_000;
 
 export default async function OpportunitiesPage() {
   let opportunities: Opportunity[] = [];
@@ -12,8 +15,8 @@ export default async function OpportunitiesPage() {
 
   try {
     const [data, top] = await Promise.all([
-      getOpportunities(),
-      getOpportunitiesTop({ limit: 10 }).catch(() => []),
+      withTimeout(getOpportunities(), FETCH_TIMEOUT_MS),
+      withTimeout(getOpportunitiesTop({ limit: 10 }), FETCH_TIMEOUT_MS, []),
     ]);
     opportunities = data.sort(
       (a, b) => (b.total_score ?? 0) - (a.total_score ?? 0),

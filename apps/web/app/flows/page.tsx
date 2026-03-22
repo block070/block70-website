@@ -2,6 +2,7 @@ import Link from "next/link";
 import { getFlows, getFlowsTrending } from "@/lib/api";
 import { Card, CardHeader } from "@/components/ui/card";
 import { CapitalFlowChart } from "@/components/flows/capital-flow-chart";
+import { withTimeout } from "@/lib/with-timeout";
 
 export const revalidate = 60;
 
@@ -11,8 +12,8 @@ export default async function CapitalFlowPage() {
 
   try {
     [flows, trending] = await Promise.all([
-      getFlows({ hours: 168, limit: 100 }),
-      getFlowsTrending({ hours: 24, limit: 20 }),
+      withTimeout(getFlows({ hours: 168, limit: 50 }), 8_000),
+      withTimeout(getFlowsTrending({ hours: 24, limit: 20 }), 8_000),
     ]);
   } catch {
     // use empty

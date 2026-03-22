@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { cookies } from "next/headers";
 import { AlertCard } from "@/components/wallets/alert-card";
+import { withTimeout } from "@/lib/with-timeout";
 import { UpgradeToProButton } from "@/components/wallets/upgrade-to-pro-button";
 import { WalletTable } from "@/components/wallets/wallet-table";
 import { smartAlerts } from "@/data/alerts";
@@ -23,7 +24,9 @@ export default async function WalletsPage() {
 
   let wallets = smartMoneyWallets;
   try {
-    wallets = isPro ? await getLiveSmartMoneyWallets() : await getLiveSmartMoneyWalletsWithLimit(5);
+    wallets = isPro
+      ? await withTimeout(getLiveSmartMoneyWallets(), 6_000, smartMoneyWallets)
+      : await withTimeout(getLiveSmartMoneyWalletsWithLimit(5), 6_000, smartMoneyWallets);
   } catch {
     // WalletTable will show "data unavailable" if live fetch fails.
   }

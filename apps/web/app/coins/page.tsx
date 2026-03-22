@@ -4,6 +4,9 @@ import { MarketStats } from "@/components/market/market-stats";
 import { getMarketCoins, type MarketCoin } from "@/lib/api";
 import { COINS } from "@/lib/crypto-mock";
 import { getCoinsList, TOTAL_COINS_PAGINATED } from "@/lib/coins";
+import { withTimeout } from "@/lib/with-timeout";
+
+export const revalidate = 60;
 
 export const metadata = {
   title: "Coins · Block70 Crypto Data",
@@ -79,9 +82,10 @@ export default async function CoinsPage({ searchParams }: PageProps) {
     totalPages
   );
 
+  const FETCH_TIMEOUT_MS = 8_000;
   let coins = COINS;
   try {
-    const list = await getCoinsList({ limit, page });
+    const list = await withTimeout(getCoinsList({ limit, page }), FETCH_TIMEOUT_MS);
     if (list.length > 0) {
       coins = apiCoinsToMockShape(list, page, limit);
     } else {
@@ -89,21 +93,13 @@ export default async function CoinsPage({ searchParams }: PageProps) {
     }
   } catch {
     try {
-      const marketPerPage = 100;
-      const pagesNeeded = Math.ceil(limit / marketPerPage);
-      const marketList: MarketCoin[] = [];
-      for (let p = 0; p < pagesNeeded; p++) {
-        const marketPage = (page - 1) * pagesNeeded + p + 1;
-        const chunk = await getMarketCoins({
-          limit: marketPerPage,
-          page: marketPage,
-        });
-        marketList.push(...chunk);
-        if (chunk.length < marketPerPage) break;
-      }
-      const slice = marketList.slice(0, limit);
-      if (slice.length > 0) {
-        coins = marketCoinsToShape(slice, page, limit);
+      const marketPerPage = Math.min(limit, 50);
+      const chunk = await withTimeout(
+        getMarketCoins({ limit: marketPerPage, page }),
+        FETCH_TIMEOUT_MS
+      );
+      if (chunk.length > 0) {
+        coins = marketCoinsToShape(chunk, page, limit);
       }
     } catch {
       // use mock COINS

@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import hashlib
+import json
 import time
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional, Tuple
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import or_
@@ -18,6 +20,31 @@ from app.services.connectors.coingecko_connector import (
 
 
 router = APIRouter(prefix="/api/v1/market", tags=["market"])
+
+# In-memory cache for categories (avoids CoinGecko rate limits on refresh)
+_CATEGORIES_CACHE: Dict[str, Tuple[Dict[str, Any], float]] = {}
+_CATEGORIES_CACHE_TTL = 300  # 5 minutes
+
+
+def _categories_cache_key(order: str, limit: int, page: int) -> str:
+    return hashlib.sha256(json.dumps({"order": order, "limit": limit, "page": page}).encode()).hexdigest()
+
+
+def _get_cached_categories(order: str, limit: int, page: int) -> Optional[Dict[str, Any]]:
+    key = _categories_cache_key(order, limit, page)
+    entry = _CATEGORIES_CACHE.get(key)
+    if not entry:
+        return None
+    cached, ts = entry
+    if time.time() - ts > _CATEGORIES_CACHE_TTL:
+        del _CATEGORIES_CACHE[key]
+        return None
+    return cached
+
+
+def _set_cached_categories(order: str, limit: int, page: int, data: Dict[str, Any]) -> None:
+    key = _categories_cache_key(order, limit, page)
+    _CATEGORIES_CACHE[key] = (data, time.time())
 
 # Fallback for common CoinGecko slugs when not in DB or when symbol is slug-like
 SLUG_TO_SYMBOL: Dict[str, str] = {
@@ -210,8 +237,12 @@ def get_market_categories(
     Return coin categories with market cap, 24h volume, and top 5 coins per category.
     Primary: CoinGecko (hundreds of categories). Fallback: DB when CoinGecko fails.
     Top 5 coins from CoinGecko /coins/markets?category=id (sequential, rate-limited).
+    Response cached 5 min to avoid rate limits.
     """
-    for attempt in range(2):
+    cached = _get_cached_categories(order, limit, page)
+    if cached is not None:
+        return cached
+    for attempt in range(3):
         try:
             items = fetch_coins_categories(order=order)
             if items:
@@ -236,7 +267,7 @@ def get_market_categories(
                     if not cid:
                         continue
                     if i > 0:
-                        time.sleep(0.4)
+                        time.sleep(0.25)
                     coins_data = fetch_coins_by_category(cid, "usd", 5)
                     if coins_data:
                         cat_id_to_coins[cid] = [
@@ -274,10 +305,13 @@ def get_market_categories(
                             merged.append({"slug": slug, "symbol": _normalize_symbol(slug, sym)})
                             seen.add(slug)
                     cat["top_coins"] = merged[:5]
-                return {"items": page_items, "total": total}
-        except Exception:
-            if attempt == 0:
-                time.sleep(2)
+                result = {"items": page_items, "total": total}
+                _set_cached_categories(order, limit, page, result)
+                return result
+        except Exception as exc:
+            backoff = 10 if getattr(exc, "response", None) and getattr(exc.response, "status_code", None) == 429 else 2
+            if attempt < 2:
+                time.sleep(backoff)
             pass
     # Fallback: DB aggregation when CoinGecko fails
     try:
