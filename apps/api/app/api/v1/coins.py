@@ -21,6 +21,30 @@ from app.schemas.coin_api import (
 router = APIRouter(prefix="/api/v1/coins", tags=["coins"])
 
 
+def _fetch_coingecko_price_changes(limit: int) -> dict[str, dict]:
+    """
+    Fetch price_change_24h and price_change_7d from CoinGecko /coins/markets
+    for coins missing this data in DB. Returns {slug: {price_change_24h, price_change_7d}}.
+    """
+    from app.services.connectors.coingecko_connector import fetch_all_coins
+
+    out: dict[str, dict] = {}
+    try:
+        pages_needed = max(1, (limit + 249) // 250)
+        for page in range(1, pages_needed + 1):
+            items = fetch_all_coins(vs_currency="usd", per_page=250, page=page)
+            for item in items:
+                slug = item.get("slug")
+                if slug and slug not in out:
+                    out[slug] = {
+                        "price_change_24h": item.get("price_change_24h"),
+                        "price_change_7d": item.get("price_change_7d"),
+                    }
+    except Exception:
+        pass
+    return out
+
+
 @router.get("", response_model=List[CoinListItem])
 def list_coins(
     limit: int = Query(100, ge=1, le=500),
@@ -31,6 +55,8 @@ def list_coins(
     if category:
         q = q.filter(Coin.category.ilike(f"%{category}%"))
     coins = q.limit(limit).all()
+
+    cg_changes = _fetch_coingecko_price_changes(limit)
 
     items: List[CoinListItem] = []
 
@@ -44,13 +70,32 @@ def list_coins(
 
         md_point: Optional[MarketDataPoint] = None
         if latest_md:
+            pch24 = latest_md.price_change_24h
+            pch7 = latest_md.price_change_7d
+            if coin.slug in cg_changes:
+                cg = cg_changes[coin.slug]
+                if pch24 is None and cg.get("price_change_24h") is not None:
+                    pch24 = cg["price_change_24h"]
+                if pch7 is None and cg.get("price_change_7d") is not None:
+                    pch7 = cg["price_change_7d"]
+
             md_point = MarketDataPoint(
                 timestamp=latest_md.timestamp,
                 price=latest_md.price,
                 market_cap=latest_md.market_cap,
                 volume_24h=latest_md.volume_24h,
-                price_change_24h=latest_md.price_change_24h,
-                price_change_7d=latest_md.price_change_7d,
+                price_change_24h=pch24,
+                price_change_7d=pch7,
+            )
+        elif coin.slug in cg_changes:
+            cg = cg_changes[coin.slug]
+            md_point = MarketDataPoint(
+                timestamp=datetime.now(timezone.utc),
+                price=coin.price or 0.0,
+                market_cap=coin.market_cap,
+                volume_24h=coin.volume_24h,
+                price_change_24h=cg.get("price_change_24h"),
+                price_change_7d=cg.get("price_change_7d"),
             )
 
         items.append(

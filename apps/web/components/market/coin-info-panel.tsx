@@ -1,5 +1,5 @@
 import type { Coin } from "@/lib/crypto-mock";
-import { formatChangePct, formatCompactUsd } from "@/lib/format";
+import { formatChangePct, formatCompactUsd, formatPrice } from "@/lib/format";
 
 type Props = {
   coin: Coin;
@@ -22,7 +22,7 @@ export function CoinInfoPanel({ coin }: Props) {
           </span>
         </div>
         <p className="mt-3 text-2xl font-semibold text-slate-50">
-          ${coin.priceUsd.toLocaleString()}
+          {formatPrice(coin.priceUsd)}
         </p>
         <p className="mt-1 text-[11px] text-slate-400">
           24h:{" "}

@@ -1,4 +1,19 @@
 /**
+ * Format USD price with at least 2 decimal places.
+ * Examples: $1.00, $69.13, $0.001
+ */
+export function formatPrice(value: number): string {
+  if (value == null || typeof value !== "number" || !Number.isFinite(value) || value < 0) {
+    return "$0.00";
+  }
+  const formatted = value.toLocaleString("en-US", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 8,
+  });
+  return `$${formatted}`;
+}
+
+/**
  * Format percentage for 24h/7d change. Returns "—" when value is NaN or invalid.
  */
 export function formatChangePct(value: number): string {

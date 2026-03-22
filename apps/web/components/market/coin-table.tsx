@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import type { Coin } from "@/lib/crypto-mock";
-import { formatChangePct, formatCompactUsd } from "@/lib/format";
+import { formatChangePct, formatCompactUsd, formatPrice } from "@/lib/format";
 
 type Props = {
   coins: Coin[];
@@ -50,7 +50,7 @@ export function CoinTable({ coins }: Props) {
                 </Link>
               </td>
               <td className="px-3 py-2 text-right text-slate-50">
-                ${coin.priceUsd.toLocaleString()}
+                {formatPrice(coin.priceUsd)}
               </td>
               <td
                 className={`px-3 py-2 text-right ${

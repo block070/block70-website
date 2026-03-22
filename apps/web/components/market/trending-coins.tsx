@@ -1,5 +1,6 @@
 import Link from "next/link";
 
+import { formatPrice } from "@/lib/format";
 import { TRENDING_COINS } from "@/lib/crypto-mock";
 
 export function TrendingCoins() {
@@ -36,7 +37,7 @@ export function TrendingCoins() {
             </div>
             <div className="text-right">
               <p className="text-sm text-slate-100">
-                ${coin.priceUsd.toLocaleString()}
+                {formatPrice(coin.priceUsd)}
               </p>
               <p
                 className={`text-[11px] ${

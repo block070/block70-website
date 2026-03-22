@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 
+import { formatPrice } from "@/lib/format";
 import type { Coin } from "@/lib/crypto-mock";
 
 type SortKey =
@@ -141,7 +142,7 @@ export function CoinTable({ coins, pageSize = 10 }: Props) {
                 </td>
                 <td className="px-3 py-2 text-slate-400">{coin.symbol}</td>
                 <td className="px-3 py-2 text-right text-slate-50">
-                  ${coin.priceUsd.toLocaleString()}
+                  {formatPrice(coin.priceUsd)}
                 </td>
                 <td
                   className={`px-3 py-2 text-right ${
