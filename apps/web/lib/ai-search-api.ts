@@ -1,5 +1,7 @@
-import { API_BASE_URL } from "./api";
 import { getToken } from "./auth";
+
+// Use same-origin proxy to avoid CORS and mixed content (HTTPS page → HTTP API).
+const AI_SEARCH_BASE = typeof window !== "undefined" ? "" : process.env.API_SERVER_URL || process.env.NEXT_PUBLIC_API_BASE_URL || "";
 
 export type AISearchResult = {
   answer: string;
@@ -43,7 +45,8 @@ export async function postAISearch(queryText: string): Promise<AISearchResult> {
   const token = getToken();
   if (token) headers.Authorization = `Bearer ${token}`;
 
-  const res = await fetch(`${API_BASE_URL}/api/v1/ai-search`, {
+  const url = typeof window !== "undefined" ? "/api/ai-search" : `${AI_SEARCH_BASE}/api/v1/ai-search`;
+  const res = await fetch(url, {
     method: "POST",
     headers,
     body: JSON.stringify({ query_text: queryText }),
@@ -61,7 +64,8 @@ export async function postAISearch(queryText: string): Promise<AISearchResult> {
 }
 
 export async function getAISearchPopular(limit = 20): Promise<{ query_normalized: string; hit_count: number }[]> {
-  const res = await fetch(`${API_BASE_URL}/api/v1/ai-search/popular?limit=${limit}`, { cache: "no-store" });
+  const url = typeof window !== "undefined" ? `/api/ai-search/popular?limit=${limit}` : `${AI_SEARCH_BASE}/api/v1/ai-search/popular?limit=${limit}`;
+  const res = await fetch(url, { cache: "no-store" });
   if (!res.ok) return [];
   return res.json();
 }
@@ -71,7 +75,8 @@ export async function getAISearchHistory(): Promise<
 > {
   const token = getToken();
   if (!token) return [];
-  const res = await fetch(`${API_BASE_URL}/api/v1/ai-search/history`, {
+  const url = typeof window !== "undefined" ? "/api/ai-search/history" : `${AI_SEARCH_BASE}/api/v1/ai-search/history`;
+  const res = await fetch(url, {
     headers: { Authorization: `Bearer ${token}` },
     cache: "no-store",
   });

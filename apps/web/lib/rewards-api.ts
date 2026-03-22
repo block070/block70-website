@@ -4,7 +4,12 @@ import { getToken } from "./auth";
 async function fetchWithAuth<T>(path: string, init?: RequestInit): Promise<T> {
   const token = getToken();
   if (!token) throw new Error("Not authenticated");
-  const res = await fetch(`${API_BASE_URL}${path}`, {
+  // Use same-origin proxy for blocks/balance to avoid CORS and mixed content (HTTPS → HTTP).
+  const url =
+    path === "/api/v1/blocks/balance" && typeof window !== "undefined"
+      ? "/api/blocks/balance"
+      : `${API_BASE_URL}${path}`;
+  const res = await fetch(url, {
     ...init,
     headers: {
       "Content-Type": "application/json",
