@@ -359,8 +359,14 @@ def _run_description_backfill_job() -> None:
 
 def _run_news_scraper_job() -> None:
     """Fetch latest crypto news articles from external RSS feeds."""
-
     _with_db_session(run_news_scraper)
+
+
+def _run_exchanges_sync_job() -> None:
+    """Sync exchange data from CoinGecko."""
+    def _job(db: Session) -> None:
+        run_exchanges_sync(db)
+    _with_db_session(_job)
 
 
 def _run_signal_bot_dispatcher_job() -> None:
