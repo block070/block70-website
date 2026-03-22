@@ -14,12 +14,12 @@ export function MarketStats() {
   return (
     <section className="grid gap-4 md:grid-cols-3">
       <StatCard
-        label="Total market cap (mock)"
+        label="Total market cap"
         value={`$${Math.round(totalMarketCap / 1_000_000_000).toLocaleString()}B`}
         helper="Aggregated across tracked majors"
       />
       <StatCard
-        label="24h volume (mock)"
+        label="24h volume"
         value={`$${Math.round(totalVolume / 1_000_000_000).toLocaleString()}B`}
         helper="Across spot + perp venues"
       />

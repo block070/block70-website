@@ -37,3 +37,18 @@ export function formatCompactUsd(value: number): string {
   if (value >= 1e3) return `$${(value / 1e3).toFixed(0)}K`;
   return `$${Math.round(value)}`;
 }
+
+/**
+ * Format netflow with sign: +$120M, -$80M
+ */
+export function formatNetflow(value: number): string {
+  if (value == null || typeof value !== "number" || !Number.isFinite(value)) {
+    return "—";
+  }
+  const sign = value >= 0 ? "+" : "";
+  const abs = Math.abs(value);
+  if (abs >= 1e9) return `${sign}$${(value / 1e9).toFixed(1)}B`;
+  if (abs >= 1e6) return `${sign}$${(value / 1e6).toFixed(0)}M`;
+  if (abs >= 1e3) return `${sign}$${(value / 1e3).toFixed(0)}K`;
+  return `${sign}$${Math.round(value)}`;
+}

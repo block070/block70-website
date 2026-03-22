@@ -27,7 +27,7 @@ export function CoinChart({ points }: Props) {
   return (
     <section className="space-y-2 rounded-xl border border-slate-800 bg-slate-900/60 p-4">
       <p className="text-[11px] uppercase tracking-wide text-slate-400">
-        Price chart (mock)
+        Price chart
       </p>
       <div className="h-40 w-full">
         <svg

@@ -3,7 +3,7 @@ import { EXCHANGES } from "@/lib/crypto-mock";
 export const metadata = {
   title: "Exchanges · Block70 Crypto Data",
   description:
-    "Mock exchange metrics to later connect into Block70’s execution and liquidity intelligence.",
+    "Exchange metrics wired into Block70’s execution and liquidity intelligence.",
 };
 
 export default function ExchangesPage() {

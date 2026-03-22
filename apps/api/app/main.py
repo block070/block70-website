@@ -37,6 +37,7 @@ from app.api.v1.events import router as events_router
 from app.api.v1.liquidity import router as liquidity_router
 from app.api.v1.auth import router as auth_router
 from app.api.v1.billing import router as billing_router
+from app.api.v1.chains import router as chains_router
 from app.api.v1.coins import router as coins_router
 from app.api.v1.live import router as live_router
 from app.api.v1.dashboard import router as dashboard_router
@@ -136,6 +137,7 @@ app.include_router(events_router)
 app.include_router(liquidity_router)
 app.include_router(auth_router)
 app.include_router(billing_router)
+app.include_router(chains_router)
 app.include_router(coins_router)
 app.include_router(live_router)
 app.include_router(dashboard_router)

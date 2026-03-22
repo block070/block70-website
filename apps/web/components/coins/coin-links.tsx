@@ -119,8 +119,7 @@ export function CoinLinks({
           <li>
             <Label>On-chain view</Label>
             <Value className="text-slate-400">
-              Placeholder for Block70&apos;s chain + wallet data panels. For
-              now this is a static mock.
+              Placeholder for Block70&apos;s chain + wallet data panels.
             </Value>
           </li>
         </ul>

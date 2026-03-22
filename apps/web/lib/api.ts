@@ -882,6 +882,49 @@ export async function getSignalsTrending(params?: {
   );
 }
 
+export type ChainDto = {
+  name: string;
+  symbol: string;
+  tvl: number;
+  tvl_24h_change: number;
+  netflow_24h: number;
+  active_users: number | null;
+  momentum_score: number;
+  whale_inflow_24h?: number | null;
+  bridge_inflow_24h?: number | null;
+};
+
+export async function getChains(params?: {
+  limit?: number;
+  sort_by?: "netflow" | "tvl" | "momentum" | "tvl_change";
+}): Promise<ChainDto[]> {
+  const search = new URLSearchParams();
+  if (params?.limit != null) search.set("limit", String(params.limit));
+  if (params?.sort_by) search.set("sort_by", params.sort_by);
+  const query = search.toString();
+  return fetchJson<ChainDto[]>(`/api/v1/chains${query ? `?${query}` : ""}`);
+}
+
+export type ChainCoinDto = {
+  name: string;
+  symbol: string;
+  slug: string;
+  price: number;
+  change_24h: number | null;
+};
+
+export async function getChainCoins(
+  chainName: string,
+  limit?: number,
+): Promise<ChainCoinDto[]> {
+  const search = new URLSearchParams();
+  if (limit != null) search.set("limit", String(limit));
+  const query = search.toString();
+  return fetchJson<ChainCoinDto[]>(
+    `/api/v1/chains/${encodeURIComponent(chainName)}/coins${query ? `?${query}` : ""}`,
+  );
+}
+
 export async function getSignalsLeaderboard(params?: {
   hours?: number;
   limit?: number;

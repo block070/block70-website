@@ -9,7 +9,7 @@ export function TrendingCoins() {
       <div className="mb-3 flex items-center justify-between">
         <div>
           <p className="text-[11px] uppercase tracking-wide text-slate-400">
-            Trending (mock)
+            Trending
           </p>
           <p className="text-[11px] text-slate-500">
             Signals from volume, price momentum, and narratives.
