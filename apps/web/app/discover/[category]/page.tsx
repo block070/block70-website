@@ -1,54 +1,55 @@
 import Link from "next/link";
 import { getCoinsList } from "@/lib/coins";
-import { notFound } from "next/navigation";
 
-const CATEGORIES: Record<string, { title: string; description: string }> = {
-  "ai-tokens": {
-    title: "Best AI Tokens",
-    description: "AI and machine learning crypto tokens. Track signals and opportunities for AI narrative plays.",
-  },
-  "depin-tokens": {
-    title: "DePIN Tokens",
-    description: "Decentralized physical infrastructure tokens. DePIN tokens whales are buying and Block70 signals.",
-  },
-  "gaming-tokens": {
-    title: "Gaming Tokens",
-    description: "Gaming and metaverse crypto tokens. Leaderboards, signals, and alpha.",
-  },
-  "layer2-tokens": {
-    title: "Layer 2 Tokens",
-    description: "Layer 2 scaling and rollup tokens. L2 ecosystem signals and flows.",
-  },
+/** Slug -> human title for display. Covers common CoinGecko category ids. */
+const SLUG_TO_TITLE: Record<string, string> = {
+  "ai-tokens": "AI Tokens",
+  "artificial-intelligence": "Artificial Intelligence",
+  "depin-tokens": "DePIN Tokens",
+  depin: "DePIN",
+  "gaming-tokens": "Gaming Tokens",
+  gaming: "Gaming",
+  "layer2-tokens": "Layer 2 Tokens",
+  "layer-2": "Layer 2",
+  defi: "DeFi",
+  "layer-1": "Layer 1",
+  meme: "Meme",
+  "smart-contract-platform": "Smart Contract Platform",
 };
+
+/** Convert URL slug to category query for API (e.g. "artificial-intelligence" -> "Artificial Intelligence"). */
+function slugToCategoryQuery(slug: string): string {
+  return slug
+    .replace(/-/g, " ")
+    .replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+function getCategoryTitle(slug: string): string {
+  return SLUG_TO_TITLE[slug] ?? slugToCategoryQuery(slug);
+}
 
 type PageProps = {
   params: Promise<{ category: string }>;
 };
 
-export async function generateStaticParams() {
-  return Object.keys(CATEGORIES).map((category) => ({ category }));
-}
-
 export async function generateMetadata({ params }: PageProps) {
   const { category } = await params;
-  const meta = CATEGORIES[category];
-  if (!meta) return {};
+  const title = getCategoryTitle(category);
   return {
-    title: `${meta.title} · Block70 Discover`,
-    description: meta.description,
+    title: `${title} · Block70 Discover`,
+    description: `Explore ${title} tokens. Market data, signals, and opportunities.`,
     openGraph: {
-      title: `${meta.title} · Block70`,
-      description: meta.description,
+      title: `${title} · Block70`,
+      description: `Explore ${title} tokens.`,
     },
   };
 }
 
 export default async function DiscoverCategoryPage({ params }: PageProps) {
   const { category } = await params;
-  const meta = CATEGORIES[category];
-  if (!meta) notFound();
+  const title = getCategoryTitle(category);
+  const categoryQuery = slugToCategoryQuery(category);
 
-  const categoryQuery = category.replace("-tokens", "").replace("-", " ");
   let items: Awaited<ReturnType<typeof getCoinsList>> = [];
   try {
     items = await getCoinsList({ category: categoryQuery, limit: 100 });
@@ -60,16 +61,16 @@ export default async function DiscoverCategoryPage({ params }: PageProps) {
     <div className="mx-auto max-w-4xl space-y-6 p-4">
       <section>
         <h1 className="text-2xl font-semibold tracking-tight text-[var(--b70-text)]">
-          {meta.title}
+          {title}
         </h1>
         <p className="mt-1 text-sm text-[var(--b70-text-muted)]">
-          {meta.description}
+          Coins in the {title} category. Explore market data, signals, and opportunities.
         </p>
       </section>
 
       {items.length === 0 ? (
-        <section className="rounded-xl border border-[var(--b70-border)] bg-[var(--b70-card)] p-8 text-center text-sm text-[var(--b70-text-muted)]">
-          No tokens in this category yet. Categories are populated from the coin database; add coins with category “{categoryQuery}” to see them here.
+        <section className="rounded-xl border border-[var(--b70-border)] bg-[var(--b70-card)] p-8 text-center text-sm text-[var(--b70-text-muted)] shadow-sm">
+          No tokens in this category yet. Categories are populated from the coin database; coins matching &quot;{categoryQuery}&quot; will appear here.
         </section>
       ) : (
         <ul className="grid gap-3 sm:grid-cols-2">

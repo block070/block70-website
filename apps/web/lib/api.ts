@@ -229,6 +229,26 @@ export async function getMarketCoins(params?: {
   return fetchJson<MarketCoin[]>(`/api/v1/market/coins${query ? `?${query}` : ""}`);
 }
 
+export type MarketCategory = {
+  id: string;
+  name: string;
+  market_cap: number;
+  market_cap_change_24h?: number | null;
+  volume_24h: number;
+  top_3_coins?: string[];
+  content?: string | null;
+};
+
+export async function getMarketCategories(params?: {
+  order?: string;
+}): Promise<MarketCategory[]> {
+  const search = new URLSearchParams();
+  if (params?.order) search.set("order", params.order);
+  const query = search.toString();
+  const data = await fetchJson<MarketCategory[]>(`/api/v1/market/categories${query ? `?${query}` : ""}`);
+  return Array.isArray(data) ? data : [];
+}
+
 export async function getNewsArticles(params?: {
   limit?: number;
 }): Promise<NewsArticleSummary[]> {

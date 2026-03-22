@@ -178,6 +178,20 @@ def fetch_market_chart(
         raise
 
 
+def fetch_coins_categories(
+    order: str = "market_cap_desc",
+) -> List[Dict[str, Any]]:
+    """
+    Fetch coin categories with market data from CoinGecko /coins/categories.
+    Returns: id, name, market_cap, market_cap_change_24h, volume_24h, top_3_coins, content.
+    """
+    data = _get(
+        "/coins/categories",
+        params={"order": order},
+    )
+    return data if isinstance(data, list) else []
+
+
 def fetch_trending_coins() -> List[Dict[str, Any]]:
     """
     Fetch trending coins from CoinGecko's /search/trending endpoint.

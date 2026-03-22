@@ -9,6 +9,7 @@ from app.db import get_db
 from app.models import Coin, MarketData
 from app.services.connectors.coingecko_connector import (
     fetch_all_coins,
+    fetch_coins_categories,
     fetch_trending_coins,
 )
 
@@ -89,6 +90,63 @@ def get_market_coins(
         if fallback_rows:
             return fallback_rows
         raise HTTPException(status_code=502, detail="Failed to load CoinGecko market data and no fallback snapshot available") from exc
+
+
+def _load_categories_fallback_from_db(db: Session) -> List[Dict[str, Any]]:
+    """
+    Aggregate categories from Coin table when CoinGecko is unavailable.
+    Groups by category, sums market_cap and volume_24h.
+    """
+    from sqlalchemy import func
+
+    rows = (
+        db.query(
+            Coin.category,
+            func.coalesce(func.sum(Coin.market_cap), 0).label("market_cap"),
+            func.coalesce(func.sum(Coin.volume_24h), 0).label("volume_24h"),
+        )
+        .filter(Coin.category.isnot(None), Coin.category != "")
+        .group_by(Coin.category)
+        .order_by(func.coalesce(func.sum(Coin.market_cap), 0).desc())
+        .all()
+    )
+
+    def slug_from_name(name: str) -> str:
+        return (name or "").lower().replace(" ", "-").replace("_", "-")
+
+    return [
+        {
+            "id": slug_from_name(cat),
+            "name": cat,
+            "market_cap": float(mcap or 0),
+            "market_cap_change_24h": None,
+            "volume_24h": float(vol or 0),
+            "top_3_coins": [],
+            "content": None,
+        }
+        for cat, mcap, vol in rows
+    ]
+
+
+@router.get("/categories", response_model=List[Dict[str, Any]])
+def get_market_categories(
+    db: Session = Depends(get_db),
+    order: str = Query("market_cap_desc", description="Sort: market_cap_desc, market_cap_asc, name_asc, name_desc"),
+) -> List[Dict[str, Any]]:
+    """
+    Return coin categories with market cap and 24h volume from CoinGecko.
+    Falls back to DB aggregation when CoinGecko is unavailable.
+    """
+    try:
+        items = fetch_coins_categories(order=order)
+        if items:
+            return items
+    except Exception:
+        pass
+    try:
+        return _load_categories_fallback_from_db(db)
+    except Exception:
+        return []
 
 
 @router.get("/trending", response_model=List[Dict[str, Any]])
