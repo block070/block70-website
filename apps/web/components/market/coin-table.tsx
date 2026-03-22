@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import type { Coin } from "@/lib/crypto-mock";
+import { formatChangePct, formatCompactUsd } from "@/lib/format";
 
 type Props = {
   coins: Coin[];
@@ -53,25 +54,31 @@ export function CoinTable({ coins }: Props) {
               </td>
               <td
                 className={`px-3 py-2 text-right ${
-                  coin.change24hPct >= 0 ? "text-emerald-400" : "text-red-400"
+                  typeof coin.change24hPct === "number" && Number.isFinite(coin.change24hPct)
+                    ? coin.change24hPct >= 0
+                      ? "text-emerald-400"
+                      : "text-red-400"
+                    : "text-slate-500"
                 }`}
               >
-                {coin.change24hPct.toFixed(2)}%
+                {formatChangePct(coin.change24hPct)}
               </td>
               <td
                 className={`px-3 py-2 text-right ${
-                  coin.change7dPct >= 0 ? "text-emerald-400" : "text-red-400"
+                  typeof coin.change7dPct === "number" && Number.isFinite(coin.change7dPct)
+                    ? coin.change7dPct >= 0
+                      ? "text-emerald-400"
+                      : "text-red-400"
+                    : "text-slate-500"
                 }`}
               >
-                {coin.change7dPct.toFixed(2)}%
+                {formatChangePct(coin.change7dPct)}
               </td>
               <td className="px-3 py-2 text-right text-slate-200">
-                ${Math.round(coin.marketCapUsd / 1_000_000_000).toLocaleString()}
-                B
+                {formatCompactUsd(coin.marketCapUsd)}
               </td>
               <td className="px-3 py-2 text-right text-slate-200">
-                ${Math.round(coin.volume24hUsd / 1_000_000_000).toLocaleString()}
-                B
+                {formatCompactUsd(coin.volume24hUsd)}
               </td>
             </tr>
           ))}

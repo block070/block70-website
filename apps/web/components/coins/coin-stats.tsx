@@ -1,4 +1,5 @@
 import type { Coin } from "@/lib/crypto-mock";
+import { formatChangePct, formatCompactUsd } from "@/lib/format";
 
 type Props = {
   coin: Coin;
@@ -13,21 +14,15 @@ export function CoinStats({ coin }: Props) {
       <div className="grid gap-3 md:grid-cols-3">
         <Stat
           label="Market cap"
-          value={`$${Math.round(
-            coin.marketCapUsd / 1_000_000_000,
-          ).toLocaleString()}B`}
+          value={formatCompactUsd(coin.marketCapUsd)}
         />
         <Stat
           label="24h volume"
-          value={`$${Math.round(
-            coin.volume24hUsd / 1_000_000_000,
-          ).toLocaleString()}B`}
+          value={formatCompactUsd(coin.volume24hUsd)}
         />
         <Stat
           label="Price performance"
-          value={`24h ${coin.change24hPct.toFixed(
-            2,
-          )}% · 7d ${coin.change7dPct.toFixed(2)}%`}
+          value={`24h ${formatChangePct(coin.change24hPct)} · 7d ${formatChangePct(coin.change7dPct)}`}
         />
       </div>
     </section>

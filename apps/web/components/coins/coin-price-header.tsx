@@ -1,4 +1,5 @@
 import type { Coin } from "@/lib/crypto-mock";
+import { formatChangePct, formatCompactUsd } from "@/lib/format";
 
 type Props = {
   coin: Coin;
@@ -30,30 +31,26 @@ export function CoinPriceHeader({ coin }: Props) {
             24h:{" "}
             <span
               className={
-                typeof coin.change24hPct === "number" && !Number.isNaN(coin.change24hPct)
+                typeof coin.change24hPct === "number" && Number.isFinite(coin.change24hPct)
                   ? coin.change24hPct >= 0
                     ? "text-emerald-400"
                     : "text-red-400"
                   : "text-slate-500"
               }
             >
-              {typeof coin.change24hPct === "number" && !Number.isNaN(coin.change24hPct)
-                ? `${coin.change24hPct >= 0 ? "+" : ""}${coin.change24hPct.toFixed(2)}%`
-                : "—"}
+              {formatChangePct(coin.change24hPct)}
             </span>{" "}
             · 7d:{" "}
             <span
               className={
-                typeof coin.change7dPct === "number" && !Number.isNaN(coin.change7dPct)
+                typeof coin.change7dPct === "number" && Number.isFinite(coin.change7dPct)
                   ? coin.change7dPct >= 0
                     ? "text-emerald-400"
                     : "text-red-400"
                   : "text-slate-500"
               }
             >
-              {typeof coin.change7dPct === "number" && !Number.isNaN(coin.change7dPct)
-                ? `${coin.change7dPct >= 0 ? "+" : ""}${coin.change7dPct.toFixed(2)}%`
-                : "—"}
+              {formatChangePct(coin.change7dPct)}
             </span>
           </p>
         </div>
@@ -61,21 +58,13 @@ export function CoinPriceHeader({ coin }: Props) {
           <div>
             <p className="text-slate-400">Market cap</p>
             <p className="mt-0.5 text-slate-100">
-              $
-              {Math.round(
-                coin.marketCapUsd / 1_000_000_000,
-              ).toLocaleString()}
-              B
+              {formatCompactUsd(coin.marketCapUsd)}
             </p>
           </div>
           <div>
             <p className="text-slate-400">24h volume</p>
             <p className="mt-0.5 text-slate-100">
-              $
-              {Math.round(
-                coin.volume24hUsd / 1_000_000_000,
-              ).toLocaleString()}
-              B
+              {formatCompactUsd(coin.volume24hUsd)}
             </p>
           </div>
         </div>
