@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import time
 from typing import Any, Dict, List
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -96,6 +97,7 @@ def _load_categories_fallback_from_db(db: Session) -> List[Dict[str, Any]]:
     """
     Aggregate categories from Coin table when CoinGecko is unavailable.
     Groups by category, sums market_cap and volume_24h.
+    Adds top_3_coins_id from top coins per category and market_cap_change_24h from MarketData.
     """
     from sqlalchemy import func
 
@@ -114,14 +116,55 @@ def _load_categories_fallback_from_db(db: Session) -> List[Dict[str, Any]]:
     def slug_from_name(name: str) -> str:
         return (name or "").lower().replace(" ", "-").replace("_", "-")
 
+    # Get top 3 coin slugs per category
+    top_coins_by_cat: Dict[str, List[str]] = {}
+    coins_ordered = (
+        db.query(Coin.category, Coin.slug, Coin.market_cap)
+        .filter(Coin.category.isnot(None), Coin.category != "")
+        .order_by(Coin.category, Coin.market_cap.desc().nullslast())
+        .all()
+    )
+    for cat, slug, _ in coins_ordered:
+        if cat and slug:
+            if cat not in top_coins_by_cat:
+                top_coins_by_cat[cat] = []
+            if len(top_coins_by_cat[cat]) < 3:
+                top_coins_by_cat[cat].append(slug)
+
+    # Get market_cap_change_24h per category (weighted avg from top coins' MarketData)
+    change_by_cat: Dict[str, float] = {}
+    for cat in top_coins_by_cat:
+        slugs = top_coins_by_cat[cat]
+        if not slugs:
+            continue
+        coins_in_cat = db.query(Coin).filter(Coin.slug.in_(slugs)).all()
+        if not coins_in_cat:
+            continue
+        total_mcap = 0.0
+        weighted_sum = 0.0
+        for coin in coins_in_cat:
+            latest = (
+                db.query(MarketData)
+                .filter(MarketData.coin_id == coin.id)
+                .order_by(MarketData.timestamp.desc())
+                .first()
+            )
+            if latest and latest.price_change_24h is not None and coin.market_cap:
+                mcap = float(coin.market_cap)
+                total_mcap += mcap
+                weighted_sum += mcap * latest.price_change_24h
+        if total_mcap > 0:
+            change_by_cat[cat] = weighted_sum / total_mcap  # 0 if no MarketData
+
     return [
         {
             "id": slug_from_name(cat),
             "name": cat,
             "market_cap": float(mcap or 0),
-            "market_cap_change_24h": None,
+            "market_cap_change_24h": change_by_cat.get(cat),
             "volume_24h": float(vol or 0),
             "top_3_coins": [],
+            "top_3_coins_id": top_coins_by_cat.get(cat, []),
             "content": None,
         }
         for cat, mcap, vol in rows
@@ -140,14 +183,17 @@ def get_market_categories(
     Falls back to DB aggregation when CoinGecko is unavailable.
     Supports pagination via limit and page. Returns { items, total } when limit is used.
     """
-    try:
-        items = fetch_coins_categories(order=order)
-        if items:
-            total = len(items)
-            offset = (page - 1) * limit
-            return {"items": items[offset : offset + limit], "total": total}
-    except Exception:
-        pass
+    for attempt in range(2):
+        try:
+            items = fetch_coins_categories(order=order)
+            if items:
+                total = len(items)
+                offset = (page - 1) * limit
+                return {"items": items[offset : offset + limit], "total": total}
+        except Exception:
+            if attempt == 0:
+                time.sleep(2)  # Brief pause before retry (e.g. rate limit)
+            pass
     try:
         all_rows = _load_categories_fallback_from_db(db)
         total = len(all_rows)
