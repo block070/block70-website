@@ -32,6 +32,7 @@ from app.services.pipeline.signal_cluster_pipeline import run_signal_cluster_pip
 from app.services.pipeline.airdrop_pipeline import run_airdrop_pipeline
 from app.services.streaming.event_consumer import run_event_consumer
 from app.services.scrapers.news_scraper import run_news_scraper
+from app.services.exchanges_pipeline import run_exchanges_sync
 from app.services.bots.bot_dispatcher import run_signal_bot_dispatcher
 from app.services.signals.signal_detection_engine import SignalDetectionEngine
 import redis.exceptions
@@ -561,6 +562,14 @@ def create_scheduler() -> BackgroundScheduler:
         _run_news_scraper_job,
         IntervalTrigger(minutes=5),
         id="news_scraper",
+        replace_existing=True,
+        max_instances=1,
+    )
+
+    scheduler.add_job(
+        _run_exchanges_sync_job,
+        IntervalTrigger(minutes=10),
+        id="exchanges_sync",
         replace_existing=True,
         max_instances=1,
     )

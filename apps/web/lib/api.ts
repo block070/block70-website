@@ -968,6 +968,59 @@ export async function getChainCoins(
   return data.coins;
 }
 
+export type ExchangeDto = {
+  id: string;
+  name: string;
+  slug: string;
+  image: string;
+  trust_score_rank: number;
+  trust_score: number;
+  trade_volume_24h_btc: number;
+  trade_volume_24h_usd: number;
+  url: string;
+  final_url: string;
+  year_established: number | null;
+  country: string | null;
+  liquidity_score?: number;
+  user_count_estimate?: number;
+  supported_coins?: number;
+};
+
+export async function getExchanges(): Promise<ExchangeDto[]> {
+  const path = "/api/v1/exchanges";
+  const url =
+    typeof window !== "undefined"
+      ? path
+      : (process.env.API_SERVER_URL || process.env.NEXT_PUBLIC_API_BASE_URL || "").replace(/\/$/, "") + path;
+  const res = await fetch(url, {
+    headers: { Accept: "application/json" },
+    cache: "no-store",
+  });
+  if (!res.ok) throw new Error(`Exchanges API failed: ${res.status}`);
+  return res.json() as Promise<ExchangeDto[]>;
+}
+
+export async function getExchangeBySlug(slug: string): Promise<ExchangeDto | null> {
+  const path = `/api/v1/exchanges/${encodeURIComponent(slug)}`;
+  const url =
+    typeof window !== "undefined"
+      ? path
+      : (process.env.API_SERVER_URL || process.env.NEXT_PUBLIC_API_BASE_URL || "").replace(/\/$/, "") + path;
+  const res = await fetch(url, { headers: { Accept: "application/json" }, cache: "no-store" });
+  if (res.status === 404) return null;
+  if (!res.ok) throw new Error(`Exchange API failed: ${res.status}`);
+  return res.json() as Promise<ExchangeDto>;
+}
+
+export async function trackExchangeClick(exchangeId: string): Promise<void> {
+  const path = `/api/v1/exchanges/${encodeURIComponent(exchangeId)}/click`;
+  const url =
+    typeof window !== "undefined"
+      ? path
+      : (process.env.API_SERVER_URL || process.env.NEXT_PUBLIC_API_BASE_URL || "").replace(/\/$/, "") + path;
+  await fetch(url, { method: "POST" }).catch(() => {});
+}
+
 export async function getSignalsLeaderboard(params?: {
   hours?: number;
   limit?: number;

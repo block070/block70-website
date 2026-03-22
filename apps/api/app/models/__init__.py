@@ -76,6 +76,7 @@ from .ai_copilot_insight import AICopilotInsight, CopilotPerformance
 from .token_sentiment import TokenSentimentVote, TokenSentimentSummary
 from .token_comment import TokenComment, TokenCommentVote
 from .ai_search import AISearchQuery, AISearchAnalytics
+from .exchange import Exchange, ExchangeClick
 
 __all__ = [
     "Opportunity",
@@ -173,5 +174,7 @@ __all__ = [
     "TokenCommentVote",
     "AISearchQuery",
     "AISearchAnalytics",
+    "Exchange",
+    "ExchangeClick",
 ]
 

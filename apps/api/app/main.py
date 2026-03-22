@@ -39,6 +39,7 @@ from app.api.v1.auth import router as auth_router
 from app.api.v1.billing import router as billing_router
 from app.api.v1.chains import router as chains_router
 from app.api.v1.coins import router as coins_router
+from app.api.v1.exchanges import router as exchanges_router
 from app.api.v1.live import router as live_router
 from app.api.v1.dashboard import router as dashboard_router
 from app.api.v1.portfolio import router as portfolio_router
@@ -139,6 +140,7 @@ app.include_router(auth_router)
 app.include_router(billing_router)
 app.include_router(chains_router)
 app.include_router(coins_router)
+app.include_router(exchanges_router)
 app.include_router(live_router)
 app.include_router(dashboard_router)
 app.include_router(portfolio_router)
@@ -299,6 +301,21 @@ def bootstrap_all_coins(db: Session = Depends(get_db)) -> dict:
         "synced_pages": synced_pages,
         "description_stats": desc_stats,
     }
+
+
+@app.post("/bootstrap/exchanges")
+def bootstrap_exchanges(db: Session = Depends(get_db)) -> dict:
+    """
+    One-off sync of exchanges from CoinGecko into the exchanges table.
+    Run this after starting the API to populate exchange data for caching/fallback.
+    """
+    from app.services.exchanges_pipeline import run_exchanges_sync
+
+    try:
+        result = run_exchanges_sync(db, limit=100)
+        return {"status": "ok", "message": f"Exchanges synced: {result.get('synced', 0)}", "result": result}
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
 
 
 @app.post("/bootstrap/descriptions")
