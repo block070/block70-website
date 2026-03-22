@@ -43,6 +43,8 @@ export async function MarketSection() {
 
   const pricedMajors = validMarket.slice(0, 6).map((c) => ({
     symbol: c.symbol,
+    slug: c.slug,
+    logoUrl: c.logo_url ?? null,
     price: c.price ?? 0,
     change24h: c.change_24h ?? 0,
   }));
@@ -52,6 +54,8 @@ export async function MarketSection() {
     .map((c) => ({
       symbol: c.symbol,
       name: c.name,
+      slug: c.slug,
+      logoUrl: c.logo_url ?? null,
       price: c.price ?? 0,
       change24h: c.change_24h ?? 0,
       volume24h: c.volume ?? 0,
@@ -63,6 +67,8 @@ export async function MarketSection() {
     .map((c) => ({
       symbol: c.symbol,
       name: c.name,
+      slug: c.slug,
+      logoUrl: c.logo_url ?? null,
       price: c.price ?? 0,
       change24h: c.change_24h ?? 0,
       volume24h: c.volume ?? 0,
@@ -72,6 +78,7 @@ export async function MarketSection() {
     symbol: c.symbol,
     name: c.name,
     slug: c.slug,
+    logoUrl: c.logo_url ?? null,
     price: c.price ?? 0,
     change24h: c.change_24h ?? 0,
     marketCap: c.market_cap ?? 0,
@@ -88,14 +95,19 @@ export async function MarketSection() {
           ethDominance={ethDominance}
           topTrendingCoin={
             gainers[0]
-              ? { symbol: gainers[0].symbol, change24h: Number(gainers[0].change24h.toFixed(2)) }
+              ? {
+                  symbol: gainers[0].symbol,
+                  slug: gainers[0].slug,
+                  change24h: Number(gainers[0].change24h.toFixed(2)),
+                  logoUrl: gainers[0].logoUrl ?? null,
+                }
               : undefined
           }
         />
         <MarketStatsBar
           prices={pricedMajors}
-          topGainer={gainers[0]?.symbol}
-          topLoser={losers[0]?.symbol}
+          topGainer={gainers[0]}
+          topLoser={losers[0]}
         />
       </section>
 

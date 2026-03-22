@@ -8,6 +8,7 @@ export type HeatmapCoin = {
   symbol: string;
   name: string;
   slug: string;
+  logoUrl?: string | null;
   price: number;
   change24h: number;
   marketCap: number;
@@ -171,11 +172,13 @@ export function MarketHeatmap({ coins = [] }: MarketHeatmapProps) {
                 const h = Math.max(0, leaf.y1 - leaf.y0);
                 const showPrice = w > 90 && h > 45;
                 const showChange = w > 90 && h > 58;
+                const showLogo = w > 36 && h > 36 && d.logoUrl;
                 const changeTxt = `${d.change24h >= 0 ? "+" : ""}${d.change24h.toFixed(2)}%`;
                 const symbolFontSize = Math.max(
                   7,
-                  Math.min(12, Math.floor(((w - 8) / Math.max(d.symbol.length, 3)) * 1.8)),
+                  Math.min(12, Math.floor(((w - (showLogo ? 32 : 8)) / Math.max(d.symbol.length, 3)) * 1.8)),
                 );
+                const textX = showLogo ? x + 28 : x + 4;
                 return (
                   <g
                     key={d.slug}
@@ -193,8 +196,18 @@ export function MarketHeatmap({ coins = [] }: MarketHeatmapProps) {
                       strokeWidth={1}
                       rx={2}
                     />
+                    {showLogo ? (
+                      <image
+                        href={d.logoUrl}
+                        x={x + 4}
+                        y={y + 4}
+                        width={20}
+                        height={20}
+                        preserveAspectRatio="xMidYMid slice"
+                      />
+                    ) : null}
                     <text
-                      x={x + 4}
+                      x={textX}
                       y={y + 14}
                       fill="#ffffff"
                       fontSize={symbolFontSize}

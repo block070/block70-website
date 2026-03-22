@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import type { Coin } from "@/lib/crypto-mock";
+import { CoinSymbol } from "@/components/market/coin-symbol";
 import { formatChangePct, formatCompactUsd, formatPrice } from "@/lib/format";
 
 type Props = {
@@ -41,19 +42,13 @@ export function CoinTable({ coins }: Props) {
                   className="flex items-center gap-2"
                   onClick={(e) => e.stopPropagation()}
                 >
-                  <span className="flex h-6 w-6 shrink-0 items-center justify-center overflow-hidden rounded-full bg-slate-700 object-cover">
-                    {coin.logoUrl ? (
-                      <img
-                        src={coin.logoUrl}
-                        alt=""
-                        className="h-6 w-6 rounded-full object-cover"
-                      />
-                    ) : (
-                      <span className="text-[10px] font-medium text-slate-400">
-                        {(coin.symbol || coin.name?.[0] || "?").slice(0, 1).toUpperCase()}
-                      </span>
-                    )}
-                  </span>
+                  <CoinSymbol
+                    symbol={coin.symbol}
+                    logoUrl={coin.logoUrl}
+                    name={coin.name}
+                    size="md"
+                    iconOnly
+                  />
                   <span className="text-sm font-medium text-slate-50">
                     {coin.name}
                   </span>

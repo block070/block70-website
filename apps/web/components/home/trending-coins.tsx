@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { CoinSymbol } from "@/components/market/coin-symbol";
 import type { TrendingSignalTokenDto } from "@/lib/types";
 
 type TrendingCoinsProps = {
@@ -41,9 +42,10 @@ export function TrendingCoins({ trending, errorMessage = null }: TrendingCoinsPr
               className="rounded-lg border border-[var(--b70-border)] bg-[var(--b70-bg)] p-3 text-sm transition-colors hover:bg-slate-200/80 dark:border-slate-800 dark:bg-slate-900/60 dark:hover:border-slate-700 dark:hover:bg-slate-800/60"
             >
               <div className="flex items-center justify-between">
-                <span className="font-semibold text-[var(--b70-text)]">
-                  {t.token_symbol || t.token_address || "—"}
-                </span>
+                <CoinSymbol
+                  symbol={t.token_symbol || t.token_address || "—"}
+                  size="sm"
+                />
                 <span className="text-[10px] text-[var(--b70-text-muted)]">
                   {t.signal_count} signals
                 </span>

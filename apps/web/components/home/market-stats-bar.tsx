@@ -1,6 +1,8 @@
 import Link from "next/link";
+import { CoinSymbol } from "@/components/market/coin-symbol";
 
-type PriceRow = { symbol: string; price: number; change24h: number };
+type PriceRow = { symbol: string; slug?: string; logoUrl?: string | null; price: number; change24h: number };
+type GainerLoser = { symbol: string; slug?: string; logoUrl?: string | null };
 
 function formatPrice(n: number): string {
   if (n >= 1000) return `$${(n / 1000).toFixed(1)}k`;
@@ -14,8 +16,8 @@ export function MarketStatsBar({
   topLoser,
 }: {
   prices?: PriceRow[];
-  topGainer?: string;
-  topLoser?: string;
+  topGainer?: GainerLoser;
+  topLoser?: GainerLoser;
 }) {
   const hasRows = prices.length > 0;
   return (
@@ -23,12 +25,10 @@ export function MarketStatsBar({
       {hasRows ? prices.map((row) => (
         <Link
           key={row.symbol}
-          href={`/coins/${row.symbol.toLowerCase()}`}
+          href={`/coins/${row.slug ?? row.symbol.toLowerCase()}`}
           className="flex items-center gap-2 rounded-lg px-3 py-1.5 hover:bg-[var(--b70-border)] dark:hover:bg-slate-800/80"
         >
-          <span className="text-xs font-semibold text-[var(--b70-text)]">
-            {row.symbol}
-          </span>
+          <CoinSymbol symbol={row.symbol} logoUrl={row.logoUrl} size="sm" />
           <span className="text-xs text-[var(--b70-text)]">
             {formatPrice(row.price)}
           </span>
@@ -55,10 +55,10 @@ export function MarketStatsBar({
         <span>Top gainer</span>
         {topGainer ? (
           <Link
-            href={`/coins/${topGainer.toLowerCase()}`}
+            href={`/coins/${topGainer.slug ?? topGainer.symbol.toLowerCase()}`}
             className="text-xs font-medium text-emerald-600 hover:underline dark:text-emerald-400"
           >
-            {topGainer}
+            <CoinSymbol symbol={topGainer.symbol} logoUrl={topGainer.logoUrl} size="sm" />
           </Link>
         ) : (
           <span className="text-xs text-[var(--b70-text-muted)]">—</span>
@@ -67,10 +67,10 @@ export function MarketStatsBar({
         <span>Top loser</span>
         {topLoser ? (
           <Link
-            href={`/coins/${topLoser.toLowerCase()}`}
+            href={`/coins/${topLoser.slug ?? topLoser.symbol.toLowerCase()}`}
             className="text-xs font-medium text-rose-600 hover:underline dark:text-rose-400"
           >
-            {topLoser}
+            <CoinSymbol symbol={topLoser.symbol} logoUrl={topLoser.logoUrl} size="sm" />
           </Link>
         ) : (
           <span className="text-xs text-[var(--b70-text-muted)]">—</span>

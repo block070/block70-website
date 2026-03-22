@@ -1,5 +1,6 @@
 import type { SignalDto } from "@/lib/types";
 import Link from "next/link";
+import { CoinSymbol } from "@/components/market/coin-symbol";
 
 type SignalCardProps = {
   signal: SignalDto;
@@ -40,7 +41,7 @@ export function SignalCard({ signal, href }: SignalCardProps) {
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0 flex-1 space-y-1">
           <div className="flex flex-wrap items-center gap-2">
-            <span className="font-semibold text-slate-100">{token}</span>
+            <CoinSymbol symbol={token} size="sm" />
             <span className="rounded bg-slate-800 px-1.5 py-0.5 text-[10px] text-slate-400">
               {labelForType(signal.signal_type)}
             </span>

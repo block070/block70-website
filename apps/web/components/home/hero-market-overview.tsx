@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { CoinSymbol } from "@/components/market/coin-symbol";
 
 function formatCompact(n: number): string {
   if (n >= 1e12) return `$${(n / 1e12).toFixed(2)}T`;
@@ -12,7 +13,7 @@ type HeroMarketOverviewProps = {
   volume24h?: number;
   btcDominance?: number;
   ethDominance?: number;
-  topTrendingCoin?: { symbol: string; change24h: number };
+  topTrendingCoin?: { symbol: string; slug?: string; change24h: number; logoUrl?: string | null };
 };
 
 export function HeroMarketOverview({
@@ -80,10 +81,14 @@ export function HeroMarketOverview({
           <div className="mt-6 flex items-center gap-3 rounded-xl border border-[var(--b70-border)] bg-[var(--b70-bg)] px-4 py-3 dark:border-slate-800 dark:bg-slate-950/60">
             <p className="text-xs text-[var(--b70-text-muted)]">Top trending</p>
             <Link
-              href={`/coins/${topTrendingCoin.symbol.toLowerCase()}`}
+              href={`/coins/${topTrendingCoin.slug ?? topTrendingCoin.symbol.toLowerCase()}`}
               className="font-semibold text-emerald-600 hover:text-emerald-700 dark:text-emerald-400 dark:hover:text-emerald-300"
             >
-              {topTrendingCoin.symbol}
+              <CoinSymbol
+                symbol={topTrendingCoin.symbol}
+                logoUrl={topTrendingCoin.logoUrl}
+                size="sm"
+              />
             </Link>
             <span className="rounded-full bg-emerald-500/20 px-2 py-0.5 text-xs font-medium text-emerald-700 dark:text-emerald-300">
               +{topTrendingCoin.change24h}% 24h

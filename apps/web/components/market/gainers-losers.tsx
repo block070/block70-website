@@ -2,10 +2,13 @@
 
 import Link from "next/link";
 import { useState } from "react";
+import { CoinSymbol } from "@/components/market/coin-symbol";
 
 export type GainersLosersRow = {
   symbol: string;
   name: string;
+  slug?: string;
+  logoUrl?: string | null;
   price: number;
   change24h: number;
   volume24h: number;
@@ -48,11 +51,11 @@ function Row({
 }) {
   return (
     <Link
-      href={`/coins/${row.symbol.toLowerCase()}`}
+      href={`/coins/${row.slug ?? row.symbol.toLowerCase()}`}
       className="rounded-lg px-3 py-2 text-sm transition-colors hover:bg-[var(--b70-border)] dark:hover:bg-slate-800/60"
     >
       <div className="grid grid-cols-6 items-center gap-3">
-        <span className="font-medium text-[var(--b70-text)]">{row.symbol}</span>
+        <CoinSymbol symbol={row.symbol} logoUrl={row.logoUrl} name={row.name} size="sm" />
         <span className="truncate text-[var(--b70-text-muted)]">{row.name}</span>
         <span className="text-[var(--b70-text)]">{formatPrice(row.price)}</span>
         <span className={isGainer ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400"}>
