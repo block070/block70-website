@@ -25,17 +25,29 @@ class CoinSyncPipeline:
         self.per_page = per_page
 
     def _fetch_page(self, page: int) -> List[Dict[str, Any]]:
-        """Fetch a page of coins. Tries CoinGecko first, falls back to CMC on rate limit/failure."""
-        prefer_cmc = os.getenv("BOOTSTRAP_SOURCE", "").lower() == "coinmarketcap"
+        """Fetch a page of coins. Priority: BOOTSTRAP_SOURCE env, then CoinGecko, then CMC/Binance fallbacks."""
+        source = os.getenv("BOOTSTRAP_SOURCE", "").lower()
         cmc_key = os.getenv("CMC_API_KEY", "").strip()
 
-        # Try CMC first when BOOTSTRAP_SOURCE=coinmarketcap and CMC_API_KEY is set
-        if prefer_cmc and cmc_key:
+        # Binance.US: 1 API call gets all pairs, no rate limit. ~200-400 coins total.
+        if source == "binance_us":
+            try:
+                from app.services.connectors.binance_us_connector import (
+                    fetch_listings_for_bootstrap,
+                )
+                coins = fetch_listings_for_bootstrap(page=page, limit=self.per_page)
+                if coins:
+                    return coins
+            except Exception as e:
+                logger.warning("Binance.US fetch failed for page %s: %s", page, e)
+            return []
+
+        # CMC when BOOTSTRAP_SOURCE=coinmarketcap
+        if source == "coinmarketcap" and cmc_key:
             try:
                 from app.services.connectors.coinmarketcap_connector import (
                     fetch_listings_latest,
                 )
-
                 start = (page - 1) * self.per_page + 1
                 coins = fetch_listings_latest(start=start, limit=self.per_page)
                 if coins:
@@ -44,10 +56,9 @@ class CoinSyncPipeline:
                 logger.warning("CMC fetch failed for page %s: %s", page, e)
             return []
 
-        # CoinGecko first
+        # CoinGecko first (default)
         try:
             from app.services.connectors.coingecko_connector import fetch_all_coins
-
             coins = fetch_all_coins(
                 vs_currency=self.vs_currency, per_page=self.per_page, page=page
             )
@@ -56,19 +67,29 @@ class CoinSyncPipeline:
         except Exception as e:
             logger.warning("CoinGecko fetch failed for page %s: %s", page, e)
 
-        # Fallback to CoinMarketCap when CMC_API_KEY is set
+        # Fallback 1: CoinMarketCap (requires CMC_API_KEY, 30 req/min)
         if cmc_key:
             try:
                 from app.services.connectors.coinmarketcap_connector import (
                     fetch_listings_latest,
                 )
-
                 start = (page - 1) * self.per_page + 1
                 coins = fetch_listings_latest(start=start, limit=self.per_page)
                 if coins:
                     return coins
             except Exception as e:
                 logger.warning("CMC fetch failed for page %s: %s", page, e)
+
+        # Fallback 2: Binance.US – 1 call gets all pairs, no rate limit
+        try:
+            from app.services.connectors.binance_us_connector import (
+                fetch_listings_for_bootstrap,
+            )
+            coins = fetch_listings_for_bootstrap(page=page, limit=self.per_page)
+            if coins:
+                return coins
+        except Exception as e:
+            logger.warning("Binance.US fallback failed for page %s: %s", page, e)
 
         return []
 
