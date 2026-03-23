@@ -1,6 +1,6 @@
 import Link from "next/link";
 
-import { CoinPriceChart } from "@/components/coins/coin-price-chart";
+import { PriceChart } from "@/components/charts/price-chart";
 import { CoinDescription } from "@/components/coins/coin-description";
 import { CoinIntelligence } from "@/components/coins/coin-intelligence";
 import { CoinLinks } from "@/components/coins/coin-links";
@@ -89,7 +89,7 @@ export default async function CoinDetailPage({ params }: { params: Params }) {
 
       <section className="grid gap-4 md:grid-cols-[2fr,1fr]">
         <div className="space-y-4">
-          <CoinPriceChart slug={coin.slug} />
+          <PriceChart symbol={symbol} slug={coin.slug} />
           <section className="space-y-2 rounded-xl border border-slate-800 bg-slate-900/60 p-4 text-xs">
             <p className="text-[11px] uppercase tracking-wide text-slate-400">
               Related news

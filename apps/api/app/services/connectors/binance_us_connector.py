@@ -140,6 +140,59 @@ def get_sol_price_usd() -> Optional[float]:
     return get_spot_price("solana")
 
 
+# Timeframe to Binance interval
+_TF_TO_INTERVAL: dict[str, str] = {
+    "1m": "1m",
+    "5m": "5m",
+    "15m": "15m",
+    "1h": "1h",
+    "4h": "4h",
+    "1d": "1d",
+    "1w": "1w",
+}
+
+
+def fetch_klines_ohlcv(
+    symbol: str,
+    timeframe: str,
+    limit: int = 200,
+) -> Optional[list[dict]]:
+    """
+    Fetch OHLCV from Binance.US klines.
+    Returns [{ time, open, high, low, close, volume }] or None.
+    """
+    sym = (symbol or "").upper().strip()
+    interval = _TF_TO_INTERVAL.get((timeframe or "1h").lower(), "1h")
+    if not sym:
+        return None
+    for quote in ("USDT", "USD"):
+        binance_sym = f"{sym}{quote}"
+        try:
+            url = f"{BINANCE_US_BASE}/klines"
+            params = {"symbol": binance_sym, "interval": interval, "limit": limit}
+            resp = requests.get(url, params=params, timeout=10)
+            if resp.status_code != 200:
+                continue
+            data = resp.json()
+            if not isinstance(data, list) or not data:
+                continue
+            out = []
+            for c in data:
+                if len(c) >= 6:
+                    out.append({
+                        "time": int(c[0]) // 1000,  # ms -> seconds for lightweight-charts
+                        "open": float(c[1]),
+                        "high": float(c[2]),
+                        "low": float(c[3]),
+                        "close": float(c[4]),
+                        "volume": float(c[5]),
+                    })
+            return out
+        except Exception as e:
+            logger.debug("Binance.US klines %s failed: %s", binance_sym, e)
+    return None
+
+
 def fetch_klines_chart(symbol: str, days: int = 7) -> Optional[list]:
     """
     Fetch historical chart from Binance.US klines.

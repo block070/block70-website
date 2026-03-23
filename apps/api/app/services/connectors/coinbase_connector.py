@@ -130,6 +130,62 @@ def get_all_prices_usd() -> Dict[str, float]:
     return out
 
 
+COINBASE_EXCHANGE_BASE = "https://api.exchange.coinbase.com"
+
+
+def fetch_candles(
+    symbol: str,
+    granularity_sec: int,
+    limit: int = 200,
+) -> Optional[list[dict]]:
+    """
+    Fetch OHLCV candles from Coinbase Exchange API.
+    GET /products/{product_id}/candles
+    Response: [[ time, low, high, open, close, volume ], ...]
+    Returns [{ time, open, high, low, close, volume }] or None.
+    """
+    sym = (symbol or "").upper().strip()
+    slug = (symbol or "").lower().strip()
+    pair = _SYMBOL_TO_PAIR.get(slug) or f"{sym}-USD"
+    # Coinbase supports: 60, 300, 900, 3600, 21600, 86400
+    mapping = {60: 60, 300: 300, 900: 900, 3600: 3600, 14400: 21600, 21600: 21600, 86400: 86400, 604800: 86400}
+    granularity_sec = mapping.get(granularity_sec, 3600)
+    try:
+        import time
+        end = int(time.time())
+        start = end - (limit * granularity_sec)
+        url = f"{COINBASE_EXCHANGE_BASE}/products/{pair}/candles"
+        resp = requests.get(
+            url,
+            params={"granularity": granularity_sec, "start": start, "end": end},
+            timeout=10,
+        )
+        resp.raise_for_status()
+        data = resp.json()
+        if not isinstance(data, list) or not data:
+            return None
+        out = []
+        for row in data[:limit]:
+            if len(row) >= 5:
+                ts, low, high, o, c = row[0], float(row[1]), float(row[2]), float(row[3]), float(row[4])
+                if ts > 1e12:
+                    ts = int(ts) // 1000  # ms -> seconds
+                vol = float(row[5]) if len(row) > 5 else 0.0
+                out.append({
+                    "time": int(ts),
+                    "open": o,
+                    "high": high,
+                    "low": low,
+                    "close": c,
+                    "volume": vol,
+                })
+        out.sort(key=lambda x: x["time"])
+        return out
+    except Exception as e:
+        logger.debug("Coinbase candles failed for %s: %s", symbol, e)
+    return None
+
+
 def get_price_usd(symbol: str, all_prices: Optional[Dict[str, float]] = None) -> Optional[float]:
     """
     Get price in USD. Tries all_prices dict first (from get_all_prices_usd),

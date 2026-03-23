@@ -158,6 +158,33 @@ def normalize_coin_detail(raw: Dict[str, Any], vs_currency: str = "usd") -> Dict
     }
 
 
+def fetch_market_chart_for_ohlc(
+    coin_id: str,
+    timeframe: str,
+    limit: int = 200,
+    vs_currency: str = "usd",
+) -> tuple[list[list], list[list]] | None:
+    """
+    Fetch price + volume from market_chart for OHLC synthesis.
+    Returns (prices, volumes) or None. prices/volumes: [[timestamp_ms, value], ...]
+    """
+    tf_days = {"1m": 1, "5m": 1, "15m": 1, "1h": 7, "4h": 7, "1d": 30, "1w": 90}
+    days = tf_days.get((timeframe or "1h").lower(), 7)
+    try:
+        data = _get(
+            f"/coins/{coin_id}/market_chart",
+            params={"vs_currency": vs_currency, "days": days},
+        )
+        prices = (data.get("prices") or [])[:limit]
+        vols = (data.get("total_volumes") or [])[:limit]
+        if not prices:
+            return None
+        return (prices, vols)
+    except Exception as e:
+        logger.debug("CoinGecko market_chart for OHLC failed: %s", e)
+        return None
+
+
 def fetch_market_chart(
     coin_id: str,
     days: int | str = 7,
