@@ -16,6 +16,20 @@ from app.db import engine
 logger = logging.getLogger(__name__)
 
 MIGRATIONS = [
+    # chart_snapshots: persistent chart data (Storage → Binance.US → CoinGecko)
+    """CREATE TABLE IF NOT EXISTS chart_snapshots (
+        id SERIAL PRIMARY KEY,
+        coin_slug VARCHAR(128) NOT NULL,
+        days_param VARCHAR(16) NOT NULL,
+        vs_currency VARCHAR(8) NOT NULL DEFAULT 'usd',
+        prices_json TEXT NOT NULL,
+        source VARCHAR(32) NOT NULL DEFAULT 'coingecko',
+        updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+        CONSTRAINT uq_chart_slug_days UNIQUE (coin_slug, days_param, vs_currency)
+    )""",
+    "CREATE INDEX IF NOT EXISTS ix_chart_snapshots_coin_slug ON chart_snapshots (coin_slug)",
+    "CREATE INDEX IF NOT EXISTS ix_chart_snapshots_days_param ON chart_snapshots (days_param)",
+    "CREATE INDEX IF NOT EXISTS ix_chart_snapshots_updated_at ON chart_snapshots (updated_at)",
     # coins: whitepaper_url, explorer_url, telegram, market_cap_rank
     "ALTER TABLE coins ADD COLUMN IF NOT EXISTS whitepaper_url VARCHAR(1024)",
     "ALTER TABLE coins ADD COLUMN IF NOT EXISTS explorer_url VARCHAR(512)",

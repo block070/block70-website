@@ -42,17 +42,17 @@ _stale_fallback: dict[str, dict[str, Any]] = {}
 
 
 def get_chart_ttl(days_param: str | int) -> int:
-    """Return cache TTL in seconds based on chart range."""
+    """Return cache TTL in seconds. Longer TTL to reduce CoinGecko 429s."""
     if days_param == "max" or (isinstance(days_param, int) and days_param > 90):
         return 3600
     if isinstance(days_param, int):
         if days_param <= 1:
-            return 120
-        if days_param <= 7:
             return 300
-        if days_param <= 30:
+        if days_param <= 7:
             return 900
-        return 1800
+        if days_param <= 30:
+            return 1800
+        return 3600
     return 3600
 
 

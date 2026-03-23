@@ -138,3 +138,87 @@ def get_btc_price_usd() -> Optional[float]:
 def get_sol_price_usd() -> Optional[float]:
     """Convenience: SOL price in USD."""
     return get_spot_price("solana")
+
+
+def fetch_klines_chart(symbol: str, days: int = 7) -> Optional[list]:
+    """
+    Fetch historical chart from Binance.US klines.
+    Returns [[timestamp_ms, price], ...] in CoinGecko format, or None.
+    symbol: base ticker (BTC, ETH, XMR) - will try XXXUSDT, XXXUSD.
+    """
+    sym = (symbol or "").upper().strip()
+    if not sym:
+        return None
+    for quote in ("USDT", "USD"):
+        binance_sym = f"{sym}{quote}"
+        try:
+            url = f"{BINANCE_US_BASE}/klines"
+            interval = "1h" if days <= 1 else "1d"
+            limit = min(days * 24 if days <= 1 else days, 1000)
+            params = {"symbol": binance_sym, "interval": interval, "limit": limit}
+            resp = requests.get(url, params=params, timeout=10)
+            if resp.status_code != 200:
+                continue
+            data = resp.json()
+            if not isinstance(data, list) or not data:
+                continue
+            # Klines: [open_time, open, high, low, close, volume, ...]
+            prices = [[int(c[0]), float(c[4])] for c in data]
+            return prices
+        except Exception as e:
+            logger.debug("Binance.US klines %s failed: %s", binance_sym, e)
+    return None
+
+
+# CoinGecko slug -> Binance base symbol (for charts when Binance has the pair)
+_COINGECKO_SLUG_TO_BINANCE: dict[str, str] = {
+    "bitcoin": "BTC",
+    "ethereum": "ETH",
+    "solana": "SOL",
+    "tether": "USDT",
+    "binancecoin": "BNB",
+    "ripple": "XRP",
+    "cardano": "ADA",
+    "dogecoin": "DOGE",
+    "avalanche-2": "AVAX",
+    "chainlink": "LINK",
+    "polkadot": "DOT",
+    "matic-network": "MATIC",
+    "polygon": "MATIC",
+    "uniswap": "UNI",
+    "cosmos": "ATOM",
+    "litecoin": "LTC",
+    "tron": "TRX",
+    "sui": "SUI",
+    "near": "NEAR",
+    "aptos": "APT",
+    "arbitrum": "ARB",
+    "optimism": "OP",
+    "filecoin": "FIL",
+    "aave": "AAVE",
+    "the-graph": "GRT",
+    "stacks": "STX",
+    "render-token": "RENDER",
+    "sei-network": "SEI",
+    "bonk": "BONK",
+    "pepe": "PEPE",
+    "shiba-inu": "SHIB",
+    "stellar": "XLM",
+    "algorand": "ALGO",
+    "vechain": "VET",
+    "internet-computer": "ICP",
+    "hedera-hashgraph": "HBAR",
+    "theta-network": "THETA",
+    "mantle": "MNT",
+    "immutable-x": "IMX",
+    "flow": "FLOW",
+    "elrond-egld": "EGLD",
+    "axie-infinity": "AXS",
+    "the-sandbox": "SAND",
+    "decentraland": "MANA",
+}
+
+
+def slug_to_binance_symbol(slug: str) -> Optional[str]:
+    """Map CoinGecko slug to Binance base symbol for chart fallback."""
+    return _COINGECKO_SLUG_TO_BINANCE.get((slug or "").lower().strip())

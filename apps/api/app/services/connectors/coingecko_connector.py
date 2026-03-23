@@ -162,18 +162,20 @@ def fetch_market_chart(
     coin_id: str,
     days: int | str = 7,
     vs_currency: str = "usd",
+    symbol_override: str | None = None,
 ) -> Dict[str, Any]:
     """
-    Fetch historical price chart data from CoinGecko's /coins/{id}/market_chart.
+    Fetch historical price chart. CoinGecko first, Binance.US fallback on 429/no data.
     Returns { prices: [[timestamp_ms, price], ...], market_caps, total_volumes }.
-    Cached to avoid 429 rate limits. Stale cache served on 429.
     """
     days_param = "max" if days == "max" or (isinstance(days, int) and days > 365) else str(days)
+    days_int = 365 if days_param == "max" else int(days_param)
     cache_key = f"{coin_id}:{days_param}:{vs_currency}"
     ttl = get_chart_ttl(days_param)
     cached = chart_cache_get(cache_key)
     if cached is not None:
         return cached
+
     try:
         data = _get(
             f"/coins/{coin_id}/market_chart",
@@ -187,6 +189,20 @@ def fetch_market_chart(
             if stale:
                 logger.warning("CoinGecko 429, serving stale chart for %s", cache_key)
                 return stale
+            bn_symbol = symbol_override or (
+                __import__(
+                    "app.services.connectors.binance_us_connector",
+                    fromlist=["slug_to_binance_symbol"],
+                ).slug_to_binance_symbol(coin_id)
+            )
+            if bn_symbol:
+                from app.services.connectors.binance_us_connector import fetch_klines_chart
+
+                prices = fetch_klines_chart(bn_symbol, days=days_int)
+                if prices:
+                    data = {"prices": prices, "market_caps": [], "total_volumes": []}
+                    chart_cache_set(cache_key, data, ttl)
+                    return data
         raise
 
 

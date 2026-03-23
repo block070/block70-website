@@ -788,11 +788,11 @@ def get_coin_chart(
     slug: str,
     days: int = Query(7, ge=1, le=3650, description="Number of days (1-365) or use max via days param"),
 ) -> dict:
-    """Fetch historical price chart from CoinGecko. Uses coin slug from DB or symbol mapping."""
-    from app.services.connectors.coingecko_connector import fetch_market_chart
+    """Fetch historical price chart. Storage → Binance.US → CoinGecko. Persists on API success."""
+    from app.services.chart_service import fetch_market_chart
 
     coin_id = slug.lower().strip()
-    # Resolve via DB first for accurate CoinGecko id
+    symbol_override: str | None = None
     from app.db import SessionLocal
 
     db = SessionLocal()
@@ -800,6 +800,7 @@ def get_coin_chart(
         coin = _resolve_coin(db, slug)
         if coin:
             coin_id = coin.slug
+            symbol_override = coin.symbol
     finally:
         db.close()
 
@@ -808,9 +809,10 @@ def get_coin_chart(
 
     try:
         days_param = "max" if days > 365 else days
-        data = fetch_market_chart(coin_id, days=days_param)
+        data = fetch_market_chart(coin_id, days=days_param, symbol_override=symbol_override)
         prices = data.get("prices") or []
         return {"prices": prices}
     except Exception as e:
-        raise HTTPException(status_code=502, detail=f"Chart data unavailable: {e}")
+        # Return empty chart instead of 502 so frontend shows "No chart data" vs error
+        return {"prices": [], "message": "Chart temporarily unavailable (rate limit). Try again later."}
 

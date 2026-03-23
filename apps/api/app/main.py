@@ -343,6 +343,37 @@ def bootstrap_exchanges(db: Session = Depends(get_db)) -> dict:
         return {"status": "error", "message": str(e)}
 
 
+@app.post("/bootstrap/charts")
+def bootstrap_charts() -> dict:
+    """
+    Backfill chart data for top coins into ChartSnapshot.
+    Use Storage → Binance.US → CoinGecko; persists to DB for future requests.
+    Run periodically (e.g. cron) to build up chart cache for coins like Monero.
+    """
+    import time
+
+    from app.services.chart_service import fetch_market_chart
+
+    slugs = [
+        "bitcoin", "ethereum", "solana", "binancecoin", "ripple", "cardano",
+        "dogecoin", "avalanche-2", "chainlink", "polkadot", "matic-network",
+        "uniswap", "cosmos", "monero", "litecoin", "tron", "sui", "near",
+    ]
+    days_list = ["7", "30"]
+    ok, err, total = 0, 0, 0
+    for slug in slugs:
+        for days_param in days_list:
+            try:
+                data = fetch_market_chart(slug, days=days_param)
+                if data.get("prices"):
+                    ok += 1
+                total += 1
+            except Exception:
+                err += 1
+            time.sleep(1.5)
+    return {"status": "ok", "message": f"Charts backfilled: {ok}/{total} ok, {err} errors."}
+
+
 @app.post("/bootstrap/descriptions")
 def bootstrap_descriptions(db: Session = Depends(get_db)) -> dict:
     """

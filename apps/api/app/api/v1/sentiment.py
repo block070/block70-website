@@ -131,12 +131,21 @@ def get_leaderboard(
 def get_ai_sentiment_summary(
     token: str = Path(..., description="Token symbol"),
     db: Session = Depends(get_db),
-) -> dict | None:
+) -> dict:
     """GET /api/v1/sentiment/{token}/ai-summary — AI-generated sentiment summary."""
     service = TokenSentimentSummaryService()
     result = service.generate_summary(db, token)
     if not result:
-        return None
+        token_upper = token.strip().upper()
+        return {
+            "token_symbol": token_upper,
+            "summary_text": "No sentiment data yet for this token.",
+            "bullish_pct": 0.0,
+            "neutral_pct": 0.0,
+            "bearish_pct": 0.0,
+            "signal_count": 0,
+            "avg_confidence": 0.0,
+        }
     return {
         "token_symbol": result.token_symbol,
         "summary_text": result.summary_text,
