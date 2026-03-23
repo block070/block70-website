@@ -8,34 +8,31 @@ import { clsx } from "clsx";
 export type ChartRange = "24H" | "7D" | "1M" | "3M" | "1Y" | "YTD" | "Max";
 export type ChartView = "line" | "candlestick";
 
-/** Derive OHLC from [timestamp, close][] by grouping into buckets. */
+/**
+ * Derive OHLC candles from [timestamp, close][].
+ * API often returns 1 point per period (e.g. 7 points for 7D), so bucket grouping
+ * yields o=h=l=c (flat lines). Instead we use consecutive pairs: each candle
+ * = move from point i to i+1, giving visible bodies (open≠close).
+ */
 function deriveOHLC(
   points: ChartPricePoint[],
-  range: ChartRange
+  _range: ChartRange
 ): { ts: number; o: number; h: number; l: number; c: number }[] {
-  if (!points.length) return [];
-  const bucketMs =
-    range === "24H"
-      ? 60 * 60 * 1000 // 1h
-      : range === "7D" || range === "1M"
-        ? 24 * 60 * 60 * 1000 // 1d
-        : 24 * 60 * 60 * 1000; // 1d for 3M, 1Y, YTD, Max
-  const buckets = new Map<number, number[]>();
-  for (const [ts, price] of points) {
-    const key = Math.floor(ts / bucketMs) * bucketMs;
-    const arr = buckets.get(key) ?? [];
-    arr.push(price);
-    buckets.set(key, arr);
-  }
-  return Array.from(buckets.entries())
-    .sort((a, b) => a[0] - b[0])
-    .map(([ts, prices]) => ({
+  if (points.length < 2) return [];
+  const result: { ts: number; o: number; h: number; l: number; c: number }[] = [];
+  for (let i = 0; i < points.length - 1; i++) {
+    const [ts] = points[i]!;
+    const open = points[i]![1];
+    const close = points[i + 1]![1];
+    result.push({
       ts,
-      o: prices[0]!,
-      h: Math.max(...prices),
-      l: Math.min(...prices),
-      c: prices[prices.length - 1]!,
-    }));
+      o: open,
+      h: Math.max(open, close),
+      l: Math.min(open, close),
+      c: close,
+    });
+  }
+  return result;
 }
 
 const RANGES: { key: ChartRange; label: string; days: number }[] = [
@@ -153,13 +150,13 @@ export function CoinPriceChart({ slug, className }: Props) {
               : padding.left + (i / (barCount - 1)) * chartW;
           const bodyTop = padding.top + chartH - ((Math.max(c.o, c.c) - minPrice) / rangeVal) * chartH;
           const bodyBottom = padding.top + chartH - ((Math.min(c.o, c.c) - minPrice) / rangeVal) * chartH;
+          const bodyHeight = Math.max(2, Math.abs(bodyBottom - bodyTop));
           const wickHigh = padding.top + chartH - ((c.h - minPrice) / rangeVal) * chartH;
           const wickLow = padding.top + chartH - ((c.l - minPrice) / rangeVal) * chartH;
-          const bodyHeight = Math.max(1, Math.abs(bodyBottom - bodyTop));
           return {
             x,
-            bodyTop,
-            bodyBottom,
+            bodyTop: Math.min(bodyTop, bodyBottom),
+            bodyBottom: Math.max(bodyTop, bodyBottom),
             bodyHeight,
             wickHigh,
             wickLow,
