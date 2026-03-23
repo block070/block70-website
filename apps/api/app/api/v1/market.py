@@ -66,14 +66,19 @@ def _serialize_market_item(item: Dict[str, Any], light: bool = False) -> Dict[st
     return base
 
 
-def _load_market_fallback_from_db(db: Session, *, limit: int, light: bool = False) -> List[Dict[str, Any]]:
+def _load_market_fallback_from_db(
+    db: Session, *, limit: int, page: int = 1, light: bool = False
+) -> List[Dict[str, Any]]:
     """
     Return last-known-good market snapshot from DB when CoinGecko is unavailable.
     Uses batched MarketData query to avoid N+1.
+    Supports pagination via offset for pages beyond CoinGecko limit.
     """
+    offset = (page - 1) * limit
     coins = (
         db.query(Coin)
         .order_by(Coin.market_cap.desc().nullslast())
+        .offset(offset)
         .limit(limit)
         .all()
     )
@@ -118,15 +123,21 @@ def _load_market_fallback_from_db(db: Session, *, limit: int, light: bool = Fals
     return rows
 
 
+# CoinGecko free tier returns at most ~500 coins (~5 pages at 100/page).
+# Beyond this, use DB fallback which supports full pagination.
+_COINGECKO_MAX_PAGE = 5
+
+
 @router.get("/coins", response_model=List[Dict[str, Any]])
 def get_market_coins(
     db: Session = Depends(get_db),
     limit: int = Query(50, ge=1, le=100),
-    page: int = Query(1, ge=1, le=10),
+    page: int = Query(1, ge=1, le=100),
     light: bool = Query(False, description="Reduce payload to name, price, change_24h, volume, slug"),
 ) -> List[Dict[str, Any]]:
     """
     Return live market coins from CoinGecko /coins/markets.
+    For page > 5 (CoinGecko limit), use DB directly.
 
     Request params used:
     - vs_currency=usd
@@ -139,16 +150,32 @@ def get_market_coins(
     cached = market_cache_get("coins", 30, **cache_key_params)
     if cached is not None:
         return cached
+
+    # For high pages, CoinGecko returns empty; use DB directly.
+    if page > _COINGECKO_MAX_PAGE:
+        fallback_rows = _load_market_fallback_from_db(db, limit=limit, page=page, light=light)
+        if fallback_rows:
+            market_cache_set("coins", 30, fallback_rows, **cache_key_params)
+            return fallback_rows
+
     try:
         items = fetch_all_coins(vs_currency="usd", per_page=limit, page=page)
-        result = [_serialize_market_item(item, light=light) for item in items]
-        market_cache_set("coins", 30, result, **cache_key_params)
-        return result
-    except Exception as exc:  # pragma: no cover - network errors
-        fallback_rows = _load_market_fallback_from_db(db, limit=limit, light=light)
-        if fallback_rows:
-            return fallback_rows
-        raise HTTPException(status_code=502, detail="Failed to load CoinGecko market data and no fallback snapshot available") from exc
+        if items:  # Only cache/return if we got data
+            result = [_serialize_market_item(item, light=light) for item in items]
+            market_cache_set("coins", 30, result, **cache_key_params)
+            return result
+    except Exception:
+        pass
+
+    # Fallback to DB when CoinGecko fails or returns empty
+    fallback_rows = _load_market_fallback_from_db(db, limit=limit, page=page, light=light)
+    if fallback_rows:
+        market_cache_set("coins", 30, fallback_rows, **cache_key_params)
+        return fallback_rows
+    raise HTTPException(
+        status_code=502,
+        detail="Failed to load CoinGecko market data and no fallback snapshot available",
+    )
 
 
 def _load_categories_fallback_from_db(db: Session) -> List[Dict[str, Any]]:

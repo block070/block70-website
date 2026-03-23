@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import logging
 import time
-from typing import Any, Dict
+from typing import Any, Callable, Dict
 
 from sqlalchemy.orm import Session
 
@@ -39,9 +39,11 @@ class DescriptionBackfillPipeline:
         self,
         limit: int | None = None,
         delay_seconds: float = FETCH_DELAY_SECONDS,
+        progress_callback: Callable[[int, int, str | None], None] | None = None,
     ) -> None:
         self.limit = limit  # None = all 10000; set for testing
         self.delay_seconds = delay_seconds
+        self.progress_callback = progress_callback
 
     def run(self, db: Session) -> dict:
         """Fetch descriptions for coins that lack them. Returns stats."""
@@ -77,6 +79,9 @@ class DescriptionBackfillPipeline:
             if s in existing and not (existing[s].category or "").strip()
         ]
         to_fetch = list(dict.fromkeys(need_description + need_category))
+        total_to_fetch = len(to_fetch)
+        if self.progress_callback:
+            self.progress_callback(0, total_to_fetch, "Starting description/category backfill…")
 
         fetched = 0
         errors = 0
@@ -128,6 +133,8 @@ class DescriptionBackfillPipeline:
                     db.add(coin)
                     existing[slug] = coin
                 fetched += 1
+                if self.progress_callback and (fetched % 5 == 0 or fetched == 1):
+                    self.progress_callback(fetched, total_to_fetch, slug)
             except Exception as e:
                 errors += 1
                 logger.debug("Failed to fetch %s: %s", slug, e)

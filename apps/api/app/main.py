@@ -73,6 +73,18 @@ from app.services.pipeline.coin_sync_pipeline import CoinSyncPipeline
 
 app = FastAPI(title="Block70 API", version="0.1.0")
 
+# In-memory progress for bootstrap/all-coins (poll GET /bootstrap/progress)
+_bootstrap_progress: dict = {
+    "running": False,
+    "step": None,
+    "phase": None,
+    "current": 0,
+    "total": 0,
+    "last_slug": None,
+    "started_at": None,
+    "message": None,
+}
+
 
 def _init_db() -> None:
     """Create tables, run migrations, and seed rewards when database is available."""
@@ -288,6 +300,15 @@ def bootstrap_market_data(db: Session = Depends(get_db)) -> dict:
     return {"status": "ok", "message": "Market data refreshed for all tracked coins."}
 
 
+@app.get("/bootstrap/progress")
+def bootstrap_progress() -> dict:
+    """
+    Poll this while POST /bootstrap/all-coins is running to see progress.
+    Returns: running, step, phase, current, total, last_slug, started_at, message.
+    """
+    return dict(_bootstrap_progress)
+
+
 @app.post("/bootstrap/all-coins")
 def bootstrap_all_coins(db: Session = Depends(get_db)) -> dict:
     """
@@ -295,10 +316,12 @@ def bootstrap_all_coins(db: Session = Depends(get_db)) -> dict:
     Run this to fully populate/refresh every coin. Steps:
     1) Sync 40 pages (10,000 coins) from /coins/markets (price, market cap, volume, 24h/7d change) + insert MarketData
     2) Backfill descriptions, categories, and links for coins missing them (fetches /coins/{id} per coin)
-    Takes ~7+ hours due to CoinGecko rate limits (2.5s/coin for 10k). Use BOOTSTRAP_PAGES and BOOTSTRAP_DESC_LIMIT to test.
+    Takes ~7+ hours due to CoinGecko rate limits (2.5s/coin for 10k). Poll GET /bootstrap/progress to monitor.
     """
     import time
+    from datetime import datetime, timezone
 
+    global _bootstrap_progress
     from app.services.pipeline.coin_sync_pipeline import CoinSyncPipeline
     from app.services.pipeline.description_backfill_pipeline import (
         DescriptionBackfillPipeline,
@@ -308,19 +331,59 @@ def bootstrap_all_coins(db: Session = Depends(get_db)) -> dict:
     desc_limit = os.getenv("BOOTSTRAP_DESC_LIMIT", "")
     desc_limit_int = int(desc_limit) if desc_limit.isdigit() and int(desc_limit) > 0 else None
 
-    synced_pages = 0
-    pipeline = CoinSyncPipeline(per_page=250)
-    for p in range(1, pages + 1):
-        try:
-            pipeline.run(db, page=p)
-            synced_pages += 1
-        except Exception:
-            break
-        if p < pages:
-            time.sleep(2.0)
+    _bootstrap_progress = {
+        "running": True,
+        "step": "sync",
+        "phase": "Coin sync from /coins/markets",
+        "current": 0,
+        "total": pages,
+        "last_slug": None,
+        "started_at": datetime.now(timezone.utc).isoformat(),
+        "message": None,
+    }
 
-    desc_pipeline = DescriptionBackfillPipeline(limit=desc_limit_int)
-    desc_stats = desc_pipeline.run(db)
+    synced_pages = 0
+    desc_stats = {"fetched": 0, "errors": 0}
+    pipeline = CoinSyncPipeline(per_page=250)
+    try:
+        for p in range(1, pages + 1):
+            try:
+                pipeline.run(db, page=p)
+                synced_pages += 1
+                _bootstrap_progress["current"] = synced_pages
+                _bootstrap_progress["message"] = f"Synced page {p}/{pages}"
+            except Exception:
+                break
+            if p < pages:
+                time.sleep(2.0)
+
+        _bootstrap_progress["step"] = "backfill"
+        _bootstrap_progress["phase"] = "Description & category backfill"
+        _bootstrap_progress["current"] = 0
+        _bootstrap_progress["total"] = 0
+        _bootstrap_progress["message"] = "Collecting slugs to backfill…"
+
+        def _on_progress(cur: int, total: int, slug: str | None) -> None:
+            _bootstrap_progress["current"] = cur
+            _bootstrap_progress["total"] = total
+            if slug:
+                _bootstrap_progress["last_slug"] = slug
+            _bootstrap_progress["message"] = f"Backfilled {cur}/{total} coins" if total else str(slug or "")
+
+        desc_pipeline = DescriptionBackfillPipeline(
+            limit=desc_limit_int,
+            progress_callback=_on_progress,
+        )
+        desc_stats = desc_pipeline.run(db)
+
+        _bootstrap_progress["message"] = (
+            f"Done: {synced_pages} pages synced, {desc_stats['fetched']} descriptions/categories backfilled."
+        )
+    except Exception as e:
+        _bootstrap_progress["message"] = f"Error: {e}"
+        raise
+    finally:
+        _bootstrap_progress["running"] = False
 
     return {
         "status": "ok",

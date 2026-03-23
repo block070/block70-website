@@ -29,6 +29,10 @@ COINS_PER_PAGE = 100
 TOTAL_COINS_PAGINATED = 10000
 TOTAL_PAGES = TOTAL_COINS_PAGINATED // COINS_PER_PAGE  # 100
 
+# CoinGecko free tier returns at most ~500 coins (~5 pages at 100/page).
+# Beyond this, use DB directly.
+COINGECKO_MAX_PAGE = 5
+
 # Cache coins list to avoid exceeding CoinGecko rate limits (~30/min free tier).
 # 90s TTL keeps data fresh while reducing redundant API calls.
 _coins_list_cache = TTLCache()
@@ -294,26 +298,27 @@ def list_coins(
         except Exception:
             pass
 
-    # When no category filter: CoinGecko first, then CoinMarketCap (if configured), then DB
-    # CoinGecko free API limits to ~500 coins; CMC fallback covers pages 6-20
+    # When no category filter: For pages beyond CoinGecko limit (6+), use DB directly.
+    # CoinGecko free API returns at most ~500 coins (~5 pages). Pages 25-99 require DB.
     if cat_filter is None:
-        try:
-            cg_items = _fetch_coins_from_coingecko(page, limit)
-            if cg_items:
-                _coins_list_cache.set(cache_key, cg_items, COINS_LIST_CACHE_TTL)
-                return cg_items
-        except Exception:
-            pass
-
-        # Try CoinMarketCap fallback when CMC_API_KEY is set
-        if os.getenv("CMC_API_KEY", "").strip():
+        if page <= COINGECKO_MAX_PAGE:
             try:
-                cmc_items = _fetch_coins_from_coinmarketcap(page, limit)
-                if cmc_items:
-                    _coins_list_cache.set(cache_key, cmc_items, COINS_LIST_CACHE_TTL)
-                    return cmc_items
+                cg_items = _fetch_coins_from_coingecko(page, limit)
+                if cg_items:
+                    _coins_list_cache.set(cache_key, cg_items, COINS_LIST_CACHE_TTL)
+                    return cg_items
             except Exception:
                 pass
+
+            # Try CoinMarketCap fallback when CMC_API_KEY is set (pages 1-5 only)
+            if os.getenv("CMC_API_KEY", "").strip():
+                try:
+                    cmc_items = _fetch_coins_from_coinmarketcap(page, limit)
+                    if cmc_items:
+                        _coins_list_cache.set(cache_key, cmc_items, COINS_LIST_CACHE_TTL)
+                        return cmc_items
+                except Exception:
+                    pass
 
     q = db.query(Coin).order_by(Coin.market_cap.desc().nullslast())
     if cat_filter:
