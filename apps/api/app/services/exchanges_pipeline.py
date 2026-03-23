@@ -16,7 +16,6 @@ from app.models import Exchange
 logger = logging.getLogger(__name__)
 
 COINGECKO_EXCHANGES = "https://api.coingecko.com/api/v3/exchanges"
-COINGECKO_SIMPLE_PRICE = "https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd"
 
 # Affiliate mapping: exchange id/slug -> affiliate URL (override)
 # Add real codes when available; structure supports multiple links later
@@ -41,16 +40,14 @@ def _slug_from_name(name: str) -> str:
 
 
 def _get_btc_price_usd() -> float:
-    """Fetch BTC price in USD from CoinGecko simple price."""
-    try:
-        with httpx.Client(timeout=10.0) as client:
-            resp = client.get(COINGECKO_SIMPLE_PRICE)
-            resp.raise_for_status()
-            data = resp.json()
-            return float(data.get("bitcoin", {}).get("usd", 0) or 0)
-    except Exception as e:
-        logger.warning("BTC price fetch failed, using 100k: %s", e)
-        return 100_000.0
+    """Fetch BTC price: Coinbase → Binance.US → CoinGecko."""
+    from app.services.connectors.price_resolver import get_btc_price_usd
+
+    price = get_btc_price_usd()
+    if price and price > 0:
+        return price
+    logger.warning("BTC price fetch failed (all sources), using 100k")
+    return 100_000.0
 
 
 def _fetch_coingecko_exchanges() -> List[Dict[str, Any]]:

@@ -26,7 +26,6 @@ router = APIRouter(prefix="/api/v1/exchanges", tags=["exchanges"])
 EXCHANGES_CACHE_KEY = "exchanges_list"
 EXCHANGES_CACHE_TTL = 300  # 5 minutes
 COINGECKO_EXCHANGES = "https://api.coingecko.com/api/v3/exchanges"
-COINGECKO_SIMPLE_PRICE = "https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd"
 TOP_LIMIT = 100
 
 _REDIS_CLIENT = None
@@ -72,14 +71,14 @@ def _cache_set(data: List[Dict[str, Any]]) -> None:
 
 
 async def _get_btc_price_usd() -> float:
-    try:
-        async with httpx.AsyncClient(timeout=10.0) as client:
-            resp = await client.get(COINGECKO_SIMPLE_PRICE)
-            resp.raise_for_status()
-            data = resp.json()
-            return float(data.get("bitcoin", {}).get("usd", 0) or 0)
-    except Exception:
-        return 100_000.0
+    import asyncio
+
+    from app.services.connectors.price_resolver import get_btc_price_usd
+
+    price = await asyncio.to_thread(get_btc_price_usd)
+    if price and price > 0:
+        return price
+    return 100_000.0
 
 
 async def _fetch_from_coingecko() -> List[Dict[str, Any]]:

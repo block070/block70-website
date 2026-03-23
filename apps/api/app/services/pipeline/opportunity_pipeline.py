@@ -261,17 +261,10 @@ class OpportunityPipeline:
 
 
 def _get_sol_price_usd() -> Optional[float]:
-    try:
-        resp = requests.get(
-            "https://api.coingecko.com/api/v3/simple/price",
-            params={"ids": "solana", "vs_currencies": "usd"},
-            timeout=5,
-        )
-        resp.raise_for_status()
-        data = resp.json()
-        return float((data.get("solana") or {}).get("usd"))
-    except Exception:
-        return None
+    """SOL price: Coinbase → Binance.US → CoinGecko."""
+    from app.services.connectors.price_resolver import get_sol_price_usd
+
+    return get_sol_price_usd()
 
 
 def _upsert_wallet_profile(db: Session, *, wallet_address: str, last_activity) -> None:
