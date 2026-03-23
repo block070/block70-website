@@ -26,8 +26,8 @@ router = APIRouter(prefix="/api/v1/coins", tags=["coins"])
 
 
 COINS_PER_PAGE = 100
-TOTAL_COINS_PAGINATED = 2000
-TOTAL_PAGES = TOTAL_COINS_PAGINATED // COINS_PER_PAGE  # 20
+TOTAL_COINS_PAGINATED = 10000
+TOTAL_PAGES = TOTAL_COINS_PAGINATED // COINS_PER_PAGE  # 100
 
 # Cache coins list to avoid exceeding CoinGecko rate limits (~30/min free tier).
 # 90s TTL keeps data fresh while reducing redundant API calls.
@@ -405,6 +405,8 @@ def _enrich_coin_from_coingecko(coin: Coin, db: Session) -> tuple[Coin, list]:
         coin.volume_24h = md_data.get("volume_24h") or coin.volume_24h
         if coin_data.get("market_cap_rank") is not None and hasattr(coin, "market_cap_rank"):
             coin.market_cap_rank = coin_data.get("market_cap_rank")
+        if coin_data.get("category"):
+            coin.category = coin_data.get("category")
 
         latest = MarketDataPoint(
             timestamp=datetime.now(timezone.utc),

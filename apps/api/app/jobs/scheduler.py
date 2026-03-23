@@ -314,16 +314,17 @@ def _run_event_consumer_job() -> None:
 
 
 def _run_coin_sync_job() -> None:
-    """Synchronize core coin list from CoinGecko. Syncs 8 pages (2000 coins)."""
+    """Synchronize core coin list from CoinGecko. Syncs 40 pages (10000 coins)."""
 
     def _job(db: Session) -> None:
         import time
 
         pipeline = CoinSyncPipeline()
-        for page in range(1, 9):
+        pages = int(__import__("os").getenv("COIN_SYNC_PAGES", "40"))
+        for page in range(1, pages + 1):
             try:
                 pipeline.run(db, page=page)
-                if page < 8:
+                if page < pages:
                     time.sleep(2.0)
             except Exception:
                 break

@@ -47,10 +47,10 @@ def scan_wallets(db: Session = Depends(get_db)) -> List[OpportunityRead]:
 def bootstrap_coins(db: Session = Depends(get_db)) -> dict:
     """
     One-off sync of the Coin table from CoinGecko.
-    Fetches multiple pages (default 8 = 2000 coins) so pages 6-20 on /coins work.
-    Free API may only return first ~500 coins; Pro API returns full 2000.
+    Fetches multiple pages (default 40 = 10000 coins) by market cap.
+    Free API may return ~500; Pro API returns full 10000.
     """
-    pages = int(os.getenv("BOOTSTRAP_COINS_PAGES", "8"))
+    pages = int(os.getenv("BOOTSTRAP_COINS_PAGES", "40"))
     pipeline = CoinSyncPipeline(per_page=250)
     synced = 0
     for p in range(1, pages + 1):

@@ -235,12 +235,12 @@ def scan_arbitrage(db: Session = Depends(get_db)) -> List[OpportunityRead]:
 def bootstrap_coins(db: Session = Depends(get_db)) -> dict:
     """
     One-off sync of the Coin table from CoinGecko.
-    Fetches multiple pages (default 8 = 2000 coins) so pages 6-20 on /coins work.
-    Free API may only return first ~500 coins; Pro API returns full 2000.
+    Fetches multiple pages (default 40 = 10000 coins by market cap).
+    Free API may return ~500; Pro API returns full 10000.
     Call this after starting the API with a fresh DB.
     """
     import time
-    pages = int(os.getenv("BOOTSTRAP_COINS_PAGES", "8"))
+    pages = int(os.getenv("BOOTSTRAP_COINS_PAGES", "40"))
     pipeline = CoinSyncPipeline(per_page=250)
     synced = 0
     for p in range(1, pages + 1):
@@ -291,11 +291,11 @@ def bootstrap_market_data(db: Session = Depends(get_db)) -> dict:
 @app.post("/bootstrap/all-coins")
 def bootstrap_all_coins(db: Session = Depends(get_db)) -> dict:
     """
-    Update ALL 2,000 coin pages with price, 24h, 7d, market cap, volume, description, links.
+    Update ALL 10,000 coin pages with price, 24h, 7d, market cap, volume, description, category, links.
     Run this to fully populate/refresh every coin. Steps:
-    1) Sync all coins from /coins/markets (price, 24h, 7d, market cap, volume) + insert MarketData
-    2) Backfill descriptions + links for coins missing them
-    Takes ~90+ min due to CoinGecko rate limits. Use BOOTSTRAP_PAGES and BOOTSTRAP_DESC_LIMIT to test.
+    1) Sync 40 pages (10,000 coins) from /coins/markets (price, market cap, volume, 24h/7d change) + insert MarketData
+    2) Backfill descriptions, categories, and links for coins missing them (fetches /coins/{id} per coin)
+    Takes ~7+ hours due to CoinGecko rate limits (2.5s/coin for 10k). Use BOOTSTRAP_PAGES and BOOTSTRAP_DESC_LIMIT to test.
     """
     import time
 
@@ -304,7 +304,7 @@ def bootstrap_all_coins(db: Session = Depends(get_db)) -> dict:
         DescriptionBackfillPipeline,
     )
 
-    pages = int(os.getenv("BOOTSTRAP_PAGES", "8"))
+    pages = int(os.getenv("BOOTSTRAP_PAGES", "40"))
     desc_limit = os.getenv("BOOTSTRAP_DESC_LIMIT", "")
     desc_limit_int = int(desc_limit) if desc_limit.isdigit() and int(desc_limit) > 0 else None
 
@@ -379,7 +379,7 @@ def bootstrap_charts() -> dict:
 @app.post("/bootstrap/descriptions")
 def bootstrap_descriptions(db: Session = Depends(get_db)) -> dict:
     """
-    Backfill project descriptions for all 2000 coins from CoinGecko.
+    Backfill project descriptions and categories for all 10000 coins from CoinGecko.
     Fetches slugs from /coins/markets, then details for coins missing descriptions.
     Throttled (~2.5s/coin); takes ~90 min for full run. Set BOOTSTRAP_DESC_LIMIT=N for testing.
     """

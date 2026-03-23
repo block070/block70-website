@@ -198,8 +198,8 @@ export async function getCoinChartData(
 }
 
 export const COINS_PER_PAGE = 100;
-export const TOTAL_COINS_PAGINATED = 2000;
-export const TOTAL_PAGES = TOTAL_COINS_PAGINATED / COINS_PER_PAGE; // 20
+export const TOTAL_COINS_PAGINATED = 10000;
+export const TOTAL_PAGES = TOTAL_COINS_PAGINATED / COINS_PER_PAGE; // 100
 
 export async function getCoinsList(params?: {
   category?: string;
