@@ -6,6 +6,37 @@ import { chartColors } from "@/components/ui/charts/chart-styles";
 import { clsx } from "clsx";
 
 export type ChartRange = "24H" | "7D" | "1M" | "3M" | "1Y" | "YTD" | "Max";
+export type ChartView = "line" | "candlestick";
+
+/** Derive OHLC from [timestamp, close][] by grouping into buckets. */
+function deriveOHLC(
+  points: ChartPricePoint[],
+  range: ChartRange
+): { ts: number; o: number; h: number; l: number; c: number }[] {
+  if (!points.length) return [];
+  const bucketMs =
+    range === "24H"
+      ? 60 * 60 * 1000 // 1h
+      : range === "7D" || range === "1M"
+        ? 24 * 60 * 60 * 1000 // 1d
+        : 24 * 60 * 60 * 1000; // 1d for 3M, 1Y, YTD, Max
+  const buckets = new Map<number, number[]>();
+  for (const [ts, price] of points) {
+    const key = Math.floor(ts / bucketMs) * bucketMs;
+    const arr = buckets.get(key) ?? [];
+    arr.push(price);
+    buckets.set(key, arr);
+  }
+  return Array.from(buckets.entries())
+    .sort((a, b) => a[0] - b[0])
+    .map(([ts, prices]) => ({
+      ts,
+      o: prices[0]!,
+      h: Math.max(...prices),
+      l: Math.min(...prices),
+      c: prices[prices.length - 1]!,
+    }));
+}
 
 const RANGES: { key: ChartRange; label: string; days: number }[] = [
   { key: "24H", label: "24H", days: 1 },
@@ -45,6 +76,7 @@ type Props = {
 
 export function CoinPriceChart({ slug, className }: Props) {
   const [range, setRange] = useState<ChartRange>("7D");
+  const [view, setView] = useState<ChartView>("line");
   const [points, setPoints] = useState<ChartPricePoint[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -84,8 +116,15 @@ export function CoinPriceChart({ slug, className }: Props) {
   }
 
   const prices = points.map((p) => p[1]);
-  const minPrice = Math.min(...prices) || 0;
-  const maxPrice = Math.max(...prices) || 1;
+  const ohlc = deriveOHLC(points, range);
+  const minPrice =
+    view === "candlestick" && ohlc.length
+      ? Math.min(...ohlc.map((c) => c.l))
+      : Math.min(...prices) || 0;
+  const maxPrice =
+    view === "candlestick" && ohlc.length
+      ? Math.max(...ohlc.map((c) => c.h))
+      : Math.max(...prices) || 1;
   const rangeVal = maxPrice - minPrice || 1;
   const padding = { top: 24, right: 58, bottom: 32, left: 16 };
   const width = 600;
@@ -102,6 +141,34 @@ export function CoinPriceChart({ slug, className }: Props) {
   const areaD = `${pathD} L ${padding.left + chartW},${padding.top + chartH} L ${padding.left},${padding.top + chartH} Z`;
   const isUp = prices[prices.length - 1] >= prices[0];
 
+  /** Candlestick bars: x, bodyTop, bodyBottom, bodyHeight, wickHigh, wickLow, isUp, halfW */
+  const barCount = ohlc.length;
+  const barHalfW = barCount > 0 ? Math.max(2, Math.min(4, chartW / barCount / 2 - 1)) : 4;
+  const candles =
+    view === "candlestick" && barCount > 0
+      ? ohlc.map((c, i) => {
+          const x =
+            barCount === 1
+              ? padding.left + chartW / 2
+              : padding.left + (i / (barCount - 1)) * chartW;
+          const bodyTop = padding.top + chartH - ((Math.max(c.o, c.c) - minPrice) / rangeVal) * chartH;
+          const bodyBottom = padding.top + chartH - ((Math.min(c.o, c.c) - minPrice) / rangeVal) * chartH;
+          const wickHigh = padding.top + chartH - ((c.h - minPrice) / rangeVal) * chartH;
+          const wickLow = padding.top + chartH - ((c.l - minPrice) / rangeVal) * chartH;
+          const bodyHeight = Math.max(1, Math.abs(bodyBottom - bodyTop));
+          return {
+            x,
+            bodyTop,
+            bodyBottom,
+            bodyHeight,
+            wickHigh,
+            wickLow,
+            candleUp: c.c >= c.o,
+            halfW: barHalfW,
+          };
+        })
+      : [];
+
   const yTicks = 5;
   const yLabels = Array.from({ length: yTicks + 1 }, (_, i) => {
     const v = minPrice + (rangeVal * i) / yTicks;
@@ -109,11 +176,18 @@ export function CoinPriceChart({ slug, className }: Props) {
   });
 
   const xTicks = 4;
+  const sourceForX = view === "candlestick" && ohlc.length ? ohlc : points;
   const xLabels = Array.from({ length: xTicks + 1 }, (_, i) => {
-    const idx = Math.floor((i / xTicks) * (points.length - 1));
-    const p = points[Math.min(idx, points.length - 1)];
-    return p ? { ts: p[0], x: padding.left + (i / xTicks) * chartW } : null;
-  }).filter(Boolean) as { ts: number; x: number }[];
+    const idx = Math.min(
+      Math.floor((i / xTicks) * Math.max(0, sourceForX.length - 1)),
+      sourceForX.length - 1
+    );
+    const item = sourceForX[idx];
+    const ts = item
+      ? (Array.isArray(item) ? item[0] : (item as { ts: number }).ts)
+      : 0;
+    return { ts, x: padding.left + (i / xTicks) * chartW };
+  });
 
   const gradientId = `coin-chart-grad-${slug}-${range}`;
 
@@ -121,22 +195,50 @@ export function CoinPriceChart({ slug, className }: Props) {
     <section className={clsx("space-y-4 rounded-xl border border-slate-800 bg-slate-900/60 p-5", className)}>
       <div className="flex flex-wrap items-center justify-between gap-3">
         <p className="text-sm font-semibold uppercase tracking-wide text-slate-300">Price chart</p>
-        <div className="flex flex-wrap gap-1.5">
-          {RANGES.map((r) => (
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="flex rounded-full border border-slate-700 bg-slate-800/60 p-0.5">
             <button
-              key={r.key}
               type="button"
-              onClick={() => setRange(r.key)}
+              onClick={() => setView("line")}
               className={clsx(
-                "rounded-full px-3 py-1.5 text-xs font-semibold transition-all",
-                range === r.key
-                  ? "bg-white/95 text-slate-900 shadow-sm dark:bg-slate-100 dark:text-slate-900"
-                  : "text-slate-500 hover:bg-slate-700/60 hover:text-slate-200"
+                "rounded-full px-2.5 py-1 text-xs font-semibold transition-all",
+                view === "line"
+                  ? "bg-slate-600 text-white"
+                  : "text-slate-500 hover:text-slate-200"
               )}
             >
-              {r.label}
+              Line
             </button>
-          ))}
+            <button
+              type="button"
+              onClick={() => setView("candlestick")}
+              className={clsx(
+                "rounded-full px-2.5 py-1 text-xs font-semibold transition-all",
+                view === "candlestick"
+                  ? "bg-slate-600 text-white"
+                  : "text-slate-500 hover:text-slate-200"
+              )}
+            >
+              Candles
+            </button>
+          </div>
+          <div className="flex flex-wrap gap-1.5">
+            {RANGES.map((r) => (
+              <button
+                key={r.key}
+                type="button"
+                onClick={() => setRange(r.key)}
+                className={clsx(
+                  "rounded-full px-3 py-1.5 text-xs font-semibold transition-all",
+                  range === r.key
+                    ? "bg-white/95 text-slate-900 shadow-sm dark:bg-slate-100 dark:text-slate-900"
+                    : "text-slate-500 hover:bg-slate-700/60 hover:text-slate-200"
+                )}
+              >
+                {r.label}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
 
@@ -194,16 +296,42 @@ export function CoinPriceChart({ slug, className }: Props) {
                 {formatTime(l.ts, range)}
               </text>
             ))}
-            <path d={areaD} fill={`url(#${gradientId})`} opacity={0.3} />
-            <path
-              d={pathD}
-              fill="none"
-              stroke={isUp ? chartColors.up : chartColors.down}
-              strokeWidth={2.5}
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              vectorEffect="non-scaling-stroke"
-            />
+            {view === "line" && (
+              <>
+                <path d={areaD} fill={`url(#${gradientId})`} opacity={0.3} />
+                <path
+                  d={pathD}
+                  fill="none"
+                  stroke={isUp ? chartColors.up : chartColors.down}
+                  strokeWidth={2.5}
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  vectorEffect="non-scaling-stroke"
+                />
+              </>
+            )}
+            {view === "candlestick" &&
+              candles.map((candle, i) => (
+                <g key={i}>
+                  <line
+                    x1={candle.x}
+                    y1={candle.wickHigh}
+                    x2={candle.x}
+                    y2={candle.wickLow}
+                    stroke={candle.candleUp ? chartColors.up : chartColors.down}
+                    strokeWidth={1}
+                    vectorEffect="non-scaling-stroke"
+                  />
+                  <rect
+                    x={candle.x - candle.halfW}
+                    y={candle.bodyTop}
+                    width={candle.halfW * 2}
+                    height={candle.bodyHeight}
+                    fill={candle.candleUp ? chartColors.up : chartColors.down}
+                    stroke="none"
+                  />
+                </g>
+              ))}
           </svg>
         </div>
       )}
