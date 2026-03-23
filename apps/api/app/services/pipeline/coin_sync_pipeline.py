@@ -1,30 +1,79 @@
 from __future__ import annotations
 
+import logging
+import os
 from typing import Any, Dict, List
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.models import Coin, MarketData
-from app.services.connectors.coingecko_connector import fetch_all_coins
+
+logger = logging.getLogger(__name__)
 
 
 class CoinSyncPipeline:
     """
-    Pipeline to synchronize the Coin table from CoinGecko.
+    Pipeline to synchronize the Coin table from CoinGecko or CoinMarketCap.
 
-    This is intended to run periodically (e.g. every 30 minutes) to:
-    1) Fetch a page of coins
-    2) Insert new Coin records
-    3) Update existing coins' static + snapshot fields
+    Tries CoinGecko first. On rate limit or failure, falls back to CoinMarketCap
+    when CMC_API_KEY is set. Use CMC when CoinGecko rate limit is exceeded.
     """
 
     def __init__(self, vs_currency: str = "usd", per_page: int = 250) -> None:
         self.vs_currency = vs_currency
         self.per_page = per_page
 
+    def _fetch_page(self, page: int) -> List[Dict[str, Any]]:
+        """Fetch a page of coins. Tries CoinGecko first, falls back to CMC on rate limit/failure."""
+        prefer_cmc = os.getenv("BOOTSTRAP_SOURCE", "").lower() == "coinmarketcap"
+        cmc_key = os.getenv("CMC_API_KEY", "").strip()
+
+        # Try CMC first when BOOTSTRAP_SOURCE=coinmarketcap and CMC_API_KEY is set
+        if prefer_cmc and cmc_key:
+            try:
+                from app.services.connectors.coinmarketcap_connector import (
+                    fetch_listings_latest,
+                )
+
+                start = (page - 1) * self.per_page + 1
+                coins = fetch_listings_latest(start=start, limit=self.per_page)
+                if coins:
+                    return coins
+            except Exception as e:
+                logger.warning("CMC fetch failed for page %s: %s", page, e)
+            return []
+
+        # CoinGecko first
+        try:
+            from app.services.connectors.coingecko_connector import fetch_all_coins
+
+            coins = fetch_all_coins(
+                vs_currency=self.vs_currency, per_page=self.per_page, page=page
+            )
+            if coins:
+                return coins
+        except Exception as e:
+            logger.warning("CoinGecko fetch failed for page %s: %s", page, e)
+
+        # Fallback to CoinMarketCap when CMC_API_KEY is set
+        if cmc_key:
+            try:
+                from app.services.connectors.coinmarketcap_connector import (
+                    fetch_listings_latest,
+                )
+
+                start = (page - 1) * self.per_page + 1
+                coins = fetch_listings_latest(start=start, limit=self.per_page)
+                if coins:
+                    return coins
+            except Exception as e:
+                logger.warning("CMC fetch failed for page %s: %s", page, e)
+
+        return []
+
     def run(self, db: Session, page: int = 1) -> None:
-        coins = fetch_all_coins(vs_currency=self.vs_currency, per_page=self.per_page, page=page)
+        coins = self._fetch_page(page)
         if not coins:
             return
 
