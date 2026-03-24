@@ -23,15 +23,97 @@ export type EnrichedCoinRow = {
   volume24hUsd: number;
   block70Score: number;
   trendLabel: TrendLabel;
+  /** Human-readable sector / category when known */
+  categoryLabel?: string | null;
+};
+
+export type OpportunityLabel = "Buy" | "Hold" | "Risky";
+
+export type OpportunityCard = EnrichedCoinRow & {
+  label: OpportunityLabel;
+};
+
+export type DataSnapshot = {
+  marketTrend: "Bull" | "Bear" | "Neutral";
+  volumeTrend: "Rising" | "Falling" | "Stable";
+  topSector: string;
 };
 
 export type StructuredAnswer = {
+  /** 2–3 sentences max for TLDR */
   summary: string;
+  /** Short bold line (key takeaway) */
+  boldTakeaway: string;
   insights: string[];
   recommendation: "Buy" | "Hold" | "Avoid";
+  /** Buy / Wait / Avoid for primary CTA copy */
+  bestAction: "Buy" | "Wait" | "Avoid";
   block70SignalLine: string;
   whaleNote: string | null;
+  opportunities: OpportunityCard[];
+  dataSnapshot: DataSnapshot;
+  whyReasons: { sources: string[]; indicators: string[] };
 };
+
+function opportunityLabel(score: number): OpportunityLabel {
+  if (score >= 62) return "Buy";
+  if (score >= 38) return "Hold";
+  return "Risky";
+}
+
+export function rowsToOpportunities(rows: EnrichedCoinRow[], max = 5): OpportunityCard[] {
+  return rows.slice(0, max).map((r) => ({
+    ...r,
+    label: opportunityLabel(r.block70Score),
+  }));
+}
+
+/** Dedupe by slug; first wins (instant matches stay on top). */
+export function mergeUniqueBySlug(rows: EnrichedCoinRow[]): EnrichedCoinRow[] {
+  const seen = new Set<string>();
+  return rows.filter((r) => {
+    if (!r.slug || seen.has(r.slug)) return false;
+    seen.add(r.slug);
+    return true;
+  });
+}
+
+function slugFromHref(href: string): string | null {
+  const m = href.match(/\/coins\/([^/?#]+)/);
+  return m ? decodeURIComponent(m[1]) : null;
+}
+
+/** Resolve slug from /coins/… search hits into enriched rows (for instant top 3). */
+export async function enrichSearchHitsToRows(cards: InstantCoinCard[]): Promise<EnrichedCoinRow[]> {
+  const out: EnrichedCoinRow[] = [];
+  for (const c of cards) {
+    const slug = c.href ? slugFromHref(c.href) : null;
+    if (!slug) continue;
+    try {
+      const detail = await getCoinBySlug(slug);
+      const md = detail.market_data?.[0];
+      const coin: Coin = {
+        id: String(detail.coin.id),
+        slug: detail.coin.slug,
+        symbol: detail.coin.symbol,
+        name: detail.coin.name,
+        priceUsd: detail.coin.price ?? md?.price ?? 0,
+        marketCapUsd: detail.coin.market_cap ?? md?.market_cap ?? 0,
+        volume24hUsd: detail.coin.volume_24h ?? md?.volume_24h ?? 0,
+        change24hPct: md?.price_change_24h ?? Number.NaN,
+        change7dPct: md?.price_change_7d ?? Number.NaN,
+        rank: detail.coin.market_cap_rank ?? 0,
+        categoryIds: detail.coin.category ? [detail.coin.category] : [],
+        chainIds: detail.coin.chain ? [detail.coin.chain] : [],
+        logoUrl: detail.coin.logo_url ?? undefined,
+      };
+      out.push(coinToModel(coin, detail.coin.category ?? null));
+    } catch {
+      /* skip */
+    }
+  }
+  return out;
+}
 
 /** Fetch top search hits for instant cards (same-origin). */
 export async function fetchInstantCoinCards(query: string, limit = 6): Promise<InstantCoinCard[]> {
@@ -51,12 +133,7 @@ export async function fetchInstantCoinCards(query: string, limit = 6): Promise<I
   }
 }
 
-function slugFromHref(href: string): string | null {
-  const m = href.match(/\/coins\/([^/?#]+)/);
-  return m ? decodeURIComponent(m[1]) : null;
-}
-
-function coinToModel(c: Coin): EnrichedCoinRow {
+function coinToModel(c: Coin, categoryLabel?: string | null): EnrichedCoinRow {
   const block70Score = computeBlock70Score(c);
   const p24 = typeof c.change24hPct === "number" && Number.isFinite(c.change24hPct) ? c.change24hPct : 0;
   const p7 = typeof c.change7dPct === "number" && Number.isFinite(c.change7dPct) ? c.change7dPct : 0;
@@ -70,6 +147,7 @@ function coinToModel(c: Coin): EnrichedCoinRow {
     volume24hUsd: c.volume24hUsd,
     block70Score,
     trendLabel: trendFromMomentum(p24, p7),
+    categoryLabel: categoryLabel ?? null,
   };
 }
 
@@ -100,7 +178,7 @@ async function resolveCoinBySymbol(symbol: string): Promise<EnrichedCoinRow | nu
       chainIds: detail.coin.chain ? [detail.coin.chain] : [],
       logoUrl: detail.coin.logo_url ?? undefined,
     };
-    return coinToModel(coin);
+    return coinToModel(coin, detail.coin.category ?? null);
   } catch {
     return null;
   }
@@ -121,6 +199,54 @@ function signalLabelFromScore(score: number): string {
   return "Avoid";
 }
 
+function buildDataSnapshot(rows: EnrichedCoinRow[]): DataSnapshot {
+  if (rows.length === 0) {
+    return {
+      marketTrend: "Neutral",
+      volumeTrend: "Stable",
+      topSector: "Mixed / multi-sector",
+    };
+  }
+  let bulls = 0;
+  let bears = 0;
+  let chgSum = 0;
+  for (const r of rows) {
+    if (r.trendLabel === "Bull") bulls += 1;
+    else if (r.trendLabel === "Bear") bears += 1;
+    chgSum += r.change24hPct;
+  }
+  const avgChg = chgSum / rows.length;
+  let marketTrend: DataSnapshot["marketTrend"] = "Neutral";
+  if (bulls > bears + 1) marketTrend = "Bull";
+  else if (bears > bulls + 1) marketTrend = "Bear";
+
+  let volumeTrend: DataSnapshot["volumeTrend"] = "Stable";
+  if (avgChg > 1.2) volumeTrend = "Rising";
+  else if (avgChg < -1.2) volumeTrend = "Falling";
+
+  const sector =
+    rows.map((r) => r.categoryLabel).find((s) => s && s.trim()) ?? "Mixed / multi-sector";
+
+  return { marketTrend, volumeTrend, topSector: sector };
+}
+
+function buildWhyReasons(result: AISearchResult): { sources: string[]; indicators: string[] } {
+  const sources: string[] = [];
+  if (result.related_signals?.length) sources.push("Live signals feed");
+  if (result.related_radar?.length) sources.push("Radar: volume & unusual activity");
+  if (result.related_opportunities?.length) sources.push("Opportunity scanner");
+  if (result.related_insights?.length) sources.push("AI insights index");
+  sources.push("Coin market data & Block70 composite scores");
+
+  const indicators = [
+    "Block70 score (0–100) from momentum + liquidity",
+    "24h & 7d price momentum",
+    "Volume vs market cap (liquidity context)",
+    "Platform confidence from breadth of matching data",
+  ];
+  return { sources: [...new Set(sources)], indicators };
+}
+
 export function buildStructuredAnswer(
   result: AISearchResult,
   enriched: EnrichedCoinRow[]
@@ -130,32 +256,44 @@ export function buildStructuredAnswer(
     .split(/(?<=[.!?])\s+/)
     .map((s) => s.trim())
     .filter(Boolean);
+  const summaryBody = sentences.slice(0, 3).join(" ");
   const summary =
-    sentences[0] ||
-    text.slice(0, 220) ||
-    "Block70 synthesized platform data for your question.";
-  let insightParts = sentences.slice(1, 6);
-  if (insightParts.length < 2 && text.length > 80) {
+    summaryBody ||
+    text.slice(0, 280) ||
+    "Block70 synthesized platform data for your question. Use the cards below for actionable context.";
+  const boldTakeaway =
+    sentences[0]?.slice(0, 220) ||
+    summary.slice(0, 140) ||
+    "Focus on score, liquidity, and your own risk limits before sizing any position.";
+
+  let insightParts = sentences.slice(1, 8);
+  if (insightParts.length < 3 && text.length > 80) {
     insightParts = [
       ...insightParts,
       ...text
         .split(/[.;]/)
         .map((s) => s.trim())
-        .filter((s) => s.length > 20)
-        .slice(0, 4),
+        .filter((s) => s.length > 15)
+        .slice(0, 5),
     ];
   }
   const uniqInsights = [...new Set(insightParts)].slice(0, 5);
 
+  const merged = mergeUniqueBySlug(enriched);
+  const opportunities = rowsToOpportunities(merged, 5);
+
   const avgScore =
-    enriched.length > 0
-      ? enriched.reduce((s, r) => s + r.block70Score, 0) / enriched.length
+    merged.length > 0
+      ? merged.reduce((s, r) => s + r.block70Score, 0) / merged.length
       : 50 * result.confidence_score + 25;
   const scoreRounded = Math.round(Math.min(100, Math.max(0, avgScore)));
 
   let recommendation: "Buy" | "Hold" | "Avoid" = "Hold";
   if (result.confidence_score >= 0.55 && scoreRounded >= 58) recommendation = "Buy";
   else if (result.confidence_score < 0.35 || scoreRounded < 32) recommendation = "Avoid";
+
+  const bestAction: StructuredAnswer["bestAction"] =
+    recommendation === "Buy" ? "Buy" : recommendation === "Avoid" ? "Avoid" : "Wait";
 
   const block70SignalLine = `Block70 Signal: ${signalLabelFromScore(scoreRounded)} (Score: ${scoreRounded})`;
 
@@ -169,10 +307,15 @@ export function buildStructuredAnswer(
 
   return {
     summary,
+    boldTakeaway,
     insights: uniqInsights,
     recommendation,
+    bestAction,
     block70SignalLine,
     whaleNote,
+    opportunities,
+    dataSnapshot: buildDataSnapshot(merged),
+    whyReasons: buildWhyReasons(result),
   };
 }
 
@@ -182,6 +325,18 @@ export function recommendationBadgeClass(
   if (r === "Buy") return "border-emerald-500/50 bg-emerald-500/15 text-emerald-200";
   if (r === "Avoid") return "border-red-500/45 bg-red-500/10 text-red-200";
   return "border-amber-500/40 bg-amber-500/10 text-amber-100";
+}
+
+export function bestActionBadgeClass(a: StructuredAnswer["bestAction"]): string {
+  if (a === "Buy") return "border-emerald-500/50 bg-emerald-500/20 text-emerald-100";
+  if (a === "Avoid") return "border-red-500/45 bg-red-500/15 text-red-100";
+  return "border-sky-500/40 bg-sky-950/40 text-sky-100";
+}
+
+export function opportunityLabelBadgeClass(label: OpportunityLabel): string {
+  if (label === "Buy") return "bg-emerald-500/20 text-emerald-200 ring-1 ring-emerald-500/35";
+  if (label === "Hold") return "bg-amber-500/15 text-amber-100 ring-1 ring-amber-500/30";
+  return "bg-rose-500/15 text-rose-200 ring-1 ring-rose-500/35";
 }
 
 export function formatCoinDataRow(r: EnrichedCoinRow): string {
@@ -205,9 +360,7 @@ export async function streamTextChunks(
 }
 
 export const FOLLOW_UP_SUGGESTIONS = [
-  "Should I buy this now?",
-  "What are similar coins?",
-  "What's the risk level?",
-  "Show me the latest signals for this narrative.",
-  "What is moving volume today?",
+  "Which one is safest?",
+  "Which has the highest ROI?",
+  "What are the risks?",
 ] as const;

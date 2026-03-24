@@ -1,9 +1,9 @@
 import { AISearchChat } from "@/components/ai/ai-search-chat";
 
 export const metadata = {
-  title: "AI Crypto Search · Block70",
+  title: "AI Crypto Assistant · Block70",
   description:
-    "Chat with Block70: streaming answers, Block70 scores, live coin data, and curated trade links. Not financial advice.",
+    "Structured crypto guidance: opportunities, Block70 scores, data snapshot, and clear next steps. Not financial advice.",
 };
 
 export default function AISearchPage() {
