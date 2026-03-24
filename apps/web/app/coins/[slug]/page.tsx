@@ -2,16 +2,28 @@ import Link from "next/link";
 
 import { PriceChart } from "@/components/charts/price-chart";
 import { CoinDescription } from "@/components/coins/coin-description";
+import { CoinFaqJsonLd } from "@/components/coins/coin-faq-json-ld";
+import { CoinHeroConversion } from "@/components/coins/coin-hero-conversion";
 import { CoinIntelligence } from "@/components/coins/coin-intelligence";
+import { CoinInvestmentAnalysis } from "@/components/coins/coin-investment-analysis";
 import { CoinLinks } from "@/components/coins/coin-links";
 import { CoinOpportunities } from "@/components/coins/coin-opportunities";
-import { CoinPriceHeader } from "@/components/coins/coin-price-header";
-import { CoinStats } from "@/components/coins/coin-stats";
+import { CoinWhaleActivity } from "@/components/coins/coin-whale-activity";
+import { RelatedCoins } from "@/components/coins/related-coins";
+import { RoiCalculator } from "@/components/coins/roi-calculator";
 import { SignalCard } from "@/components/signals/signal-card";
 import { SentimentPanel } from "@/components/sentiment/sentiment-panel";
 import { AISentimentSummary } from "@/components/sentiment/ai-sentiment-summary";
 import type { Coin } from "@/lib/crypto-mock";
-import { getCoinBySlugOrMock, getStubCoinDetail, type CoinInfoDto, type MarketDataPointDto } from "@/lib/coins";
+import { investmentLabelFromScore } from "@/lib/coin-signal-label";
+import {
+  getCoinBySlugOrMock,
+  getCoinsList,
+  getStubCoinDetail,
+  type CoinInfoDto,
+  type MarketDataPointDto,
+} from "@/lib/coins";
+import { computeBlock70Score } from "@/lib/coins-scanner";
 import { getNewsForCoin, getSignalsForToken } from "@/lib/api";
 import { getSentiment } from "@/lib/sentiment-api";
 import { withTimeout } from "@/lib/with-timeout";
@@ -42,9 +54,14 @@ export async function generateMetadata({ params }: { params: Params }) {
   try {
     const data = await getCoinBySlugOrMock(params.slug);
     const coin = data.coin;
+    const sym = coin.symbol.toUpperCase();
     return {
-      title: `${coin.name} (${coin.symbol}) · Block70 Crypto Data`,
-      description: `Live Block70 intelligence surface for ${coin.name}, including price, narratives, news, and Block70 signals.`,
+      title: `${coin.name} (${sym}) Price, Score & Chart · Block70`,
+      description: `Live ${coin.name} (${sym}) USD price, Block70 score, interactive chart, ROI calculator, and market context. Not financial advice.`,
+      openGraph: {
+        title: `${coin.name} (${sym}) · Block70`,
+        description: `Price, Block70 score, and tools for ${coin.name} (${sym}).`,
+      },
     };
   } catch {
     return {};
@@ -57,10 +74,7 @@ export default async function CoinDetailPage({ params }: { params: Params }) {
   const slug = params.slug;
   let data;
   try {
-    data = await withTimeout(
-      getCoinBySlugOrMock(slug),
-      COIN_FETCH_TIMEOUT_MS
-    );
+    data = await withTimeout(getCoinBySlugOrMock(slug), COIN_FETCH_TIMEOUT_MS);
   } catch {
     data = getStubCoinDetail(slug);
   }
@@ -70,26 +84,60 @@ export default async function CoinDetailPage({ params }: { params: Params }) {
 
   const coinForHeader: Coin = coinToHeaderShape(coin, series[0]);
   const symbol = coin.symbol.toUpperCase();
+  const block70Score = computeBlock70Score(coinForHeader);
+  const investmentLabel = investmentLabelFromScore(block70Score);
 
   const FETCH_TIMEOUT_MS = 5_000;
-  const [signalsRes, newsRes, sentimentRes] = await Promise.allSettled([
+  const [signalsRes, newsRes, sentimentRes, relatedRes] = await Promise.allSettled([
     withTimeout(getSignalsForToken(symbol, { limit: 5 }), FETCH_TIMEOUT_MS, []),
     withTimeout(getNewsForCoin(symbol, { limit: 10 }), FETCH_TIMEOUT_MS, []),
     withTimeout(getSentiment(symbol), FETCH_TIMEOUT_MS).catch(() => null),
+    withTimeout(getCoinsList({ limit: 16, page: 1 }), FETCH_TIMEOUT_MS, []),
   ]);
   const signals = signalsRes.status === "fulfilled" ? signalsRes.value : [];
   const coinNews = newsRes.status === "fulfilled" ? newsRes.value : [];
   const sentiment = sentimentRes.status === "fulfilled" ? sentimentRes.value : null;
+  const relatedCoins = relatedRes.status === "fulfilled" ? relatedRes.value : [];
 
   const renderedNews = coinNews.length > 0 ? coinNews : fallbackNews;
 
   return (
     <div className="space-y-6">
-      <CoinPriceHeader coin={coinForHeader} />
+      <CoinFaqJsonLd name={coin.name} symbol={symbol} slug={coin.slug} />
+
+      <CoinHeroConversion
+        coin={coinForHeader}
+        block70Score={block70Score}
+        investmentLabel={investmentLabel}
+      />
+
+      <section className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
+        <div className="space-y-4 min-w-0">
+          <PriceChart symbol={symbol} slug={coin.slug} height={420} />
+          <CoinWhaleActivity name={coin.name} symbol={symbol} />
+        </div>
+        <div className="space-y-4">
+          <RoiCalculator symbol={symbol} currentPriceUsd={coinForHeader.priceUsd} />
+          <RelatedCoins items={relatedCoins} currentSlug={coin.slug} />
+        </div>
+      </section>
+
+      <CoinInvestmentAnalysis
+        name={coin.name}
+        symbol={symbol}
+        slug={coin.slug}
+        category={coin.category}
+        priceUsd={coinForHeader.priceUsd}
+        marketCapUsd={coinForHeader.marketCapUsd}
+        volume24hUsd={coinForHeader.volume24hUsd}
+        change24hPct={coinForHeader.change24hPct}
+        change7dPct={coinForHeader.change7dPct}
+        block70Score={block70Score}
+        investmentLabel={investmentLabel}
+      />
 
       <section className="grid gap-4 md:grid-cols-[2fr,1fr]">
         <div className="space-y-4">
-          <PriceChart symbol={symbol} slug={coin.slug} />
           <section className="space-y-2 rounded-xl border border-slate-800 bg-slate-900/60 p-4 text-xs">
             <p className="text-[11px] uppercase tracking-wide text-slate-400">
               Related news
@@ -110,29 +158,19 @@ export default async function CoinDetailPage({ params }: { params: Params }) {
                       {article.source}
                       {"rank_explanation" in article && article.rank_explanation
                         ? " · Ranked for coin relevance"
-                        : ""}
-                      {" "}
+                        : ""}{" "}
                       {article.published_at
-                        ? `· ${new Date(
-                            article.published_at,
-                          ).toLocaleString()}`
+                        ? `· ${new Date(article.published_at).toLocaleString()}`
                         : ""}
                     </p>
                   </li>
                 ))}
               </ul>
             ) : (
-              <p className="text-[11px] text-slate-500">
-                No recent news articles found.
-              </p>
+              <p className="text-[11px] text-slate-500">No recent news articles found.</p>
             )}
           </section>
-        </div>
-        <CoinStats coin={coinForHeader} />
-      </section>
 
-      <section className="grid gap-4 md:grid-cols-[2fr,1fr]">
-        <div className="space-y-4">
           <CoinOpportunities symbol={symbol} opportunities={[]} />
 
           <section className="space-y-3 rounded-xl border border-slate-800 bg-slate-900/60 p-4 text-xs">
@@ -154,9 +192,7 @@ export default async function CoinDetailPage({ params }: { params: Params }) {
                 ))}
               </div>
             ) : (
-              <p className="text-[11px] text-slate-500">
-                No signals yet for {symbol}.
-              </p>
+              <p className="text-[11px] text-slate-500">No signals yet for {symbol}.</p>
             )}
           </section>
 
@@ -167,23 +203,8 @@ export default async function CoinDetailPage({ params }: { params: Params }) {
             View community discussion →
           </Link>
 
-          <section className="space-y-2 rounded-xl border border-slate-800 bg-slate-900/60 p-4 text-xs">
-            <p className="text-[11px] uppercase tracking-wide text-slate-400">
-              Whale trades
-            </p>
-            <p className="text-[11px] text-slate-500">
-              Large trades for {symbol} from the wallet tracker appear in{" "}
-              <Link href="/wallets/smart-money" className="text-blue-400 hover:underline">
-                Smart money
-              </Link>
-              .
-            </p>
-          </section>
-
           <section className="space-y-3 rounded-xl border border-slate-800 bg-slate-900/60 p-4 text-xs">
-            <p className="text-[11px] uppercase tracking-wide text-slate-400">
-              Narratives
-            </p>
+            <p className="text-[11px] uppercase tracking-wide text-slate-400">Narratives</p>
             {narratives.length ? (
               <ul className="space-y-1.5">
                 {narratives.map((narrative) => (
@@ -192,13 +213,9 @@ export default async function CoinDetailPage({ params }: { params: Params }) {
                     className="flex items-start justify-between gap-2"
                   >
                     <div>
-                      <p className="text-[11px] font-medium text-slate-100">
-                        {narrative.name}
-                      </p>
+                      <p className="text-[11px] font-medium text-slate-100">{narrative.name}</p>
                       {narrative.description && (
-                        <p className="text-[11px] text-slate-400">
-                          {narrative.description}
-                        </p>
+                        <p className="text-[11px] text-slate-400">{narrative.description}</p>
                       )}
                     </div>
                     <span className="rounded-full border border-emerald-500/40 px-2 py-0.5 text-[10px] text-emerald-300">
@@ -208,9 +225,7 @@ export default async function CoinDetailPage({ params }: { params: Params }) {
                 ))}
               </ul>
             ) : (
-              <p className="text-[11px] text-slate-500">
-                No narratives detected yet for this coin.
-              </p>
+              <p className="text-[11px] text-slate-500">No narratives detected yet for this coin.</p>
             )}
           </section>
         </div>
@@ -233,4 +248,3 @@ export default async function CoinDetailPage({ params }: { params: Params }) {
     </div>
   );
 }
-

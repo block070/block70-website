@@ -5,10 +5,12 @@ import {
   ColorType,
   CandlestickSeries,
   HistogramSeries,
+  LineSeries,
   type IChartApi,
   type ISeriesApi,
   type CandlestickData,
   type HistogramData,
+  type LineData,
   type UTCTimestamp,
 } from "lightweight-charts";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -33,6 +35,19 @@ const TIMEFRAMES: { key: ChartTimeframe; label: string; api: string }[] = [
   { key: "1W", label: "1W", api: "1w" },
 ];
 
+const MA_PERIOD = 20;
+
+function smaLineFromOhlcv(ohlcv: OHLCVPoint[], period: number): LineData[] {
+  const out: LineData[] = [];
+  for (let i = 0; i < ohlcv.length; i++) {
+    if (i < period - 1) continue;
+    let sum = 0;
+    for (let j = 0; j < period; j++) sum += ohlcv[i - period + 1 + j].close;
+    out.push({ time: ohlcv[i].time as UTCTimestamp, value: sum / period });
+  }
+  return out;
+}
+
 type Props = {
   symbol: string;
   slug?: string;
@@ -45,7 +60,9 @@ export function PriceChart({ symbol, slug, height = 400, className }: Props) {
   const chartRef = useRef<IChartApi | null>(null);
   const candlestickRef = useRef<ISeriesApi<"Candlestick"> | null>(null);
   const volumeRef = useRef<ISeriesApi<"Histogram"> | null>(null);
+  const maRef = useRef<ISeriesApi<"Line"> | null>(null);
   const [timeframe, setTimeframe] = useState<ChartTimeframe>("1D");
+  const [showMa, setShowMa] = useState(true);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -131,11 +148,21 @@ export function PriceChart({ symbol, slug, height = 400, className }: Props) {
     });
     volumeRef.current = volumeSeries;
 
+    const maSeries = chart.addSeries(LineSeries, {
+      color: "rgba(251, 191, 36, 0.9)",
+      lineWidth: 2,
+      priceLineVisible: false,
+      lastValueVisible: true,
+    });
+    maRef.current = maSeries;
+    maSeries.applyOptions({ visible: false });
+
     return () => {
       chart.remove();
       chartRef.current = null;
       candlestickRef.current = null;
       volumeRef.current = null;
+      maRef.current = null;
     };
   }, [apiSymbol]);
 
@@ -163,9 +190,20 @@ export function PriceChart({ symbol, slug, height = 400, className }: Props) {
 
       candlestickRef.current.setData(candleData);
       volumeRef.current.setData(volData);
+
+      if (maRef.current) {
+        if (showMa && ohlcv.length >= MA_PERIOD) {
+          maRef.current.setData(smaLineFromOhlcv(ohlcv, MA_PERIOD));
+          maRef.current.applyOptions({ visible: true });
+        } else {
+          maRef.current.setData([]);
+          maRef.current.applyOptions({ visible: false });
+        }
+      }
+
       chartRef.current?.timeScale().fitContent();
     });
-  }, [fetchData]);
+  }, [fetchData, showMa]);
 
   return (
     <section
@@ -175,9 +213,23 @@ export function PriceChart({ symbol, slug, height = 400, className }: Props) {
       )}
     >
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <p className="text-sm font-semibold uppercase tracking-wide text-slate-300">
-          Price chart
-        </p>
+        <div className="flex flex-wrap items-center gap-3">
+          <p className="text-sm font-semibold uppercase tracking-wide text-slate-300">
+            Price chart
+          </p>
+          <button
+            type="button"
+            onClick={() => setShowMa((v) => !v)}
+            className={clsx(
+              "rounded-full border px-3 py-1 text-xs font-medium transition",
+              showMa
+                ? "border-amber-500/60 bg-amber-500/10 text-amber-200"
+                : "border-slate-600 text-slate-500 hover:bg-slate-800/60"
+            )}
+          >
+            MA ({MA_PERIOD})
+          </button>
+        </div>
         <div className="flex gap-1.5">
           {TIMEFRAMES.map((tf) => (
             <button
