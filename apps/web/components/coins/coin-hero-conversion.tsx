@@ -4,6 +4,7 @@ import { Block70Gauge } from "@/components/coins/block70-gauge";
 import type { InvestmentLabel } from "@/lib/coin-signal-label";
 import { getExchangeBuyUrls } from "@/lib/exchange-buy-urls";
 import type { Coin } from "@/lib/crypto-mock";
+import { discoverSlugFromCategoryLabel } from "@/lib/discover-category-map";
 import { formatChangePct, formatCompactUsd, formatPrice } from "@/lib/format";
 import { clsx } from "clsx";
 
@@ -22,6 +23,15 @@ function labelStyles(label: InvestmentLabel) {
 
 export function CoinHeroConversion({ coin, block70Score, investmentLabel }: Props) {
   const links = getExchangeBuyUrls(coin.symbol, coin.slug);
+
+  const categoryDisplay =
+    coin.categoryLabel?.trim() ||
+    coin.categoryIds?.find((c) => c && String(c).trim()) ||
+    null;
+  const discoverSlug =
+    (coin.categorySlug && coin.categorySlug.trim()) ||
+    discoverSlugFromCategoryLabel(categoryDisplay);
+  const showCategory = Boolean(categoryDisplay);
 
   return (
     <section className="rounded-xl border border-slate-800 bg-gradient-to-b from-slate-900/90 to-slate-950/90 p-4 md:p-6">
@@ -121,15 +131,19 @@ export function CoinHeroConversion({ coin, block70Score, investmentLabel }: Prop
         </div>
 
         <div className="flex w-full min-w-[200px] shrink-0 flex-col items-stretch gap-3 overflow-visible border-t border-slate-800 pt-6 sm:items-end lg:w-auto lg:max-w-sm lg:border-l lg:border-t-0 lg:pl-8 lg:pt-0">
-          {coin.categorySlug ? (
+          {showCategory ? (
             <div className="w-full text-left sm:text-right">
               <p className="text-[10px] uppercase tracking-wide text-slate-500">Category</p>
-              <Link
-                href={`/discover/${encodeURIComponent(coin.categorySlug)}`}
-                className="mt-0.5 inline-block text-sm font-medium text-blue-400 transition hover:text-blue-300 hover:underline"
-              >
-                {coin.categoryLabel ?? coin.categorySlug.replace(/-/g, " ")}
-              </Link>
+              {discoverSlug ? (
+                <Link
+                  href={`/discover/${encodeURIComponent(discoverSlug)}`}
+                  className="mt-0.5 inline-block text-sm font-medium text-blue-400 transition hover:text-blue-300 hover:underline"
+                >
+                  {categoryDisplay}
+                </Link>
+              ) : (
+                <p className="mt-0.5 text-sm font-medium text-slate-200">{categoryDisplay}</p>
+              )}
             </div>
           ) : null}
           <Block70Gauge score={block70Score} />
