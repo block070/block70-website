@@ -16,6 +16,8 @@ export type CoinInfoDto = {
   telegram: string | null;
   chain: string | null;
   category: string | null;
+  /** CoinGecko category id — use with /discover/[slug] */
+  category_slug: string | null;
   market_cap_rank: number | null;
   market_cap: number | null;
   price: number | null;
@@ -98,6 +100,7 @@ export function getStubCoinDetail(slug: string): CoinDetailDto {
       telegram: null,
       chain: null,
       category: null,
+      category_slug: null,
       market_cap_rank: null,
       market_cap: null,
       price: null,
@@ -152,7 +155,8 @@ export function getMockCoinDetail(slug: string): CoinDetailDto | null {
       discord: null,
       telegram: null,
       chain: coin.chainIds[0] ?? null,
-      category: coin.categoryIds[0] ?? null,
+      category: coin.categoryLabel ?? coin.categoryIds[0] ?? null,
+      category_slug: coin.categorySlug ?? null,
       market_cap: coin.marketCapUsd,
       price: coin.priceUsd,
       volume_24h: coin.volume24hUsd,

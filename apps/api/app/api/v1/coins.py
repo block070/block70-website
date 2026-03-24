@@ -324,7 +324,15 @@ def list_coins(
     if cat_filter:
         if category_slug and category_slug.lower() in CATEGORY_SLUG_ALTERNATES:
             terms = CATEGORY_SLUG_ALTERNATES[category_slug.lower()]
-            q = q.filter(or_(*(Coin.category.ilike(f"%{t}%") for t in terms)))
+            parts = [Coin.category.ilike(f"%{t}%") for t in terms]
+            if hasattr(Coin, "category_slug") and category_slug.strip():
+                parts.insert(0, Coin.category_slug == category_slug.lower().strip())
+            q = q.filter(or_(*parts))
+        elif category_slug and hasattr(Coin, "category_slug") and category_slug.strip():
+            slug_low = category_slug.lower().strip()
+            q = q.filter(
+                or_(Coin.category_slug == slug_low, Coin.category.ilike(f"%{cat_filter}%"))
+            )
         else:
             q = q.filter(Coin.category.ilike(f"%{cat_filter}%"))
     offset = (page - 1) * limit if page > 1 else 0
@@ -412,6 +420,8 @@ def _enrich_coin_from_coingecko(coin: Coin, db: Session) -> tuple[Coin, list]:
             coin.market_cap_rank = coin_data.get("market_cap_rank")
         if coin_data.get("category"):
             coin.category = coin_data.get("category")
+        if coin_data.get("category_slug") and hasattr(coin, "category_slug"):
+            coin.category_slug = coin_data.get("category_slug")
 
         latest = MarketDataPoint(
             timestamp=datetime.now(timezone.utc),
@@ -440,6 +450,10 @@ def _enrich_coin_from_coingecko(coin: Coin, db: Session) -> tuple[Coin, list]:
             )
             for row in reversed(md_rows)
         ]
+        try:
+            db.commit()
+        except Exception:
+            db.rollback()
         return coin, [latest] + points
     except Exception:
         return coin, []
@@ -462,6 +476,10 @@ def _persist_coin_from_coingecko(
             existing.discord = c.discord or existing.discord
             if hasattr(existing, "telegram"):
                 existing.telegram = getattr(c, "telegram", None) or existing.telegram
+            if c.category:
+                existing.category = c.category
+            if getattr(c, "category_slug", None) and hasattr(existing, "category_slug"):
+                existing.category_slug = c.category_slug
         else:
             coin = Coin(
                 name=c.name,
@@ -475,6 +493,8 @@ def _persist_coin_from_coingecko(
                 twitter=c.twitter,
                 discord=c.discord,
                 telegram=getattr(c, "telegram", None),
+                category=c.category,
+                category_slug=getattr(c, "category_slug", None),
                 market_cap_rank=c.market_cap_rank,
                 market_cap=c.market_cap,
                 price=c.price,
@@ -528,6 +548,7 @@ def _fetch_coin_from_markets(slug: str) -> Optional[CoinDetailResponse]:
                         telegram=None,
                         chain=None,
                         category=None,
+                        category_slug=None,
                         market_cap_rank=cg.get("market_cap_rank"),
                         market_cap=cg.get("market_cap"),
                         price=cg.get("price"),
@@ -573,6 +594,7 @@ def _make_stub_coin_response(slug: str) -> CoinDetailResponse:
         telegram=None,
         chain=None,
         category=None,
+        category_slug=None,
         market_cap_rank=None,
         market_cap=None,
         price=None,
@@ -637,6 +659,7 @@ def _fetch_coin_from_coingecko(slug: str) -> CoinDetailResponse:
         telegram=c.get("telegram"),
         chain=c.get("chain"),
         category=c.get("category"),
+        category_slug=c.get("category_slug"),
         market_cap_rank=c.get("market_cap_rank"),
         market_cap=c.get("market_cap") or md.get("market_cap"),
         price=c.get("price") or md.get("price"),

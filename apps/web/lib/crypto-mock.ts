@@ -36,6 +36,10 @@ export type Coin = {
   categoryIds: string[];
   chainIds: string[];
   logoUrl?: string | null;
+  /** Discover URL segment when known (CoinGecko category id) */
+  categorySlug?: string | null;
+  /** Human-readable category label */
+  categoryLabel?: string | null;
 };
 
 export type PricePoint = {
@@ -130,6 +134,8 @@ export const COINS: Coin[] = [
     change7dPct: 3.8,
     rank: 1,
     categoryIds: ["store-of-value"],
+    categorySlug: "proof-of-work-pow",
+    categoryLabel: "Proof of Work (PoW)",
     chainIds: [],
   },
   {
@@ -144,6 +150,8 @@ export const COINS: Coin[] = [
     change7dPct: 4.1,
     rank: 2,
     categoryIds: ["l1"],
+    categorySlug: "layer-1",
+    categoryLabel: "Layer 1 (L1)",
     chainIds: ["ethereum"],
   },
   {

@@ -120,7 +120,18 @@ export function CoinHeroConversion({ coin, block70Score, investmentLabel }: Prop
           </p>
         </div>
 
-        <div className="flex shrink-0 flex-col items-center gap-3 overflow-visible border-t border-slate-800 pt-6 lg:border-l lg:border-t-0 lg:pl-8 lg:pt-0">
+        <div className="flex w-full min-w-[200px] shrink-0 flex-col items-stretch gap-3 overflow-visible border-t border-slate-800 pt-6 sm:items-end lg:w-auto lg:max-w-sm lg:border-l lg:border-t-0 lg:pl-8 lg:pt-0">
+          {coin.categorySlug ? (
+            <div className="w-full text-left sm:text-right">
+              <p className="text-[10px] uppercase tracking-wide text-slate-500">Category</p>
+              <Link
+                href={`/discover/${encodeURIComponent(coin.categorySlug)}`}
+                className="mt-0.5 inline-block text-sm font-medium text-blue-400 transition hover:text-blue-300 hover:underline"
+              >
+                {coin.categoryLabel ?? coin.categorySlug.replace(/-/g, " ")}
+              </Link>
+            </div>
+          ) : null}
           <Block70Gauge score={block70Score} />
           <span
             className={clsx(

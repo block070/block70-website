@@ -43,6 +43,8 @@ function coinToHeaderShape(coin: CoinInfoDto, latestMd?: MarketDataPointDto | nu
     categoryIds: coin.category ? [coin.category] : [],
     chainIds: coin.chain ? [coin.chain] : [],
     logoUrl: coin.logo_url ?? undefined,
+    categorySlug: coin.category_slug ?? null,
+    categoryLabel: coin.category ?? null,
   };
 }
 

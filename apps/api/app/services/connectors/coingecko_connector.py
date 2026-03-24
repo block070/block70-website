@@ -125,6 +125,17 @@ def normalize_coin_detail(raw: Dict[str, Any], vs_currency: str = "usd") -> Dict
     tg_id = links.get("telegram_channel_identifier")
     telegram_url = f"https://t.me/{tg_id}" if tg_id and isinstance(tg_id, str) else None
 
+    cats_raw = [c for c in (raw.get("categories") or []) if c]
+    try:
+        from app.services.category_slug_resolver import ensure_slug, resolve_primary_category
+
+        _disp, _slug = resolve_primary_category(cats_raw)
+        primary_cat = _disp or ((cats_raw[0] if cats_raw else None))
+        cat_slug = ensure_slug(_slug) if cats_raw else None
+    except Exception:
+        primary_cat = (raw.get("categories") or [None])[0]
+        cat_slug = None
+
     return {
         "coin": {
             "external_id": raw.get("id"),
@@ -141,7 +152,8 @@ def normalize_coin_detail(raw: Dict[str, Any], vs_currency: str = "usd") -> Dict
             "discord": discord_url,
             "telegram": telegram_url,
             "chain": None,
-            "category": (raw.get("categories") or [None])[0],
+            "category": primary_cat,
+            "category_slug": cat_slug,
             "market_cap": market_cap,
             "price": current_price,
             "volume_24h": volume_24h,

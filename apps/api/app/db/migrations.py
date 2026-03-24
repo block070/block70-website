@@ -35,6 +35,8 @@ MIGRATIONS = [
     "ALTER TABLE coins ADD COLUMN IF NOT EXISTS explorer_url VARCHAR(512)",
     "ALTER TABLE coins ADD COLUMN IF NOT EXISTS telegram VARCHAR(512)",
     "ALTER TABLE coins ADD COLUMN IF NOT EXISTS market_cap_rank INTEGER",
+    "ALTER TABLE coins ADD COLUMN IF NOT EXISTS category_slug VARCHAR(160)",
+    "CREATE INDEX IF NOT EXISTS ix_coins_category_slug ON coins (category_slug)",
     # news_articles: ensure all columns exist (legacy table may have minimal schema)
     "ALTER TABLE news_articles ADD COLUMN IF NOT EXISTS author VARCHAR(256)",
     "ALTER TABLE news_articles ADD COLUMN IF NOT EXISTS summary TEXT",

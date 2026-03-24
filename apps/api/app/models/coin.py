@@ -30,6 +30,8 @@ class Coin(Base):
 
     chain: Mapped[Optional[str]] = mapped_column(String(64), nullable=True, index=True)
     category: Mapped[Optional[str]] = mapped_column(String(128), nullable=True, index=True)
+    # CoinGecko /coins/categories/list category_id — links to /discover/{slug} on web
+    category_slug: Mapped[Optional[str]] = mapped_column(String(160), nullable=True, index=True)
 
     market_cap_rank: Mapped[Optional[int]] = mapped_column(Integer, nullable=True, index=True)
     market_cap: Mapped[Optional[float]] = mapped_column(Float, nullable=True)

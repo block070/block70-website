@@ -2,10 +2,12 @@ import os
 import time
 from typing import List
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
+from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
 from app.db import get_db
+from app.models import Coin
 from app.agents.arbitrage_agent import run_arbitrage_scan
 from app.agents.miner_agent import run_miner_scan
 from app.agents.wallet_agent import run_wallet_scan
@@ -65,4 +67,44 @@ def bootstrap_coins(db: Session = Depends(get_db)) -> dict:
         "status": "ok",
         "message": f"Coin sync completed ({synced} pages).",
     }
+
+
+@router.post("/backfill/categories")
+def backfill_categories(
+    batch: int = Query(50, ge=1, le=200),
+    db: Session = Depends(get_db),
+) -> dict:
+    """
+    Fill category + category_slug from CoinGecko /coins/{id} for rows missing slug.
+    Run repeatedly until updated=0 to cover ~10k coins (rate-limited).
+    """
+    from app.services.connectors.coingecko_connector import fetch_coin_details
+
+    from app.api.v1.coins import _coingecko_throttle
+
+    rows = (
+        db.query(Coin)
+        .filter(or_(Coin.category_slug.is_(None), Coin.category_slug == ""))
+        .order_by(Coin.market_cap_rank.asc().nullslast(), Coin.id.asc())
+        .limit(batch)
+        .all()
+    )
+    updated = 0
+    for coin in rows:
+        try:
+            _coingecko_throttle()
+            payload = fetch_coin_details(coin.slug, vs_currency="usd")
+            c = payload.get("coin") or {}
+            if c.get("category"):
+                coin.category = c.get("category")
+            if c.get("category_slug"):
+                coin.category_slug = c.get("category_slug")
+                updated += 1
+        except Exception:
+            continue
+    try:
+        db.commit()
+    except Exception:
+        db.rollback()
+    return {"updated": updated, "processed": len(rows)}
 
