@@ -25,9 +25,55 @@ router = APIRouter(prefix="/api/v1/ai-search", tags=["ai-search"])
 _ai_search_cache: dict[str, tuple[str, float, dict]] = {}
 _CACHE_MAX = 200
 
+# Appended to composed query text to bias retrieval (template-based generator).
+_MODE_SUFFIXES: dict[str, str] = {
+    "general": "",
+    "signals": " trading signals radar unusual volume",
+    "investing": " long term hold fundamentals risk",
+    "depin": " depin decentralized physical infrastructure networks",
+    "beginner": " explain simple beginner what is",
+}
+
 
 class AISearchRequest(BaseModel):
-    query_text: str
+    query_text: str = ""
+    """Single-turn query (used when conversation is omitted)."""
+    mode: str | None = None
+    """general | signals | investing | depin | beginner — shapes retrieval emphasis."""
+    conversation: list[dict] | None = None
+    """Optional multi-turn history: items with role (user|assistant) and content."""
+
+
+def _compose_query_text(body: AISearchRequest) -> str:
+    if body.conversation and len(body.conversation) > 0:
+        parts: list[str] = []
+        for m in body.conversation[-10:]:
+            if not isinstance(m, dict):
+                continue
+            role = (m.get("role") or "user").strip().lower()
+            content = (m.get("content") or "").strip()
+            if not content:
+                continue
+            label = "Assistant" if role == "assistant" else "User"
+            parts.append(f"{label}: {content}")
+        text = "\n".join(parts).strip()
+    else:
+        text = (body.query_text or "").strip()
+
+    mode = (body.mode or "general").strip().lower()
+    if mode in _MODE_SUFFIXES and _MODE_SUFFIXES[mode]:
+        text = f"{text} {_MODE_SUFFIXES[mode]}".strip()
+    return text
+
+
+def _last_user_message(body: AISearchRequest) -> str:
+    if body.conversation:
+        for m in reversed(body.conversation):
+            if not isinstance(m, dict):
+                continue
+            if (m.get("role") or "").strip().lower() == "user":
+                return (m.get("content") or "").strip()
+    return (body.query_text or "").strip()
 
 
 class AISearchResponse(BaseModel):
@@ -52,8 +98,9 @@ def ai_search(
     Input: query_text
     Return: AI-generated answer, related tokens, related signals, confidence.
     """
-    query_text = (body.query_text or "").strip()
-    if not query_text:
+    composed = _compose_query_text(body)
+    last_user_q = _last_user_message(body)
+    if not composed:
         return {
             "answer": "Please enter a question.",
             "confidence_score": 0.0,
@@ -65,6 +112,7 @@ def ai_search(
             "query_id": None,
         }
 
+    query_text = composed
     normalized = normalize_for_ranking(query_text)
     if normalized in _ai_search_cache:
         cached = _ai_search_cache[normalized]
@@ -103,13 +151,13 @@ def ai_search(
         "related_radar": data.radar_events[:10],
     }
 
-    record_query(db, query_text)
+    record_query(db, last_user_q or query_text)
 
     query_id = None
     if current_user:
         row = AISearchQuery(
             user_id=current_user.id,
-            query_text=query_text,
+            query_text=(last_user_q or query_text)[:2000],
             response_text=answer,
             confidence_score=confidence,
             response_metadata=response_metadata,

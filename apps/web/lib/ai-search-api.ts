@@ -3,6 +3,13 @@ import { getToken } from "./auth";
 // Use same-origin proxy to avoid CORS and mixed content (HTTPS page → HTTP API).
 const AI_SEARCH_BASE = typeof window !== "undefined" ? "" : process.env.API_SERVER_URL || process.env.NEXT_PUBLIC_API_BASE_URL || "";
 
+export type AISearchMode = "general" | "signals" | "investing" | "depin" | "beginner";
+
+export type AISearchChatTurn = {
+  role: "user" | "assistant";
+  content: string;
+};
+
 export type AISearchResult = {
   answer: string;
   confidence_score: number;
@@ -38,7 +45,29 @@ export type AISearchResult = {
   cached?: boolean;
 };
 
-export async function postAISearch(queryText: string): Promise<AISearchResult> {
+export type PostAISearchParams = {
+  queryText: string;
+  mode?: AISearchMode;
+  /** Full transcript; when set, backend composes context from the last turns. */
+  conversation?: AISearchChatTurn[];
+};
+
+export async function postAISearch(
+  queryTextOrParams: string | PostAISearchParams
+): Promise<AISearchResult> {
+  const params: PostAISearchParams =
+    typeof queryTextOrParams === "string"
+      ? { queryText: queryTextOrParams }
+      : queryTextOrParams;
+
+  const body: Record<string, unknown> = {
+    query_text: params.queryText ?? "",
+  };
+  if (params.mode) body.mode = params.mode;
+  if (params.conversation && params.conversation.length > 0) {
+    body.conversation = params.conversation;
+  }
+
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
   };
@@ -49,7 +78,7 @@ export async function postAISearch(queryText: string): Promise<AISearchResult> {
   const res = await fetch(url, {
     method: "POST",
     headers,
-    body: JSON.stringify({ query_text: queryText }),
+    body: JSON.stringify(body),
     cache: "no-store",
   });
   if (!res.ok) {

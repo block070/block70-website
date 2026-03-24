@@ -367,7 +367,7 @@ export function CategoriesPageClient({
                   <details className="mt-3 group/details">
                     <summary className="cursor-pointer list-none text-xs font-medium text-crypto-blue hover:underline [&::-webkit-details-marker]:hidden">
                       <span className="inline-flex items-center gap-1">
-                        SEO: Learn more about {cat.name}
+                        Learn more about {cat.name}
                         <span className="text-[var(--b70-text-muted)] transition group-open/details:rotate-180">
                           ▼
                         </span>
