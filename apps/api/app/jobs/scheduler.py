@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import os
 from datetime import datetime, timedelta
 from typing import Callable
 
@@ -349,10 +350,18 @@ def _run_market_data_job() -> None:
 
 
 def _run_description_backfill_job() -> None:
-    """Backfill project descriptions from CoinGecko for coins missing them."""
+    """
+    Backfill descriptions/categories from CoinGecko for coins missing them.
+    Processes a bounded batch per tick (default 50) so the scheduler does not
+    block for hours. Runs on an interval (default every 60 minutes).
+    Set DESCRIPTION_BACKFILL_BATCH=0 to no-op each tick.
+    """
 
     def _job(db: Session) -> None:
-        pipeline = DescriptionBackfillPipeline()
+        batch = int(os.getenv("DESCRIPTION_BACKFILL_BATCH", "50"))
+        if batch <= 0:
+            return
+        pipeline = DescriptionBackfillPipeline(limit=batch)
         pipeline.run(db)
 
     _with_db_session(_job)
@@ -432,10 +441,9 @@ def create_scheduler() -> BackgroundScheduler:
     """
     Create and configure a background scheduler for Block70 agents.
 
-    - News scraper every 5 minutes
-    - Market data every 5 minutes
-    - Coin sync every 30 minutes
-    - And other agent jobs (arbitrage, radar, signals, etc.)
+    - Coin sync, market data, description backfill (see env: COIN_SYNC_INTERVAL_MINUTES,
+      MARKET_DATA_INTERVAL_MINUTES, DESCRIPTION_BACKFILL_INTERVAL_MINUTES, DESCRIPTION_BACKFILL_BATCH)
+    - News scraper, arbitrage, radar, signals, etc.
     """
     global _scheduler_instance
     scheduler = BackgroundScheduler(timezone="UTC")
@@ -572,32 +580,36 @@ def create_scheduler() -> BackgroundScheduler:
     )
 
     # Coin + market data jobs
-    # coin_sync: ensures coin list is populated from CoinGecko /coins/markets
+    # coin_sync: refreshes coin list (CoinGecko → CMC → Binance fallbacks in pipeline). COIN_SYNC_PAGES default 40.
     scheduler.add_job(
         _run_coin_sync_job,
-        IntervalTrigger(minutes=30),
+        IntervalTrigger(minutes=max(1, int(os.getenv("COIN_SYNC_INTERVAL_MINUTES", "30")))),
         id="coin_sync",
         replace_existing=True,
         max_instances=1,
     )
-    # market_data_refresh: fetches price, 24h%, 7d%, description, links for each coin
-    # Throttled to respect CoinGecko rate limits. Set MARKET_DATA_LIMIT=100 to refresh top 100 every 5 min.
+    # market_data_refresh: price, 24h%, 7d% for top coins. MARKET_DATA_LIMIT caps work per tick.
     scheduler.add_job(
         _run_market_data_job,
-        IntervalTrigger(minutes=5),
+        IntervalTrigger(minutes=max(1, int(os.getenv("MARKET_DATA_INTERVAL_MINUTES", "5")))),
         id="market_data_refresh",
         replace_existing=True,
         max_instances=1,
     )
-    # description_backfill: fetches project descriptions from CoinGecko for coins missing them
-    scheduler.add_job(
-        _run_description_backfill_job,
-        CronTrigger(hour=2, minute=0),  # Daily at 2am UTC
-        id="description_backfill",
-        replace_existing=True,
-        max_instances=1,
-        misfire_grace_time=3600,
-    )
+    # description_backfill: batches of DESCRIPTION_BACKFILL_BATCH coins every DESCRIPTION_BACKFILL_INTERVAL_MINUTES
+    # (fills gaps in background without blocking the API for hours). Set DESCRIPTION_BACKFILL_BATCH=0 to disable.
+    _desc_interval = int(os.getenv("DESCRIPTION_BACKFILL_INTERVAL_MINUTES", "60"))
+    _desc_batch = int(os.getenv("DESCRIPTION_BACKFILL_BATCH", "50"))
+    if _desc_interval > 0 and _desc_batch > 0:
+        scheduler.add_job(
+            _run_description_backfill_job,
+            IntervalTrigger(minutes=_desc_interval),
+            id="description_backfill",
+            replace_existing=True,
+            max_instances=1,
+            coalesce=True,
+            misfire_grace_time=min(3600, _desc_interval * 60),
+        )
 
     scheduler.add_job(
         _run_news_scraper_job,

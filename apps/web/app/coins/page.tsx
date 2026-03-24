@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { CoinTable } from "@/components/market/coin-table";
+import { CoinsMarketScanner } from "@/components/market/coins-market-scanner";
 import { CoinsPagination } from "@/components/market/coins-pagination";
 import { MarketStats } from "@/components/market/market-stats";
 import { getMarketCoins, type MarketCoin } from "@/lib/api";
@@ -111,14 +111,12 @@ export default async function CoinsPage({ searchParams }: PageProps) {
     <div className="space-y-6">
       <header className="space-y-2">
         <h1 className="text-2xl font-semibold tracking-tight">
-          Market overview
+          Market scanner
         </h1>
         <p className="text-sm text-slate-400">
-          Explore the full cryptocurrency market in one place with real-time price
-          data, market trends, and key performance indicators. Block70&apos;s Coins
-          page goes beyond basic tracking by highlighting momentum, volume shifts,
-          and emerging signals—helping you quickly identify which assets are
-          gaining strength, losing traction, or setting up for potential moves.
+          Sortable, filterable snapshot: Block70 score, momentum, and liquidity.
+          Click any row to open the coin page. Use pagination below for more
+          listings.
         </p>
       </header>
       {isFallback && (
@@ -132,12 +130,7 @@ export default async function CoinsPage({ searchParams }: PageProps) {
       )}
       <MarketStats />
       <section className="space-y-3">
-        <div className="flex items-center justify-between text-xs">
-          <p className="text-slate-400">
-            Top majors by market cap.
-          </p>
-        </div>
-        <CoinTable coins={coins} />
+        <CoinsMarketScanner initialCoins={coins} />
         <CoinsPagination
           currentPage={page}
           totalPages={totalPages}

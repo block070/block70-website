@@ -12,6 +12,7 @@ import logging
 import time
 from typing import Any, Callable, Dict
 
+from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
 from app.models import Coin
@@ -63,12 +64,40 @@ class DescriptionBackfillPipeline:
                 break
 
         slugs_to_fetch = [s for s in slugs_to_fetch if s]
-        existing = {
-            row.slug: row
-            for row in db.query(Coin)
-            .filter(Coin.slug.in_(slugs_to_fetch))
-            .all()
-        }
+
+        # If CoinGecko returns nothing (rate limit / failure), backfill from DB rows
+        # that still need description or category (e.g. coins synced from CMC/Binance).
+        if not slugs_to_fetch:
+            logger.warning(
+                "Description backfill: CoinGecko /coins/markets gave no slugs; "
+                "using DB coins missing description or category."
+            )
+            q = (
+                db.query(Coin)
+                .filter(
+                    or_(
+                        Coin.description.is_(None),
+                        Coin.description == "",
+                        Coin.category.is_(None),
+                        Coin.category == "",
+                    )
+                )
+                .order_by(Coin.market_cap.desc().nullslast())
+            )
+            if self.limit:
+                q = q.limit(self.limit)
+            else:
+                q = q.limit(TOTAL_COINS)
+            rows = [r for r in q.all() if r.slug]
+            slugs_to_fetch = [r.slug for r in rows]
+            existing = {r.slug: r for r in rows}
+        else:
+            existing = {
+                row.slug: row
+                for row in db.query(Coin)
+                .filter(Coin.slug.in_(slugs_to_fetch))
+                .all()
+            }
 
         need_description = [
             s for s in slugs_to_fetch
