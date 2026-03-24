@@ -112,32 +112,9 @@ export default async function CoinDetailPage({ params }: { params: Params }) {
       />
 
       <section className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
-        <div className="space-y-4 min-w-0">
+        <div className="min-w-0 space-y-4">
           <PriceChart symbol={symbol} slug={coin.slug} height={420} />
-          <CoinWhaleActivity name={coin.name} symbol={symbol} />
-        </div>
-        <div className="space-y-4">
-          <RoiCalculator symbol={symbol} currentPriceUsd={coinForHeader.priceUsd} />
-          <RelatedCoins items={relatedCoins} currentSlug={coin.slug} />
-        </div>
-      </section>
 
-      <CoinInvestmentAnalysis
-        name={coin.name}
-        symbol={symbol}
-        slug={coin.slug}
-        category={coin.category}
-        priceUsd={coinForHeader.priceUsd}
-        marketCapUsd={coinForHeader.marketCapUsd}
-        volume24hUsd={coinForHeader.volume24hUsd}
-        change24hPct={coinForHeader.change24hPct}
-        change7dPct={coinForHeader.change7dPct}
-        block70Score={block70Score}
-        investmentLabel={investmentLabel}
-      />
-
-      <section className="grid gap-4 md:grid-cols-[2fr,1fr]">
-        <div className="space-y-4">
           <section className="space-y-2 rounded-xl border border-slate-800 bg-slate-900/60 p-4 text-xs">
             <p className="text-[11px] uppercase tracking-wide text-slate-400">
               Related news
@@ -171,6 +148,32 @@ export default async function CoinDetailPage({ params }: { params: Params }) {
             )}
           </section>
 
+          <CoinInvestmentAnalysis
+            name={coin.name}
+            symbol={symbol}
+            slug={coin.slug}
+            category={coin.category}
+            priceUsd={coinForHeader.priceUsd}
+            marketCapUsd={coinForHeader.marketCapUsd}
+            volume24hUsd={coinForHeader.volume24hUsd}
+            change24hPct={coinForHeader.change24hPct}
+            change7dPct={coinForHeader.change7dPct}
+            block70Score={block70Score}
+            investmentLabel={investmentLabel}
+          />
+
+          <CoinWhaleActivity name={coin.name} symbol={symbol} />
+        </div>
+
+        <div className="space-y-4">
+          <RoiCalculator symbol={symbol} currentPriceUsd={coinForHeader.priceUsd} />
+          <CoinDescription coin={coinForHeader} description={coin.description} />
+          <RelatedCoins items={relatedCoins} currentSlug={coin.slug} />
+        </div>
+      </section>
+
+      <section className="grid gap-4 md:grid-cols-[2fr,1fr]">
+        <div className="space-y-4">
           <CoinOpportunities symbol={symbol} opportunities={[]} />
 
           <section className="space-y-3 rounded-xl border border-slate-800 bg-slate-900/60 p-4 text-xs">
@@ -231,7 +234,6 @@ export default async function CoinDetailPage({ params }: { params: Params }) {
         </div>
 
         <div className="space-y-4">
-          <CoinDescription coin={coinForHeader} description={coin.description} />
           <SentimentPanel tokenSymbol={symbol} initialSummary={sentiment} />
           <AISentimentSummary tokenSymbol={symbol} />
           <CoinLinks

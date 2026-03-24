@@ -1,3 +1,5 @@
+import { clsx } from "clsx";
+
 type Props = {
   score: number;
   className?: string;
@@ -12,8 +14,18 @@ export function Block70Gauge({ score, className }: Props) {
   const arcColor = s >= 68 ? "#34d399" : s >= 38 ? "#fbbf24" : "#f87171";
 
   return (
-    <div className={className} aria-label={`Block70 score ${s} out of 100`}>
-      <svg width="128" height="76" viewBox="0 0 128 76" className="mx-auto">
+    <div className={clsx("overflow-visible", className)} aria-label={`Block70 score ${s} out of 100`}>
+      {/*
+        viewBox adds top/side padding: arc apex is ~y=0 and strokeWidth 10 extends ~5px past it,
+        so a viewBox starting at y=0 clips the top of the stroke.
+      */}
+      <svg
+        width="128"
+        height="84"
+        viewBox="-6 -10 140 78"
+        className="mx-auto block overflow-visible"
+        preserveAspectRatio="xMidYMid meet"
+      >
         <path
           d="M 8 56 A 56 56 0 0 1 120 56"
           fill="none"

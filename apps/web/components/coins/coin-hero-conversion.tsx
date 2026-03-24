@@ -120,7 +120,7 @@ export function CoinHeroConversion({ coin, block70Score, investmentLabel }: Prop
           </p>
         </div>
 
-        <div className="flex shrink-0 flex-col items-center gap-3 border-t border-slate-800 pt-6 lg:border-l lg:border-t-0 lg:pl-8 lg:pt-0">
+        <div className="flex shrink-0 flex-col items-center gap-3 overflow-visible border-t border-slate-800 pt-6 lg:border-l lg:border-t-0 lg:pl-8 lg:pt-0">
           <Block70Gauge score={block70Score} />
           <span
             className={clsx(
