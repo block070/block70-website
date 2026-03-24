@@ -11,12 +11,21 @@ type Props = {
   limit: number;
   basePath?: string;
   selectId?: string;
+  /** When set, replaces the default Show dropdown options (e.g. categories page). */
+  pageSizeOptions?: readonly number[];
+  /** Omit `limit` from the URL when it matches this value (defaults to 100). */
+  defaultPageSize?: number;
 };
 
-function buildHref(page: number, limit: number, basePath: string): string {
+function buildHref(
+  page: number,
+  limit: number,
+  basePath: string,
+  defaultPageSize: number
+): string {
   const params = new URLSearchParams();
   if (page > 1) params.set("page", String(page));
-  if (limit !== 100) params.set("limit", String(limit));
+  if (limit !== defaultPageSize) params.set("limit", String(limit));
   const qs = params.toString();
   return qs ? `${basePath}?${qs}` : basePath;
 }
@@ -28,12 +37,14 @@ export function CoinsPagination({
   limit,
   basePath = "/coins",
   selectId,
+  pageSizeOptions = PAGE_SIZE_OPTIONS,
+  defaultPageSize = 100,
 }: Props) {
   const router = useRouter();
 
   const handleLimitChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    const newLimit = Number(e.target.value) as (typeof PAGE_SIZE_OPTIONS)[number];
-    router.push(buildHref(1, newLimit, basePath)); // reset to page 1 when changing page size
+    const newLimit = Number(e.target.value);
+    router.push(buildHref(1, newLimit, basePath, defaultPageSize)); // reset to page 1 when changing page size
   };
 
   const windowSize = 5;
@@ -61,7 +72,7 @@ export function CoinsPagination({
           </span>
         ) : (
           <Link
-            href={buildHref(1, limit, basePath)}
+            href={buildHref(1, limit, basePath, defaultPageSize)}
             className="flex h-9 min-w-9 items-center justify-center rounded-lg border border-slate-700 px-2 text-slate-400 transition hover:bg-slate-800/60 hover:text-slate-200"
             aria-label="First page"
           >
@@ -77,7 +88,7 @@ export function CoinsPagination({
           </span>
         ) : (
           <Link
-            href={buildHref(currentPage - 1, limit, basePath)}
+            href={buildHref(currentPage - 1, limit, basePath, defaultPageSize)}
             className="flex h-9 min-w-9 items-center justify-center rounded-lg border border-slate-700 px-2 text-slate-400 transition hover:bg-slate-800/60 hover:text-slate-200"
             aria-label="Previous page"
           >
@@ -97,7 +108,7 @@ export function CoinsPagination({
             ) : (
               <Link
                 key={p}
-                href={buildHref(p, limit, basePath)}
+                href={buildHref(p, limit, basePath, defaultPageSize)}
                 className="flex h-9 min-w-9 items-center justify-center rounded-lg border border-slate-700 text-slate-400 transition hover:bg-slate-800/60 hover:text-slate-200"
               >
                 {p}
@@ -114,7 +125,7 @@ export function CoinsPagination({
           </span>
         ) : (
           <Link
-            href={buildHref(currentPage + 1, limit, basePath)}
+            href={buildHref(currentPage + 1, limit, basePath, defaultPageSize)}
             className="flex h-9 min-w-9 items-center justify-center rounded-lg border border-slate-700 px-2 text-slate-400 transition hover:bg-slate-800/60 hover:text-slate-200"
             aria-label="Next page"
           >
@@ -130,7 +141,7 @@ export function CoinsPagination({
           </span>
         ) : (
           <Link
-            href={buildHref(totalPages, limit, basePath)}
+            href={buildHref(totalPages, limit, basePath, defaultPageSize)}
             className="flex h-9 min-w-9 items-center justify-center rounded-lg border border-slate-700 px-2 text-slate-400 transition hover:bg-slate-800/60 hover:text-slate-200"
             aria-label="Last page"
           >
@@ -149,7 +160,7 @@ export function CoinsPagination({
           onChange={handleLimitChange}
           className="h-9 rounded-lg border border-slate-700 bg-slate-800/60 px-2 text-slate-200 focus:border-slate-500 focus:outline-none focus:ring-1 focus:ring-slate-500"
         >
-          {PAGE_SIZE_OPTIONS.map((n) => (
+          {pageSizeOptions.map((n) => (
             <option key={n} value={n}>
               {n}
             </option>

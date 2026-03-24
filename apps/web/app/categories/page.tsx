@@ -1,7 +1,7 @@
 import Link from "next/link";
-import { CoinsPagination } from "@/components/market/coins-pagination";
+import { CategoriesPageClient } from "@/components/categories/categories-page-client";
+import { enrichCategoriesBatch, scoreTrendingCategory } from "@/lib/categories-enrichment";
 import { getMarketCategories } from "@/lib/api";
-import { formatCompactUsd, formatChangePct } from "@/lib/format";
 import { withTimeout } from "@/lib/with-timeout";
 
 export const revalidate = 60;
@@ -9,11 +9,11 @@ export const revalidate = 60;
 export const metadata = {
   title: "Categories · Block70 Crypto Data",
   description:
-    "Break down the crypto market by sector to understand where capital and attention are flowing. From DeFi and AI to gaming and infrastructure, Block70's Categories page helps you track performance across narratives, compare sector strength, and identify which areas of the market are heating up or cooling off.",
+    "Sector intelligence: category cards with Block70 scores, top movers, capital flow signals, and heatmaps. Find where capital and attention are rotating across DeFi, AI, Layer 1, and more.",
 };
 
-const VALID_LIMITS = [10, 25, 50, 100, 200] as const;
-const DEFAULT_LIMIT = 100;
+const VALID_LIMITS = [12, 24, 36, 48, 100] as const;
+const DEFAULT_LIMIT = 24;
 
 type PageProps = {
   searchParams: Promise<{ page?: string; limit?: string }>;
@@ -32,15 +32,23 @@ export default async function CategoriesPage({ searchParams }: PageProps) {
   try {
     result = await withTimeout(
       getMarketCategories({ order: "market_cap_desc", limit, page }),
-      FETCH_TIMEOUT_MS
+      FETCH_TIMEOUT_MS,
+      { items: [], total: 0 }
     );
   } catch {
     // Show empty state
   }
 
-  const { items: categories, total } = result;
+  const { items: rawCategories, total } = result;
   const totalPages = Math.max(1, Math.ceil(total / limit));
   const clampedPage = Math.min(page, totalPages);
+
+  const enrichedCategories =
+    rawCategories.length > 0 ? await enrichCategoriesBatch(rawCategories) : [];
+
+  const trending = [...enrichedCategories]
+    .sort((a, b) => scoreTrendingCategory(b) - scoreTrendingCategory(a))
+    .slice(0, 5);
 
   return (
     <div className="space-y-6">
@@ -49,97 +57,29 @@ export default async function CategoriesPage({ searchParams }: PageProps) {
           Categories
         </h1>
         <p className="text-sm text-[var(--b70-text-muted)]">
-          Break down the crypto market by sector to understand where capital and
-          attention are flowing. From DeFi and AI to gaming and infrastructure,
-          Block70&apos;s Categories page helps you track performance across narratives,
-          compare sector strength, and identify which areas of the market are
-          heating up or cooling off.
+          Decision-ready sector views: average Block70 scores, 24h momentum, top coins, and where
+          flows are leaning. Use cards for detail or the heatmap for a one-glance map of the market.
         </p>
       </header>
 
-      {categories.length === 0 ? (
+      {enrichedCategories.length === 0 ? (
         <section className="rounded-xl border border-[var(--b70-border)] bg-[var(--b70-card)] p-8 text-center shadow-sm">
           <p className="text-sm text-[var(--b70-text-muted)]">
-            No category data available yet. Categories are populated from live market data or the coin database.
+            No category data available yet. Categories are populated from live market data or the coin
+            database.
           </p>
           <Link href="/coins" className="mt-4 inline-block text-sm font-medium text-crypto-blue hover:underline">
             Browse all coins →
           </Link>
         </section>
       ) : (
-        <div className="overflow-hidden rounded-xl border border-[var(--b70-border)] bg-[var(--b70-card)] shadow-sm">
-          <table className="min-w-full text-left text-sm">
-            <thead className="border-b border-[var(--b70-border)] bg-[var(--b70-bg)] text-[var(--b70-text-muted)]">
-              <tr>
-                <th className="px-4 py-3 font-medium">#</th>
-                <th className="px-4 py-3 font-medium">Category</th>
-                <th className="px-4 py-3 font-medium text-right">Market Cap</th>
-                <th className="px-4 py-3 font-medium text-right">24h Volume</th>
-                <th className="px-4 py-3 font-medium text-right">24h %</th>
-                <th className="px-4 py-3 font-medium">Top Coins</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-[var(--b70-border)]">
-              {categories.map((cat, i) => (
-                <tr
-                  key={cat.id}
-                  className="transition-colors hover:bg-[var(--b70-bg)]/50"
-                >
-                  <td className="px-4 py-3 text-[var(--b70-text-muted)]">{(clampedPage - 1) * limit + i + 1}</td>
-                  <td className="px-4 py-3">
-                    <Link
-                      href={`/discover/${cat.id}`}
-                      className="font-medium text-[var(--b70-text)] hover:text-crypto-blue hover:underline"
-                    >
-                      {cat.name || cat.id}
-                    </Link>
-                  </td>
-                  <td className="px-4 py-3 text-right font-medium text-[var(--b70-text)]">
-                    {formatCompactUsd(cat.market_cap ?? 0)}
-                  </td>
-                  <td className="px-4 py-3 text-right text-[var(--b70-text-muted)]">
-                    {formatCompactUsd(cat.volume_24h ?? 0)}
-                  </td>
-                  <td
-                    className={`px-4 py-3 text-right ${
-                      cat.market_cap_change_24h != null
-                        ? Number(cat.market_cap_change_24h) >= 0
-                          ? "text-emerald-600 dark:text-emerald-400"
-                          : "text-rose-600 dark:text-rose-400"
-                        : "text-[var(--b70-text-muted)]"
-                    }`}
-                  >
-                    {formatChangePct(cat.market_cap_change_24h ?? NaN)}
-                  </td>
-                  <td className="px-4 py-3">
-                    {Array.isArray(cat.top_coins) && cat.top_coins.length > 0
-                      ? cat.top_coins.slice(0, 5).map(({ slug, symbol }, idx) => (
-                          <span key={slug}>
-                            {idx > 0 && " "}
-                            <Link
-                              href={`/coins/${slug}`}
-                              className="text-xs font-medium text-[var(--b70-text)] hover:text-crypto-blue hover:underline"
-                            >
-                              {idx + 1}. {symbol || slug}
-                            </Link>
-                          </span>
-                        ))
-                      : "—"}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-
-      {categories.length > 0 && (
-        <CoinsPagination
-          currentPage={clampedPage || 1}
-          totalPages={totalPages}
+        <CategoriesPageClient
+          categories={enrichedCategories}
+          trending={trending}
+          page={clampedPage}
           limit={limit}
-          basePath="/categories"
-          selectId="categories-per-page"
+          total={total}
+          totalPages={totalPages}
         />
       )}
 
