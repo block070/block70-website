@@ -1,8 +1,16 @@
 # Local infra for Crypto On the Hour (optional)
 # Host ports avoid conflicts when 5432/6379 are already in use: Postgres 5433→5432, Redis 6380→6379.
+#
+# Network block70_coh_edge lets block70-web (repo root docker-compose) reach this DB as coh-postgres:5432.
+# Bring this stack up before block70-web, or create the network once: docker network create block70_coh_edge
+networks:
+  block70_coh_edge:
+    name: block70_coh_edge
+
 services:
   postgres:
     image: postgres:16-alpine
+    container_name: coh-postgres
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
@@ -11,6 +19,9 @@ services:
       - "5433:5432"
     volumes:
       - coh_pg:/var/lib/postgresql/data
+    networks:
+      - default
+      - block70_coh_edge
 
   redis:
     image: redis:7-alpine

@@ -53,13 +53,25 @@ services:
     environment:
       API_SERVER_URL: ${API_SERVER_URL:-http://api:8000}
       NEXT_PUBLIC_API_BASE_URL: ${NEXT_PUBLIC_API_BASE_URL}
+      # Ingest webhook + /crypto-hour DB; must match repo root .env (visible via docker exec block70-web env)
+      WEBSITE_PUBLISH_SECRET: ${WEBSITE_PUBLISH_SECRET:-}
+      CRYPTO_HOUR_DATABASE_URL: ${CRYPTO_HOUR_DATABASE_URL:-}
     extra_hosts:
       # Allows host.docker.internal:8000 from inside container (Linux)
       - "host.docker.internal:host-gateway"
     depends_on:
       - api
+    networks:
+      - default
+      - block70_coh_edge
+    # Host port → container :3000. If bind fails, free host :3000 or set WEB_PORT=3001 in .env
     ports:
       - "${WEB_PORT:-3000}:3000"
+
+networks:
+  # Created by apps/crypto-on-the-hour/docker-compose (coh postgres). Same DB @ coh-postgres:5432.
+  block70_coh_edge:
+    external: true
 
 volumes:
   postgres_data:
