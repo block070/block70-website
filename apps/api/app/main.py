@@ -49,6 +49,8 @@ from app.api.v1.alpha_community import router as alpha_community_router
 from app.api.v1.referrals import router as referrals_router
 from app.api.v1.notifications import router as notifications_router
 from app.api.v1.admin_analytics import router as admin_analytics_router
+from app.api.v1.admin_exchange_affiliates import router as admin_exchange_affiliates_router
+from app.api.v1.exchange_affiliate_public import router as exchange_affiliate_public_router
 from app.api.v1.dev_api import router as dev_api_router
 from app.api.v1.api_keys import router as api_keys_router
 from app.api.v1.webhooks import router as webhooks_router
@@ -168,6 +170,8 @@ app.include_router(alpha_community_router)
 app.include_router(referrals_router)
 app.include_router(notifications_router)
 app.include_router(admin_analytics_router)
+app.include_router(admin_exchange_affiliates_router)
+app.include_router(exchange_affiliate_public_router)
 app.include_router(dev_api_router)
 app.include_router(api_keys_router)
 app.include_router(webhooks_router)

@@ -7,6 +7,7 @@ import type { EnrichedCategory } from "@/lib/categories-enrichment";
 import { inferSector, mcapBucket } from "@/lib/categories-enrichment";
 import { getCategoryDescription } from "@/lib/category-descriptions";
 import { buildCategorySeoHtml } from "@/lib/category-seo-longform";
+import { useExchangeAffiliateTemplates } from "@/contexts/exchange-affiliate-context";
 import { getExchangeBuyUrls } from "@/lib/exchange-buy-urls";
 import { formatChangePct, formatCompactUsd } from "@/lib/format";
 import { clsx } from "clsx";
@@ -103,6 +104,7 @@ export function CategoriesPageClient({
   const [sortBy, setSortBy] = useState<SortKey>("score");
   const [sector, setSector] = useState<SectorFilter>("all");
   const [mcap, setMcap] = useState<McapFilter>("all");
+  const affiliateTemplates = useExchangeAffiliateTemplates();
 
   const categories = useMemo(() => {
     let list = [...initialCategories];
@@ -262,8 +264,8 @@ export function CategoriesPageClient({
             const tradeSlug = cat.top3[0]?.slug;
             const tradeSym = cat.top3[0]?.symbol ?? "BTC";
             const tradeUrl = tradeSlug
-              ? getExchangeBuyUrls(tradeSym, tradeSlug).coinbase
-              : "https://www.coinbase.com";
+              ? getExchangeBuyUrls(tradeSym, tradeSlug, affiliateTemplates).coinbase
+              : getExchangeBuyUrls("BTC", "bitcoin", affiliateTemplates).coinbase;
             const seoHtml = buildCategorySeoHtml(cat.id, cat.name, cat.top3);
             return (
               <article

@@ -34,6 +34,9 @@ export default function AdminBotsPage() {
   return (
     <div className="space-y-8">
       <div className="flex items-center gap-4">
+        <Link href="/admin/affiliates">
+          <Button variant="outline">Affiliates</Button>
+        </Link>
         <Link href="/admin/analytics">
           <Button variant="outline">← Analytics</Button>
         </Link>

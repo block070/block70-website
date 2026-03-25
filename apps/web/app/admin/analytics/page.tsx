@@ -49,9 +49,15 @@ export default function AdminAnalyticsPage() {
 
   return (
     <div className="space-y-8">
-      <div className="flex items-center gap-4">
+      <div className="flex flex-wrap items-center gap-4">
         <Link href="/dashboard">
           <Button variant="outline">← Back</Button>
+        </Link>
+        <Link href="/admin/bots">
+          <Button variant="outline">Bots</Button>
+        </Link>
+        <Link href="/admin/affiliates">
+          <Button variant="outline">Affiliates</Button>
         </Link>
         <h1 className="text-2xl font-bold text-slate-50">Growth dashboard</h1>
       </div>

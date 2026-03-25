@@ -40,6 +40,7 @@ import {
 import { computeBlock70Score } from "@/lib/coins-scanner";
 import { getNewsForCoin, getSignalsForToken } from "@/lib/api";
 import { getSentiment } from "@/lib/sentiment-api";
+import { fetchExchangeAffiliateTemplates } from "@/lib/server-exchange-affiliates";
 import { withTimeout } from "@/lib/with-timeout";
 
 function coinToHeaderShape(
@@ -133,6 +134,7 @@ export default async function CoinDetailPage({ params }: { params: Params }) {
   const relatedCoins = relatedRes.status === "fulfilled" ? relatedRes.value : [];
 
   const renderedNews = coinNews.length > 0 ? coinNews : fallbackNews;
+  const affiliateTemplates = await fetchExchangeAffiliateTemplates();
 
   return (
     <div className="space-y-6">
@@ -142,6 +144,7 @@ export default async function CoinDetailPage({ params }: { params: Params }) {
         coin={coinForHeader}
         block70Score={block70Score}
         investmentLabel={investmentLabel}
+        affiliateTemplates={affiliateTemplates}
       />
 
       <PriceChart coin={coin.slug} symbol={symbol} height={400} />

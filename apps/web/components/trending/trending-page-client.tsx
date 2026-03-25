@@ -11,6 +11,7 @@ import {
 } from "react";
 import { CoinSymbol } from "@/components/market/coin-symbol";
 import { SparklineSvg } from "@/components/market/sparkline-svg";
+import { useExchangeAffiliateTemplates } from "@/contexts/exchange-affiliate-context";
 import { getExchangeBuyUrls } from "@/lib/exchange-buy-urls";
 import { formatChangePct, formatCompactUsd, formatPrice } from "@/lib/format";
 import type { EnrichedTrendingRow } from "@/lib/trending-metrics";
@@ -151,6 +152,7 @@ export function TrendingPageClient({
   isFallback,
 }: Props) {
   const router = useRouter();
+  const affiliateTemplates = useExchangeAffiliateTemplates();
   const [tab, setTab] = useState<TrendTab>("all");
   const { rows, opportunities, updatedAt, flashSlugs } = useTrendingPoll(
     initialRows,
@@ -273,7 +275,7 @@ export function TrendingPageClient({
                   ? c.change7dPct >= 0
                   : true;
               const flash = flashSlugs.has(c.slug);
-              const buyUrls = getExchangeBuyUrls(c.symbol, c.slug);
+              const buyUrls = getExchangeBuyUrls(c.symbol, c.slug, affiliateTemplates);
 
               return (
                 <tr

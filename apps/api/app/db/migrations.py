@@ -70,6 +70,13 @@ MIGRATIONS = [
     "ALTER TABLE news_articles ADD COLUMN IF NOT EXISTS quality_status VARCHAR(32) DEFAULT 'keep' NOT NULL",
     "ALTER TABLE news_articles ADD COLUMN IF NOT EXISTS created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL",
     "ALTER TABLE news_articles ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL",
+    # Seed default exchange affiliate rows (requires exchange_affiliate_links from SQLAlchemy create_all)
+    """INSERT INTO exchange_affiliate_links (provider_key, venue_type, display_name, url_template, is_active)
+    VALUES
+      ('coinbase', 'cex', 'Coinbase', NULL, true),
+      ('binance_us', 'cex', 'Binance.US', NULL, true),
+      ('kraken', 'cex', 'Kraken', NULL, true)
+    ON CONFLICT (provider_key) DO NOTHING""",
 ]
 
 

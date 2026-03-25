@@ -20,6 +20,7 @@ import {
   type StructuredAnswer,
   FOLLOW_UP_SUGGESTIONS,
 } from "@/lib/ai-search-enrich";
+import { useExchangeAffiliateTemplates } from "@/contexts/exchange-affiliate-context";
 import { getExchangeBuyUrls } from "@/lib/exchange-buy-urls";
 import { formatChangePct, formatCompactUsd } from "@/lib/format";
 
@@ -334,6 +335,7 @@ function AssistantResult({
   msg: Extract<ChatMessage, { role: "assistant" }>;
   onFollowUp: (text: string) => void;
 }) {
+  const affiliateTemplates = useExchangeAffiliateTemplates();
   const primary = msg.structured?.opportunities[0];
   const opportunityCards: OpportunityCard[] | undefined =
     msg.done && msg.structured?.opportunities.length
@@ -450,7 +452,7 @@ function AssistantResult({
           {primary ? (
             <section className="flex flex-wrap gap-3 rounded-2xl border border-[var(--b70-border)] bg-[var(--b70-card)] p-5">
               <a
-                href={getExchangeBuyUrls(primary.symbol, primary.slug).coinbase}
+                href={getExchangeBuyUrls(primary.symbol, primary.slug, affiliateTemplates).coinbase}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-blue-500"
@@ -458,7 +460,7 @@ function AssistantResult({
                 Buy on Coinbase
               </a>
               <a
-                href={getExchangeBuyUrls(primary.symbol, primary.slug).binanceUs}
+                href={getExchangeBuyUrls(primary.symbol, primary.slug, affiliateTemplates).binanceUs}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="rounded-xl border border-amber-500/40 bg-amber-950/35 px-4 py-2.5 text-sm font-semibold text-amber-100 hover:bg-amber-900/40"

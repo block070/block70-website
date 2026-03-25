@@ -41,3 +41,87 @@ export async function getBotsPerformance(): Promise<{ bots: BotPerformanceEntry[
   if (!res.ok) throw new Error("Admin API error: " + res.status);
   return (await res.json()) as { bots: BotPerformanceEntry[] };
 }
+
+export type ExchangeAffiliateRow = {
+  id: number;
+  provider_key: string;
+  venue_type: string;
+  display_name: string;
+  url_template: string | null;
+  is_active: boolean;
+  notes: string | null;
+  updated_at: string | null;
+};
+
+export async function listExchangeAffiliateLinks(): Promise<{ items: ExchangeAffiliateRow[] }> {
+  const token = getToken();
+  if (!token) throw new Error("Not authenticated");
+  const res = await fetch(`${API_BASE_URL}/api/v1/admin/exchange-affiliate-links`, {
+    headers: { Authorization: `Bearer ${token}` },
+    cache: "no-store",
+  });
+  if (!res.ok) throw new Error("Admin API error: " + res.status);
+  return (await res.json()) as { items: ExchangeAffiliateRow[] };
+}
+
+export async function upsertExchangeAffiliateLink(
+  providerKey: string,
+  body: {
+    display_name: string;
+    venue_type?: string;
+    url_template: string | null;
+    is_active: boolean;
+    notes?: string | null;
+  }
+): Promise<ExchangeAffiliateRow> {
+  const token = getToken();
+  if (!token) throw new Error("Not authenticated");
+  const res = await fetch(
+    `${API_BASE_URL}/api/v1/admin/exchange-affiliate-links/${encodeURIComponent(providerKey)}`,
+    {
+      method: "PUT",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(body),
+    }
+  );
+  if (!res.ok) throw new Error("Admin API error: " + res.status);
+  return (await res.json()) as ExchangeAffiliateRow;
+}
+
+export async function createExchangeAffiliateLink(body: {
+  provider_key: string;
+  display_name: string;
+  venue_type?: string;
+  url_template: string | null;
+  is_active: boolean;
+  notes?: string | null;
+}): Promise<ExchangeAffiliateRow> {
+  const token = getToken();
+  if (!token) throw new Error("Not authenticated");
+  const res = await fetch(`${API_BASE_URL}/api/v1/admin/exchange-affiliate-links`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) throw new Error("Admin API error: " + res.status);
+  return (await res.json()) as ExchangeAffiliateRow;
+}
+
+export async function deleteExchangeAffiliateLink(providerKey: string): Promise<void> {
+  const token = getToken();
+  if (!token) throw new Error("Not authenticated");
+  const res = await fetch(
+    `${API_BASE_URL}/api/v1/admin/exchange-affiliate-links/${encodeURIComponent(providerKey)}`,
+    {
+      method: "DELETE",
+      headers: { Authorization: `Bearer ${token}` },
+    }
+  );
+  if (!res.ok) throw new Error("Admin API error: " + res.status);
+}

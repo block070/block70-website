@@ -1,5 +1,8 @@
+"use client";
+
 import Link from "next/link";
 
+import { useExchangeAffiliateTemplates } from "@/contexts/exchange-affiliate-context";
 import { Block70Gauge } from "@/components/coins/block70-gauge";
 import type { InvestmentLabel } from "@/lib/coin-signal-label";
 import { getExchangeBuyUrls } from "@/lib/exchange-buy-urls";
@@ -12,6 +15,8 @@ type Props = {
   coin: Coin;
   block70Score: number;
   investmentLabel: InvestmentLabel;
+  /** From GET /api/v1/exchange-affiliate-links (SSR); merged with client context if needed */
+  affiliateTemplates?: Record<string, string>;
 };
 
 function labelStyles(label: InvestmentLabel) {
@@ -21,8 +26,22 @@ function labelStyles(label: InvestmentLabel) {
   return "border-amber-500/45 bg-amber-500/12 text-amber-200";
 }
 
-export function CoinHeroConversion({ coin, block70Score, investmentLabel }: Props) {
-  const links = getExchangeBuyUrls(coin.symbol, coin.slug);
+function mergeAffiliateMaps(
+  server: Record<string, string> | undefined,
+  client: Record<string, string>
+): Record<string, string> {
+  return { ...client, ...(server ?? {}) };
+}
+
+export function CoinHeroConversion({
+  coin,
+  block70Score,
+  investmentLabel,
+  affiliateTemplates: affiliateFromServer,
+}: Props) {
+  const affiliateFromClient = useExchangeAffiliateTemplates();
+  const merged = mergeAffiliateMaps(affiliateFromServer, affiliateFromClient);
+  const links = getExchangeBuyUrls(coin.symbol, coin.slug, merged);
 
   const categoryDisplay =
     coin.categoryLabel?.trim() ||

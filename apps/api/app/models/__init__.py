@@ -77,6 +77,7 @@ from .token_sentiment import TokenSentimentVote, TokenSentimentSummary
 from .token_comment import TokenComment, TokenCommentVote
 from .ai_search import AISearchQuery, AISearchAnalytics
 from .exchange import Exchange, ExchangeClick
+from .exchange_affiliate_link import ExchangeAffiliateLink
 from .chart_snapshot import ChartSnapshot
 
 __all__ = [
@@ -177,6 +178,7 @@ __all__ = [
     "AISearchAnalytics",
     "Exchange",
     "ExchangeClick",
+    "ExchangeAffiliateLink",
     "ChartSnapshot",
 ]
 
