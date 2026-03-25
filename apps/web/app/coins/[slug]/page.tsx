@@ -18,6 +18,7 @@ import { CoinMarketExtrasPanel } from "@/components/coins/coin-market-extras";
 import { CoinDescription } from "@/components/coins/coin-description";
 import { CoinFaqJsonLd } from "@/components/coins/coin-faq-json-ld";
 import { CoinHeroConversion } from "@/components/coins/coin-hero-conversion";
+import { CoinHourlySignalsPanel } from "@/components/crypto-on-the-hour/coin-hourly-signals-panel";
 import { CoinIntelligence } from "@/components/coins/coin-intelligence";
 import { CoinInvestmentAnalysis } from "@/components/coins/coin-investment-analysis";
 import { CoinLinks } from "@/components/coins/coin-links";
@@ -157,6 +158,8 @@ export default async function CoinDetailPage({ params }: { params: Params }) {
       />
 
       <PriceChart coin={coin.slug} symbol={symbol} height={400} />
+
+      <CoinHourlySignalsPanel symbol={symbol} />
 
       <CoinMarketExtrasPanel
         extras={data.market_extras}
