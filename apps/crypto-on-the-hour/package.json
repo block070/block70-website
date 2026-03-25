@@ -9,7 +9,8 @@
     "dev": "tsx watch src/index.ts",
     "worker": "tsx watch src/workers/index.ts",
     "start:worker": "node dist/workers/index.js",
-    "db:migrate": "tsx src/db/migrate.ts"
+    "db:migrate": "npx tsx src/db/migrate.ts",
+    "db:migrate:dist": "node dist/db/migrate.js"
   },
   "engines": {
     "node": ">=20"
@@ -23,12 +24,12 @@
     "openai": "^4.77.3",
     "pg": "^8.13.1",
     "rss-parser": "^3.13.0",
-    "uuid": "^11.0.5"
+    "uuid": "^11.0.5",
+    "tsx": "^4.19.2"
   },
   "devDependencies": {
     "@types/node": "^22.10.5",
     "@types/pg": "^8.11.10",
-    "tsx": "^4.19.2",
     "typescript": "^5.7.2"
   }
 }
