@@ -77,7 +77,8 @@ This applies `001_init.sql` (tables) and `002_seed_rss.sql` (default feeds). Adj
 npm run dev
 ```
 
-- Health: `GET http://localhost:4001/health`
+- Live (no DB): `GET http://localhost:4001/health/live`
+- Health (incl. Postgres): `GET http://localhost:4001/health`
 - List topics: `GET http://localhost:4001/content/topics`
 - Topic detail: `GET http://localhost:4001/content/topics/:id`
 - Manual enqueue: `POST http://localhost:4001/admin/trigger-hourly`  

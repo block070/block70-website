@@ -9,6 +9,10 @@ import { getPipelineHealth } from "../modules/health/pipeline-health.js";
 export async function buildServer() {
   const app = Fastify({ logger: true });
 
+  /** Process is up; use for load balancers. Does not check DB/Redis. */
+  app.get("/health/live", async () => ({ ok: true, service: "crypto-on-the-hour" }));
+
+  /** Liveness + Postgres (can hang if DATABASE_URL is wrong or DB unreachable). */
   app.get("/health", async () => {
     await pool.query("SELECT 1");
     return { ok: true, service: "crypto-on-the-hour" };
