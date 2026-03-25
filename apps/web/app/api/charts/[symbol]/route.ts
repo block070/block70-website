@@ -4,7 +4,7 @@ import {
   type ChartTimeframeKey,
 } from "@/lib/ohlcv-providers";
 
-const TIMEFRAMES = new Set<string>(["1H", "4H", "1D", "7D"]);
+const TIMEFRAMES = new Set<string>(["1M", "5M", "1H", "4H", "1D", "7D"]);
 
 /** Short-lived server cache to avoid duplicate external calls within a minute */
 const memCache = new Map<string, { at: number; payload: Record<string, unknown> }>();

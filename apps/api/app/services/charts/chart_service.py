@@ -9,6 +9,7 @@ import logging
 from typing import Any
 
 from app.services.charts.binance_com import fetch_binance_com_klines
+from app.services.charts.ohlcv_align import align_ohlcv_bar_times
 from app.services.charts.symbol_resolve import guess_ticker
 from app.services.connectors.chart_cache import chart_cache_get, chart_cache_set
 
@@ -76,25 +77,28 @@ def get_ohlcv(symbol: str, timeframe: str, limit: int = 200) -> list[OHLCVRecord
 
     cached = _ohlcv_cache_get(cache_key)
     if cached:
-        return cached
+        return align_ohlcv_bar_times(list(cached), tf)
 
     # 0) Binance.com (global spot, USDT pairs)
     ticker = guess_ticker(sym_upper, sym_lower)
     bn_rows = fetch_binance_com_klines(ticker, tf)
     if bn_rows:
-        data = bn_rows[-limit:] if len(bn_rows) > limit else bn_rows
+        raw = bn_rows[-limit:] if len(bn_rows) > limit else bn_rows
+        data = align_ohlcv_bar_times(raw, tf)
         _ohlcv_cache_set(cache_key, data, ttl)
         return data
 
     # 1) Coinbase
     data = _fetch_coinbase_ohlcv(sym_upper, granularity_sec, limit)
     if data:
+        data = align_ohlcv_bar_times(data, tf)
         _ohlcv_cache_set(cache_key, data, ttl)
         return data
 
     # 2) Binance.US
     data = _fetch_binance_ohlcv(sym_upper, sym_lower, tf, granularity_sec, limit)
     if data:
+        data = align_ohlcv_bar_times(data, tf)
         _ohlcv_cache_set(cache_key, data, ttl)
         return data
 
@@ -102,6 +106,7 @@ def get_ohlcv(symbol: str, timeframe: str, limit: int = 200) -> list[OHLCVRecord
     cg_id = _SYMBOL_TO_COINGECKO.get(sym_lower, sym_lower)
     data = _fetch_coingecko_ohlcv(cg_id, tf, limit)
     if data:
+        data = align_ohlcv_bar_times(data, tf)
         _ohlcv_cache_set(cache_key, data, ttl)
         return data
 

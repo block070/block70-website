@@ -58,11 +58,20 @@ const LEGACY_TIMEFRAMES: { key: ChartTimeframeKey; label: string }[] = [
   { key: "7D", label: "7D" },
 ];
 
-/** When the Block70 pack has no listing on Binance, fall back to Next/Gekko path using ~hourly bars. */
+/** When the Block70 pack misses, fall back to Next route with the matching Binance interval. */
 function packTfToLegacy(tf: PackTimeframe): ChartTimeframeKey {
-  if (tf === "4h") return "4H";
-  if (tf === "1d") return "1D";
-  return "1H";
+  switch (tf) {
+    case "1m":
+      return "1M";
+    case "5m":
+      return "5M";
+    case "4h":
+      return "4H";
+    case "1d":
+      return "1D";
+    default:
+      return "1H";
+  }
 }
 
 export type ChartMode = "line" | "candle";

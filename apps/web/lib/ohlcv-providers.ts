@@ -12,17 +12,61 @@ export type OHLCVBar = {
   volume: number;
 };
 
-export type ChartTimeframeKey = "1H" | "4H" | "1D" | "7D";
+export type ChartTimeframeKey = "1M" | "5M" | "1H" | "4H" | "1D" | "7D";
 
 const TF_MAP: Record<
   ChartTimeframeKey,
   { binanceInterval: string; binanceLimit: number; coinbaseGranularity: number | null; geckoDays: string }
 > = {
+  "1M": { binanceInterval: "1m", binanceLimit: 300, coinbaseGranularity: 60, geckoDays: "1" },
+  "5M": { binanceInterval: "5m", binanceLimit: 300, coinbaseGranularity: 300, geckoDays: "1" },
   "1H": { binanceInterval: "1h", binanceLimit: 168, coinbaseGranularity: 3600, geckoDays: "1" },
   "4H": { binanceInterval: "4h", binanceLimit: 200, coinbaseGranularity: 21600, geckoDays: "7" },
   "1D": { binanceInterval: "1d", binanceLimit: 200, coinbaseGranularity: 86400, geckoDays: "30" },
   "7D": { binanceInterval: "1d", binanceLimit: 14, coinbaseGranularity: 86400, geckoDays: "7" },
 };
+
+const TF_ALIGN_SEC: Record<ChartTimeframeKey, number> = {
+  "1M": 60,
+  "5M": 300,
+  "1H": 3600,
+  "4H": 14400,
+  "1D": 86400,
+  "7D": 86400,
+};
+
+/** Snap bar times to interval opens (UTC) so axes show :00 for hourly, etc. */
+export function alignOhlcvBars(bars: OHLCVBar[], timeframe: ChartTimeframeKey): OHLCVBar[] {
+  const sec = TF_ALIGN_SEC[timeframe];
+  if (!bars.length || !sec) return bars;
+  const sorted = [...bars].sort((a, b) => a.time - b.time);
+  const buckets = new Map<
+    number,
+    { time: number; open: number; high: number; low: number; close: number; volume: number }
+  >();
+  const order: number[] = [];
+  for (const b of sorted) {
+    const at = Math.floor(b.time / sec) * sec;
+    const ex = buckets.get(at);
+    if (!ex) {
+      buckets.set(at, {
+        time: at,
+        open: b.open,
+        high: b.high,
+        low: b.low,
+        close: b.close,
+        volume: b.volume,
+      });
+      order.push(at);
+    } else {
+      ex.high = Math.max(ex.high, b.high);
+      ex.low = Math.min(ex.low, b.low);
+      ex.close = b.close;
+      ex.volume += b.volume;
+    }
+  }
+  return order.sort((a, b) => a - b).map((t) => buckets.get(t)!);
+}
 
 function toBinancePair(symbol: string): string {
   const s = symbol.replace(/[^A-Za-z0-9]/g, "").toUpperCase();
@@ -143,6 +187,14 @@ export async function fetchCoinGeckoOHLCV(coinId: string, timeframe: ChartTimefr
   return parseGeckoOhlc(data);
 }
 
+function packAligned(
+  ohlcv: OHLCVBar[],
+  timeframe: ChartTimeframeKey,
+  source: string
+): { ohlcv: OHLCVBar[]; source: string } {
+  return { ohlcv: ohlcv.length ? alignOhlcvBars(ohlcv, timeframe) : ohlcv, source };
+}
+
 export async function fetchOHLCVWithFallback(
   symbol: string,
   timeframe: ChartTimeframeKey,
@@ -151,7 +203,7 @@ export async function fetchOHLCVWithFallback(
   const errors: string[] = [];
   try {
     const ohlcv = await fetchBinanceOHLCV(symbol, timeframe);
-    if (ohlcv.length) return { ohlcv, source: "binance" };
+    if (ohlcv.length) return packAligned(ohlcv, timeframe, "binance");
     errors.push("Binance empty");
   } catch (e) {
     errors.push(`Binance: ${e instanceof Error ? e.message : "fail"}`);
@@ -159,7 +211,7 @@ export async function fetchOHLCVWithFallback(
 
   try {
     const ohlcv = await fetchCoinbaseOHLCV(symbol, timeframe);
-    if (ohlcv.length) return { ohlcv, source: "coinbase" };
+    if (ohlcv.length) return packAligned(ohlcv, timeframe, "coinbase");
     errors.push("Coinbase empty");
   } catch (e) {
     errors.push(`Coinbase: ${e instanceof Error ? e.message : "fail"}`);
@@ -168,7 +220,7 @@ export async function fetchOHLCVWithFallback(
   if (geckoCoinId && geckoCoinId.trim()) {
     try {
       const ohlcv = await fetchCoinGeckoOHLCV(geckoCoinId.trim().toLowerCase(), timeframe);
-      if (ohlcv.length) return { ohlcv, source: "coingecko" };
+      if (ohlcv.length) return packAligned(ohlcv, timeframe, "coingecko");
       errors.push("CoinGecko empty");
     } catch (e) {
       errors.push(`CoinGecko: ${e instanceof Error ? e.message : "fail"}`);

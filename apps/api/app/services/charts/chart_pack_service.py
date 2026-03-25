@@ -17,13 +17,14 @@ from app.models.coin import Coin
 from app.services.charts.binance_com import fetch_binance_com_klines
 from app.services.charts.chart_service import get_ohlcv
 from app.services.charts.indicators import compute_indicators_for_ohlcv
+from app.services.charts.ohlcv_align import align_ohlcv_bar_times
 from app.services.charts.symbol_resolve import SLUG_TO_TICKER, guess_ticker
 from app.services.connectors.chart_cache import chart_cache_get, chart_cache_set
 
 logger = logging.getLogger(__name__)
 
 PACK_TIMEFRAMES = frozenset({"1m", "5m", "1h", "4h", "1d"})
-PACK_REDIS_PREFIX = "pack:v1:"
+PACK_REDIS_PREFIX = "pack:v2:"
 PACK_REDIS_TTL = int(os.getenv("CHART_PACK_REDIS_TTL", "55"))
 
 
@@ -117,6 +118,8 @@ def build_chart_pack(
 
     ticker, slug = resolve_ticker_slug(coin, db)
     ohlcv, source = _fetch_ohlcv_with_source(ticker, slug, tf, limit)
+    if ohlcv:
+        ohlcv = align_ohlcv_bar_times(ohlcv, tf)
     if not ohlcv:
         empty = {
             "ohlc": [],
@@ -130,8 +133,6 @@ def build_chart_pack(
             },
             "meta": {"slug": slug, "timeframe": tf, "ticker": ticker, "source": source},
         }
-        if write_redis:
-            chart_cache_set(PACK_REDIS_PREFIX + f"{slug}:{tf}", empty, 15)
         return empty
 
     ind = compute_indicators_for_ohlcv(ohlcv)
@@ -168,8 +169,10 @@ def get_chart_pack_cached(
     _, slug = resolve_ticker_slug(coin, db)
     key = PACK_REDIS_PREFIX + f"{slug}:{tf}"
     hit = chart_cache_get(key)
-    if hit and isinstance(hit, dict) and "ohlc" in hit:
-        return hit
+    if hit and isinstance(hit, dict):
+        ohlc_hit = hit.get("ohlc")
+        if isinstance(ohlc_hit, list) and len(ohlc_hit) > 0:
+            return hit
     return build_chart_pack(coin, tf, db=db, write_redis=True, write_pg=True)
 
 
