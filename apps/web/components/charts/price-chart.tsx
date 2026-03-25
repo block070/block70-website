@@ -58,6 +58,13 @@ const LEGACY_TIMEFRAMES: { key: ChartTimeframeKey; label: string }[] = [
   { key: "7D", label: "7D" },
 ];
 
+/** When the Block70 pack has no listing on Binance, fall back to Next/Gekko path using ~hourly bars. */
+function packTfToLegacy(tf: PackTimeframe): ChartTimeframeKey {
+  if (tf === "4h") return "4H";
+  if (tf === "1d") return "1D";
+  return "1H";
+}
+
 export type ChartMode = "line" | "candle";
 
 type Block70Marker = { time: number; kind: string; label?: string };
@@ -197,13 +204,49 @@ export function PriceChart({
           setOverlayMarkers([]);
           return;
         }
-        const bars = data.ohlc ?? [];
+        let bars = data.ohlc ?? [];
+        let srcLine = data.meta?.source ? `Block70 · ${data.meta.source}` : "Block70 pack";
+        let ind = data.indicators;
+
+        if (!bars.length && sym) {
+          const legTf = packTfToLegacy(packTf);
+          const sp = new URLSearchParams({ timeframe: legTf });
+          sp.set("slug", block70Slug);
+          const res2 = await fetch(`/api/charts/${encodeURIComponent(sym)}?${sp}`, {
+            cache: "default",
+          });
+          const data2 = (await res2.json()) as {
+            ohlcv?: OHLCVPoint[];
+            error?: string | null;
+            source?: string | null;
+          };
+          if (res2.ok && !data2.error && (data2.ohlcv?.length ?? 0) > 0) {
+            bars = data2.ohlcv ?? [];
+            srcLine = data2.source ? `Fallback · ${data2.source}` : "Fallback market data";
+            ind = undefined;
+          }
+        }
+
+        if (!bars.length) {
+          ind = undefined;
+        }
+
         setOhlcv(bars);
-        setSource(data.meta?.source ? `Block70 · ${data.meta.source}` : "Block70 pack");
-        const ind = data.indicators;
-        setBlock70Score(typeof ind?.score === "number" ? ind.score : null);
-        setBlock70Signal(ind?.signal ?? null);
-        setOverlayMarkers(Array.isArray(ind?.markers) ? ind!.markers! : []);
+        setSource(bars.length ? srcLine : data.meta?.source === "none" ? "Block70 · none" : srcLine);
+        if (ind) {
+          setBlock70Score(typeof ind.score === "number" ? ind.score : null);
+          setBlock70Signal(ind.signal ?? null);
+          setOverlayMarkers(Array.isArray(ind.markers) ? ind.markers : []);
+        } else {
+          setBlock70Score(null);
+          setBlock70Signal(null);
+          setOverlayMarkers([]);
+        }
+        if (!bars.length) {
+          setError("No OHLCV data available for this token on current markets.");
+        } else {
+          setError(null);
+        }
       } catch (e) {
         setError(e instanceof Error ? e.message : "Failed to load chart");
         setOhlcv([]);
@@ -285,7 +328,7 @@ export function PriceChart({
       layout: {
         background: { type: ColorType.Solid, color: "transparent" },
         textColor: "#94a3b8",
-        attributionLogo: true,
+        attributionLogo: false,
       },
       width: el.clientWidth,
       height,

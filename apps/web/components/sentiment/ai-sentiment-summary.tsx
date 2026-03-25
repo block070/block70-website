@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { API_BASE_URL } from "@/lib/api";
 
 type Props = {
   tokenSymbol: string;
@@ -23,10 +22,9 @@ export function AISentimentSummary({ tokenSymbol, className = "" }: Props) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetch(
-      `${API_BASE_URL}/api/v1/sentiment/${encodeURIComponent(tokenSymbol)}/ai-summary`,
-      { cache: "no-store" },
-    )
+    fetch(`/api/v1/sentiment/${encodeURIComponent(tokenSymbol)}/ai-summary`, {
+      cache: "no-store",
+    })
       .then((r) => (r.ok ? r.json() : null))
       .then(setSummary)
       .catch(() => setSummary(null))

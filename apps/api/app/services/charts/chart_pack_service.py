@@ -17,7 +17,7 @@ from app.models.coin import Coin
 from app.services.charts.binance_com import fetch_binance_com_klines
 from app.services.charts.chart_service import get_ohlcv
 from app.services.charts.indicators import compute_indicators_for_ohlcv
-from app.services.charts.symbol_resolve import SLUG_TO_TICKER
+from app.services.charts.symbol_resolve import SLUG_TO_TICKER, guess_ticker
 from app.services.connectors.chart_cache import chart_cache_get, chart_cache_set
 
 logger = logging.getLogger(__name__)
@@ -54,7 +54,7 @@ def resolve_ticker_slug(coin: str, db: Session | None) -> tuple[str, str]:
 
 
 def _fetch_ohlcv_with_source(
-    ticker: str, timeframe: str, limit: int
+    ticker: str, coin_slug: str, timeframe: str, limit: int
 ) -> tuple[list[dict[str, Any]], str]:
     tf = (timeframe or "1h").lower().strip()
     bn = fetch_binance_com_klines(ticker, tf)
@@ -64,6 +64,12 @@ def _fetch_ohlcv_with_source(
     data = get_ohlcv(ticker, tf, limit)
     if data:
         return data, "fallback_exchanges"
+    # CoinGecko and other fallbacks key off coingecko-style slug
+    slug = (coin_slug or "").strip().lower()
+    if slug:
+        data = get_ohlcv(slug, tf, limit)
+        if data:
+            return data, "coingecko_slug"
     slug_try = None
     for s, tick in SLUG_TO_TICKER.items():
         if tick == ticker.upper():
@@ -110,7 +116,7 @@ def build_chart_pack(
         raise ValueError(f"Unsupported timeframe: {timeframe}")
 
     ticker, slug = resolve_ticker_slug(coin, db)
-    ohlcv, source = _fetch_ohlcv_with_source(ticker, tf, limit)
+    ohlcv, source = _fetch_ohlcv_with_source(ticker, slug, tf, limit)
     if not ohlcv:
         empty = {
             "ohlc": [],
