@@ -121,7 +121,7 @@ Implement `IngestionSource` in `src/modules/ingestion/ingestion-source.ts`, then
 
 ## Block70 monorepo note
 
-This app is **standalone Node** alongside the existing Python/Next stack. Wire `WEBSITE_PUBLISH_WEBHOOK_URL` to the Block70 ingest route **`POST /api/publish/crypto-hour`** (see `apps/web/app/api/publish/crypto-hour/route.ts`). Use the **same Postgres** via `CRYPTO_HOUR_DATABASE_URL` on Vercel as `DATABASE_URL` on the engine so articles appear on **`/crypto-hour`** and **`/crypto-hour/:topicId`**.
+This app is **standalone Node** alongside the existing Python/Next stack. Wire `WEBSITE_PUBLISH_WEBHOOK_URL` to the Block70 ingest route **`POST /api/publish/crypto-hour`** (see `apps/web/app/api/publish/crypto-hour/route.ts`). Use the **same Postgres** via `CRYPTO_HOUR_DATABASE_URL` on Vercel as `DATABASE_URL` on the engine so articles appear on **`/crypto-hour`** and **`/crypto-hour/:topic-slug`** (UUID URLs redirect to the slug).
 
 - Health: `GET /health/pipeline` — returns `503` if the last hourly run is missing, failed, or older than ~2.5h (for uptime monitors).
 

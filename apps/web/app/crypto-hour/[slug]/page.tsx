@@ -1,14 +1,19 @@
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 
 import { ArticleMarkdown } from "@/components/crypto-hour/article-markdown";
 import { getCryptoHourPool } from "@/lib/server/crypto-hour-pool";
-import { getPublishedArticleByTopicId, isUuid } from "@/lib/server/published-articles";
+import {
+  cryptoHourArticlePath,
+  getPublishedArticleBySlug,
+  getPublishedArticleByTopicId,
+  isUuid,
+} from "@/lib/server/published-articles";
 
 /** Same as /crypto-hour: avoid Postgres during `next build` inside Docker. */
 export const dynamic = "force-dynamic";
 
-type Params = { topicId: string };
+type Params = { slug: string };
 
 function displayMarkdown(body: string, meta: Record<string, unknown>): string {
   const display = meta.displayBody;
@@ -21,11 +26,20 @@ function displayMarkdown(body: string, meta: Record<string, unknown>): string {
   return b;
 }
 
+async function resolveArticleRow(pool: NonNullable<ReturnType<typeof getCryptoHourPool>>, segment: string) {
+  if (isUuid(segment)) {
+    const byId = await getPublishedArticleByTopicId(pool, segment);
+    if (byId) return byId;
+  }
+  return getPublishedArticleBySlug(pool, segment);
+}
+
 export async function generateMetadata({ params }: { params: Params }) {
+  const segment = typeof params.slug === "string" ? params.slug.trim() : "";
   const pool = getCryptoHourPool();
-  if (!pool || !isUuid(params.topicId)) return { title: "Article · Block70" };
+  if (!pool || !segment) return { title: "Article · Block70" };
   try {
-    const row = await getPublishedArticleByTopicId(pool, params.topicId);
+    const row = await resolveArticleRow(pool, segment);
     if (!row) return { title: "Article · Block70" };
     const desc =
       typeof row.meta?.metaDescription === "string" ? row.meta.metaDescription : undefined;
@@ -39,7 +53,8 @@ export async function generateMetadata({ params }: { params: Params }) {
 }
 
 export default async function CryptoHourArticlePage({ params }: { params: Params }) {
-  if (!isUuid(params.topicId)) notFound();
+  const segment = typeof params.slug === "string" ? params.slug.trim() : "";
+  if (!segment) notFound();
 
   const pool = getCryptoHourPool();
   if (!pool) {
@@ -50,9 +65,14 @@ export default async function CryptoHourArticlePage({ params }: { params: Params
     );
   }
 
-  let row: Awaited<ReturnType<typeof getPublishedArticleByTopicId>>;
+  if (isUuid(segment)) {
+    const byId = await getPublishedArticleByTopicId(pool, segment);
+    if (byId) redirect(cryptoHourArticlePath(byId.topic_slug));
+  }
+
+  let row: Awaited<ReturnType<typeof getPublishedArticleBySlug>>;
   try {
-    row = await getPublishedArticleByTopicId(pool, params.topicId);
+    row = await getPublishedArticleBySlug(pool, segment);
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     return (

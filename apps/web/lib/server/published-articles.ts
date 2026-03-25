@@ -16,6 +16,11 @@ export function isUuid(s: string): boolean {
   return UUID_RE.test(s);
 }
 
+/** URL segment for article pages (`/crypto-hour/:slug`). */
+export function cryptoHourArticlePath(topicSlug: string): string {
+  return `/crypto-hour/${encodeURIComponent(topicSlug)}`;
+}
+
 function coerceMeta(v: unknown): Record<string, unknown> {
   if (v != null && typeof v === "object" && !Array.isArray(v)) {
     return v as Record<string, unknown>;
@@ -59,6 +64,23 @@ export async function getPublishedArticleByTopicId(
      FROM web_published_articles
      WHERE topic_id = $1`,
     [topicId]
+  );
+  const row = r.rows[0];
+  return row ? normalizeRow(row) : null;
+}
+
+/** `topic_slug` is not UNIQUE; if duplicates exist, return the latest row. */
+export async function getPublishedArticleBySlug(
+  pool: Pool,
+  topicSlug: string,
+): Promise<PublishedArticleRow | null> {
+  const r = await pool.query<PublishedArticleRow>(
+    `SELECT topic_id, topic_slug, title, body_markdown, meta, updated_at
+     FROM web_published_articles
+     WHERE topic_slug = $1
+     ORDER BY updated_at DESC
+     LIMIT 1`,
+    [topicSlug]
   );
   const row = r.rows[0];
   return row ? normalizeRow(row) : null;

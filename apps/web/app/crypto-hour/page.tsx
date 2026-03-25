@@ -1,7 +1,7 @@
 import Link from "next/link";
 
 import { getCryptoHourPool } from "@/lib/server/crypto-hour-pool";
-import { listPublishedArticles } from "@/lib/server/published-articles";
+import { cryptoHourArticlePath, listPublishedArticles } from "@/lib/server/published-articles";
 
 /** DB is only available at runtime (e.g. Docker host network); skip prerender during `next build`. */
 export const dynamic = "force-dynamic";
@@ -55,7 +55,7 @@ export default async function CryptoHourIndexPage() {
         {articles.map((a) => (
           <li key={a.topic_id}>
             <Link
-              href={`/crypto-hour/${a.topic_id}`}
+              href={cryptoHourArticlePath(a.topic_slug)}
               className="block px-4 py-3 transition hover:bg-slate-800/50"
             >
               <span className="font-medium text-slate-100">{a.title}</span>

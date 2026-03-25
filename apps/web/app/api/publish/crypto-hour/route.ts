@@ -3,6 +3,7 @@ import { createHash, timingSafeEqual } from "node:crypto";
 import { NextResponse } from "next/server";
 
 import { getCryptoHourPool } from "@/lib/server/crypto-hour-pool";
+import { cryptoHourArticlePath } from "@/lib/server/published-articles";
 
 export const runtime = "nodejs";
 
@@ -147,5 +148,5 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "database error", detail: msg }, { status: 500 });
   }
 
-  return NextResponse.json({ ok: true, topicId, path: `/crypto-hour/${topicId}` });
+  return NextResponse.json({ ok: true, topicId, slug: topicSlug, path: cryptoHourArticlePath(topicSlug) });
 }
