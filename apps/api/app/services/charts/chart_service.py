@@ -8,6 +8,8 @@ from __future__ import annotations
 import logging
 from typing import Any
 
+from app.services.charts.binance_com import fetch_binance_com_klines
+from app.services.charts.symbol_resolve import guess_ticker
 from app.services.connectors.chart_cache import chart_cache_get, chart_cache_set
 
 logger = logging.getLogger(__name__)
@@ -75,6 +77,14 @@ def get_ohlcv(symbol: str, timeframe: str, limit: int = 200) -> list[OHLCVRecord
     cached = _ohlcv_cache_get(cache_key)
     if cached:
         return cached
+
+    # 0) Binance.com (global spot, USDT pairs)
+    ticker = guess_ticker(sym_upper, sym_lower)
+    bn_rows = fetch_binance_com_klines(ticker, tf)
+    if bn_rows:
+        data = bn_rows[-limit:] if len(bn_rows) > limit else bn_rows
+        _ohlcv_cache_set(cache_key, data, ttl)
+        return data
 
     # 1) Coinbase
     data = _fetch_coinbase_ohlcv(sym_upper, granularity_sec, limit)

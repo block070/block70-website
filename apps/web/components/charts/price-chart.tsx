@@ -6,11 +6,15 @@ import {
   CandlestickSeries,
   HistogramSeries,
   LineSeries,
+  createSeriesMarkers,
   type IChartApi,
   type ISeriesApi,
+  type ISeriesMarkersPluginApi,
   type CandlestickData,
   type HistogramData,
   type LineData,
+  type SeriesMarker,
+  type Time,
   type UTCTimestamp,
 } from "lightweight-charts";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -28,7 +32,7 @@ export type OHLCVPoint = {
 };
 
 export type PriceChartProps = {
-  /** CoinGecko id / URL slug (e.g. bitcoin) — improves fallback data */
+  /** CoinGecko-style slug (e.g. bitcoin) — enables Block70 pack API (no browser→exchange). */
   coin?: string;
   symbol?: string;
   slug?: string;
@@ -36,7 +40,18 @@ export type PriceChartProps = {
   className?: string;
 };
 
-const TIMEFRAMES: { key: ChartTimeframeKey; label: string }[] = [
+/** Block70 backend timeframes */
+type PackTimeframe = "1m" | "5m" | "1h" | "4h" | "1d";
+
+const PACK_TIMEFRAMES: { key: PackTimeframe; label: string }[] = [
+  { key: "1m", label: "1M" },
+  { key: "5m", label: "5M" },
+  { key: "1h", label: "1H" },
+  { key: "4h", label: "4H" },
+  { key: "1d", label: "1D" },
+];
+
+const LEGACY_TIMEFRAMES: { key: ChartTimeframeKey; label: string }[] = [
   { key: "1H", label: "1H" },
   { key: "4H", label: "4H" },
   { key: "1D", label: "1D" },
@@ -44,6 +59,54 @@ const TIMEFRAMES: { key: ChartTimeframeKey; label: string }[] = [
 ];
 
 export type ChartMode = "line" | "candle";
+
+type Block70Marker = { time: number; kind: string; label?: string };
+
+type ChartPackPayload = {
+  ohlc?: OHLCVPoint[];
+  volume?: { time: number; value: number }[];
+  indicators?: {
+    score?: number | null;
+    signal?: string;
+    markers?: Block70Marker[];
+  };
+  meta?: { source?: string; slug?: string };
+  error?: string;
+};
+
+function signalBadgeClass(signal: string | undefined): string {
+  const s = (signal || "").toLowerCase();
+  if (s.includes("strong") && s.includes("buy")) return "bg-emerald-500/20 text-emerald-300 ring-emerald-500/40";
+  if (s.includes("buy")) return "bg-green-500/15 text-green-300 ring-green-500/35";
+  if (s.includes("strong") && s.includes("sell")) return "bg-red-600/25 text-red-300 ring-red-500/45";
+  if (s.includes("sell")) return "bg-rose-500/15 text-rose-300 ring-rose-500/35";
+  return "bg-slate-600/30 text-slate-300 ring-slate-500/40";
+}
+
+function markersToPluginShape(markers: Block70Marker[]): SeriesMarker<Time>[] {
+  const out: SeriesMarker<Time>[] = [];
+  for (const m of markers) {
+    const t = m.time as Time;
+    if (m.kind === "buy") {
+      out.push({
+        time: t,
+        position: "belowBar",
+        color: "#34d399",
+        shape: "arrowUp",
+        text: m.label || "Buy",
+      });
+    } else if (m.kind === "sell") {
+      out.push({
+        time: t,
+        position: "aboveBar",
+        color: "#f87171",
+        shape: "arrowDown",
+        text: m.label || "Sell",
+      });
+    }
+  }
+  return out;
+}
 
 function applyOhlcvToSeries(
   chart: IChartApi,
@@ -63,9 +126,7 @@ function applyOhlcvToSeries(
     time: c.time as UTCTimestamp,
     value: c.volume,
     color:
-      c.close >= c.open
-        ? "rgba(0, 255, 163, 0.35)"
-        : "rgba(255, 107, 107, 0.35)",
+      c.close >= c.open ? "rgba(0, 255, 163, 0.35)" : "rgba(255, 107, 107, 0.35)",
   }));
   volume.setData(volData);
 
@@ -95,28 +156,73 @@ export function PriceChart({
   height = 400,
   className,
 }: PriceChartProps) {
-  const slug = (coin ?? slugProp ?? "").trim();
+  const block70Slug = (coin ?? slugProp ?? "").trim();
   const sym = (symbol ?? "").trim().toUpperCase();
+  const usePackApi = Boolean(block70Slug);
+
   const containerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
   const mainRef = useRef<ISeriesApi<"Line"> | ISeriesApi<"Candlestick"> | null>(null);
   const volumeRef = useRef<ISeriesApi<"Histogram"> | null>(null);
+  const markersRef = useRef<ISeriesMarkersPluginApi<Time> | null>(null);
   const ohlcvRef = useRef<OHLCVPoint[]>([]);
 
-  const [timeframe, setTimeframe] = useState<ChartTimeframeKey>("1D");
+  const [packTf, setPackTf] = useState<PackTimeframe>("1h");
+  const [legacyTf, setLegacyTf] = useState<ChartTimeframeKey>("1D");
   const [chartMode, setChartMode] = useState<ChartMode>("line");
   const [ohlcv, setOhlcv] = useState<OHLCVPoint[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [source, setSource] = useState<string | null>(null);
+  const [block70Score, setBlock70Score] = useState<number | null>(null);
+  const [block70Signal, setBlock70Signal] = useState<string | null>(null);
+  const [overlayMarkers, setOverlayMarkers] = useState<Block70Marker[]>([]);
 
   const fetchData = useCallback(async () => {
+    if (usePackApi) {
+      setLoading(true);
+      setError(null);
+      try {
+        const res = await fetch(
+          `/api/chart?${new URLSearchParams({ coin: block70Slug, timeframe: packTf }).toString()}`,
+          { cache: "default" }
+        );
+        const data = (await res.json()) as ChartPackPayload;
+        if (!res.ok) {
+          setError(data.error || `HTTP ${res.status}`);
+          setOhlcv([]);
+          setSource(null);
+          setBlock70Score(null);
+          setBlock70Signal(null);
+          setOverlayMarkers([]);
+          return;
+        }
+        const bars = data.ohlc ?? [];
+        setOhlcv(bars);
+        setSource(data.meta?.source ? `Block70 · ${data.meta.source}` : "Block70 pack");
+        const ind = data.indicators;
+        setBlock70Score(typeof ind?.score === "number" ? ind.score : null);
+        setBlock70Signal(ind?.signal ?? null);
+        setOverlayMarkers(Array.isArray(ind?.markers) ? ind!.markers! : []);
+      } catch (e) {
+        setError(e instanceof Error ? e.message : "Failed to load chart");
+        setOhlcv([]);
+        setSource(null);
+        setBlock70Score(null);
+        setBlock70Signal(null);
+        setOverlayMarkers([]);
+      } finally {
+        setLoading(false);
+      }
+      return;
+    }
+
     if (!sym) return;
     setLoading(true);
     setError(null);
     try {
-      const sp = new URLSearchParams({ timeframe });
-      if (slug) sp.set("slug", slug);
+      const sp = new URLSearchParams({ timeframe: legacyTf });
+      if (block70Slug) sp.set("slug", block70Slug);
       const res = await fetch(`/api/charts/${encodeURIComponent(sym)}?${sp}`, {
         cache: "default",
       });
@@ -129,24 +235,36 @@ export function PriceChart({
         setError(data.error || `HTTP ${res.status}`);
         setOhlcv([]);
         setSource(null);
+        setBlock70Score(null);
+        setBlock70Signal(null);
+        setOverlayMarkers([]);
         return;
       }
       if (data.error && !(data.ohlcv?.length)) {
         setError(data.error);
         setOhlcv([]);
         setSource(null);
+        setBlock70Score(null);
+        setBlock70Signal(null);
+        setOverlayMarkers([]);
         return;
       }
       setOhlcv(data.ohlcv ?? []);
       setSource(data.source ?? null);
+      setBlock70Score(null);
+      setBlock70Signal(null);
+      setOverlayMarkers([]);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to load chart");
       setOhlcv([]);
       setSource(null);
+      setBlock70Score(null);
+      setBlock70Signal(null);
+      setOverlayMarkers([]);
     } finally {
       setLoading(false);
     }
-  }, [sym, slug, timeframe]);
+  }, [usePackApi, block70Slug, packTf, sym, legacyTf]);
 
   useEffect(() => {
     void fetchData();
@@ -156,9 +274,12 @@ export function PriceChart({
     ohlcvRef.current = ohlcv;
   }, [ohlcv]);
 
+  const chartMountKey = usePackApi ? `pack:${block70Slug}` : `legacy:${sym}`;
+  const chartDepKey = usePackApi ? block70Slug : sym;
+
   useEffect(() => {
     const el = containerRef.current;
-    if (!el || !sym) return;
+    if (!el || !chartDepKey) return;
 
     const chart = createChart(el, {
       layout: {
@@ -227,6 +348,9 @@ export function PriceChart({
           });
     mainRef.current = main;
 
+    const mk = createSeriesMarkers(main, []);
+    markersRef.current = mk;
+
     applyOhlcvToSeries(chart, main, volumeSeries, ohlcvRef.current, chartMode);
 
     const ro = new ResizeObserver(() => {
@@ -244,8 +368,9 @@ export function PriceChart({
       chartRef.current = null;
       mainRef.current = null;
       volumeRef.current = null;
+      markersRef.current = null;
     };
-  }, [sym, height, chartMode]);
+  }, [chartMountKey, height, chartMode]);
 
   useEffect(() => {
     const chart = chartRef.current;
@@ -255,10 +380,16 @@ export function PriceChart({
     applyOhlcvToSeries(chart, main, vol, ohlcv, chartMode);
   }, [ohlcv, chartMode]);
 
-  if (!sym) {
+  useEffect(() => {
+    const mk = markersRef.current;
+    if (!mk) return;
+    mk.setMarkers(markersToPluginShape(overlayMarkers));
+  }, [overlayMarkers, ohlcv]);
+
+  if (!chartDepKey) {
     return (
       <p className={clsx("rounded-xl border border-slate-800 bg-slate-900/60 p-4 text-sm text-slate-500", className)}>
-        Chart unavailable (missing symbol).
+        Chart unavailable (missing coin or symbol).
       </p>
     );
   }
@@ -270,13 +401,32 @@ export function PriceChart({
         className
       )}
     >
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <p className="text-sm font-semibold uppercase tracking-wide text-slate-300">
-            Price chart
-          </p>
+      <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-start sm:justify-between">
+        <div className="min-w-0 space-y-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <p className="text-sm font-semibold uppercase tracking-wide text-slate-300">
+              Price chart
+            </p>
+            {usePackApi && block70Signal ? (
+              <span
+                className={clsx(
+                  "rounded-full px-2.5 py-0.5 text-[11px] font-semibold ring-1",
+                  signalBadgeClass(block70Signal)
+                )}
+              >
+                {block70Signal}
+              </span>
+            ) : null}
+          </div>
+          {usePackApi && block70Score != null ? (
+            <p className="text-lg font-semibold tabular-nums text-white">
+              Block70 score{" "}
+              <span className="text-emerald-400">{block70Score.toFixed(1)}</span>
+              <span className="text-xs font-normal text-slate-500"> / 100</span>
+            </p>
+          ) : null}
           {source && !loading ? (
-            <p className="mt-0.5 text-[10px] text-slate-500">Data · {source}</p>
+            <p className="text-[10px] text-slate-500">Data · {source}</p>
           ) : null}
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -307,22 +457,39 @@ export function PriceChart({
             </button>
           </div>
           <div className="flex flex-wrap gap-1">
-            {TIMEFRAMES.map((tf) => (
-              <button
-                key={tf.key}
-                type="button"
-                onClick={() => setTimeframe(tf.key)}
-                disabled={loading}
-                className={clsx(
-                  "rounded-full px-2.5 py-1 text-xs font-semibold transition",
-                  timeframe === tf.key
-                    ? "bg-slate-100 text-slate-900"
-                    : "text-slate-500 hover:bg-slate-800/80 hover:text-slate-200"
-                )}
-              >
-                {tf.label}
-              </button>
-            ))}
+            {usePackApi
+              ? PACK_TIMEFRAMES.map((tf) => (
+                  <button
+                    key={tf.key}
+                    type="button"
+                    onClick={() => setPackTf(tf.key)}
+                    disabled={loading}
+                    className={clsx(
+                      "rounded-full px-2.5 py-1 text-xs font-semibold transition",
+                      packTf === tf.key
+                        ? "bg-slate-100 text-slate-900"
+                        : "text-slate-500 hover:bg-slate-800/80 hover:text-slate-200"
+                    )}
+                  >
+                    {tf.label}
+                  </button>
+                ))
+              : LEGACY_TIMEFRAMES.map((tf) => (
+                  <button
+                    key={tf.key}
+                    type="button"
+                    onClick={() => setLegacyTf(tf.key)}
+                    disabled={loading}
+                    className={clsx(
+                      "rounded-full px-2.5 py-1 text-xs font-semibold transition",
+                      legacyTf === tf.key
+                        ? "bg-slate-100 text-slate-900"
+                        : "text-slate-500 hover:bg-slate-800/80 hover:text-slate-200"
+                    )}
+                  >
+                    {tf.label}
+                  </button>
+                ))}
           </div>
         </div>
       </div>
@@ -350,7 +517,9 @@ export function PriceChart({
       </div>
 
       <p className="text-[10px] text-slate-500">
-        Prices from public market APIs (Binance → Coinbase → CoinGecko). Not investment advice.
+        {usePackApi
+          ? "OHLCV and Block70 signals are served from the Block70 API (cached). Not investment advice."
+          : "Prices from public market APIs. Not investment advice."}
       </p>
     </section>
   );

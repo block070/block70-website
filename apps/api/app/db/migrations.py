@@ -16,6 +16,17 @@ from app.db import engine
 logger = logging.getLogger(__name__)
 
 MIGRATIONS = [
+    # chart_pack_snapshots: full OHLCV + indicators JSON for Block70 charts API
+    """CREATE TABLE IF NOT EXISTS chart_pack_snapshots (
+        id SERIAL PRIMARY KEY,
+        coin_slug VARCHAR(128) NOT NULL,
+        timeframe VARCHAR(8) NOT NULL,
+        pack_json TEXT NOT NULL,
+        updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+        CONSTRAINT uq_chart_pack_slug_tf UNIQUE (coin_slug, timeframe)
+    )""",
+    "CREATE INDEX IF NOT EXISTS ix_chart_pack_snapshots_slug ON chart_pack_snapshots (coin_slug)",
+    "CREATE INDEX IF NOT EXISTS ix_chart_pack_snapshots_updated ON chart_pack_snapshots (updated_at)",
     # chart_snapshots: persistent chart data (Storage → Binance.US → CoinGecko)
     """CREATE TABLE IF NOT EXISTS chart_snapshots (
         id SERIAL PRIMARY KEY,

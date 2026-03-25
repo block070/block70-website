@@ -384,6 +384,26 @@ def _run_signal_bot_dispatcher_job() -> None:
     _with_db_session(run_signal_bot_dispatcher)
 
 
+def _run_chart_pack_short_job() -> None:
+    """Warm Block70 chart packs (1m, 5m) for CHART_PACK_SLUGS — every minute."""
+    try:
+        from app.services.charts.chart_pack_service import chart_pack_coin_list, refresh_chart_packs_for_slugs
+
+        refresh_chart_packs_for_slugs(chart_pack_coin_list(), ["1m", "5m"])
+    except Exception:
+        pass
+
+
+def _run_chart_pack_long_job() -> None:
+    """Warm Block70 chart packs (1h, 4h, 1d) — every 5 minutes."""
+    try:
+        from app.services.charts.chart_pack_service import chart_pack_coin_list, refresh_chart_packs_for_slugs
+
+        refresh_chart_packs_for_slugs(chart_pack_coin_list(), ["1h", "4h", "1d"])
+    except Exception:
+        pass
+
+
 _scheduler_instance: BackgroundScheduler | None = None
 _shutdown_requested = False
 
@@ -631,6 +651,21 @@ def create_scheduler() -> BackgroundScheduler:
         _run_signal_bot_dispatcher_job,
         IntervalTrigger(minutes=1),
         id="signal_bot_dispatcher",
+        replace_existing=True,
+        max_instances=1,
+    )
+
+    scheduler.add_job(
+        _run_chart_pack_short_job,
+        IntervalTrigger(minutes=1),
+        id="chart_pack_short",
+        replace_existing=True,
+        max_instances=1,
+    )
+    scheduler.add_job(
+        _run_chart_pack_long_job,
+        IntervalTrigger(minutes=5),
+        id="chart_pack_long",
         replace_existing=True,
         max_instances=1,
     )
