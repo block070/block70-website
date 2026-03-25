@@ -12,6 +12,9 @@ from app.schemas.alert import AlertCreate, AlertRead
 
 router = APIRouter(prefix="/api/v1/alerts", tags=["alerts"])
 
+# Block70 crypto chart alerts: use type "b70_crypto_v1" and `conditions_json` as documented in
+# `app/services/alerts/crypto_alert_runner.py` (coin slugs, timeframe, triggers, delivery).
+
 
 @router.post(
     "",

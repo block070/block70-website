@@ -24,6 +24,9 @@ AVAILABLE_ALERT_TYPES = [
     "strategy_signal",
     "alpha_followed_user_post",
     "alpha_high_confidence",
+    "block70_score_cross",
+    "block70_volume_spike",
+    "block70_momentum_spike",
 ]
 
 

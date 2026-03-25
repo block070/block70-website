@@ -28,31 +28,34 @@ export default function PricingPage() {
     <div className="mx-auto max-w-4xl py-16">
       <h1 className="mb-4 text-3xl font-semibold tracking-tight">Pricing</h1>
       <p className="mb-10 text-sm text-slate-400">
-        Start free, then scale into Pro or Elite when Block70 becomes part of
-        your daily routing and risk decisions.
+        Free for discovery and SEO; Pro and Elite add real-time Block70 scoring, full chart
+        indicators, and actionable alerts when the market moves.
       </p>
       <div className="grid gap-6 md:grid-cols-3">
         <PlanCard
           name="Free"
+          badge="Traffic engine"
           price="$0"
-          description="Explore the Block70 app shell and get a feel for the workflows."
+          description="Onboard and explore — ideal for search and acquisition."
           features={[
-            "Read-only opportunity surface",
-            "Dashboard & news preview",
-            "Seeded demo data where noted",
+            "Basic coin and market data",
+            "Limited / delayed Block70 score on select surfaces",
+            "AI search (rate-limited)",
+            "No price or score alerts",
           ]}
           ctaLabel="Get started"
           onClick={() => router.push("/register")}
         />
         <PlanCard
           name="Pro"
-          price="$49/mo"
-          description="For active operators running structured plays in crypto."
+          badge="Main revenue tier"
+          price="$19/mo"
+          description="For operators who act on signals, not just headlines."
           features={[
-            "Everything in Free",
-            "Advanced filters & watchlists",
-            "Strategy builder & backtests",
-            "Higher limits on dev API",
+            "Real-time Block70 score + Buy / Sell / Hold labels",
+            "Full charts with RSI, MACD, SMAs, volume trend & momentum readouts",
+            "Trending and category insights",
+            "Alerts: score crosses 80 (Strong Buy) or below 40 (Sell), volume spike, momentum spike (email + Telegram where configured)",
           ]}
           highlighted
           ctaLabel={loadingPlan === "pro" ? "Redirecting..." : "Upgrade to Pro"}
@@ -61,13 +64,15 @@ export default function PricingPage() {
         />
         <PlanCard
           name="Elite"
-          price="$149/mo"
-          description="For desks that need real-time, AI-assisted alpha as core infra."
+          badge="Desk tier"
+          price="$49/mo"
+          description="Everything in Pro plus deeper edge and customization."
           features={[
             "Everything in Pro",
-            "Real-time premium alerts (where supported)",
-            "AI research-style reports",
-            "Priority access to new engines & feeds",
+            "Whale-tracking style signals (where data is available)",
+            "Early trend detection helpers and “top opportunities” style feeds",
+            "Portfolio tracking hooks",
+            "Custom alert routing and higher-frequency checks (per environment)",
           ]}
           ctaLabel={loadingPlan === "elite" ? "Redirecting..." : "Upgrade to Elite"}
           disabled={loadingPlan !== null}
@@ -80,6 +85,7 @@ export default function PricingPage() {
 
 type PlanCardProps = {
   name: string;
+  badge?: string;
   price: string;
   description: string;
   features: string[];
@@ -91,6 +97,7 @@ type PlanCardProps = {
 
 function PlanCard({
   name,
+  badge,
   price,
   description,
   features,
@@ -108,7 +115,14 @@ function PlanCard({
       }`}
     >
       <div className="space-y-3">
-        <h2 className="text-lg font-semibold">{name}</h2>
+        <div className="flex flex-wrap items-center gap-2">
+          <h2 className="text-lg font-semibold">{name}</h2>
+          {badge ? (
+            <span className="rounded-full border border-slate-600 px-2 py-0.5 text-[10px] uppercase tracking-wide text-slate-400">
+              {badge}
+            </span>
+          ) : null}
+        </div>
         <p className="text-2xl font-bold">{price}</p>
         <p className="text-xs text-slate-400">{description}</p>
         <ul className="mt-4 space-y-1 text-xs text-slate-300">
@@ -127,4 +141,3 @@ function PlanCard({
     </div>
   );
 }
-

@@ -78,6 +78,13 @@ export type ChartMode = "line" | "candle";
 
 type Block70Marker = { time: number; kind: string; label?: string };
 
+type MacdPackPoint = {
+  time: number;
+  line?: number | null;
+  signal?: number | null;
+  histogram?: number | null;
+};
+
 type ChartPackPayload = {
   ohlc?: OHLCVPoint[];
   volume?: { time: number; value: number }[];
@@ -85,9 +92,28 @@ type ChartPackPayload = {
     score?: number | null;
     signal?: string;
     markers?: Block70Marker[];
+    rsi?: { time: number; value: number }[];
+    macd?: MacdPackPoint[];
+    ma50?: { time: number; value: number }[];
+    ma200?: { time: number; value: number }[];
+    volume_trend?: number | null;
+    momentum?: number | null;
   };
   meta?: { source?: string; slug?: string };
   error?: string;
+};
+
+type ChartSeriesBundle = {
+  chart: IChartApi;
+  main: ISeriesApi<"Line"> | ISeriesApi<"Candlestick">;
+  volume: ISeriesApi<"Histogram">;
+  markers: ISeriesMarkersPluginApi<Time>;
+  ma50?: ISeriesApi<"Line">;
+  ma200?: ISeriesApi<"Line">;
+  rsi?: ISeriesApi<"Line">;
+  macdHist?: ISeriesApi<"Histogram">;
+  macdLine?: ISeriesApi<"Line">;
+  macdSig?: ISeriesApi<"Line">;
 };
 
 function signalBadgeClass(signal: string | undefined): string {
@@ -119,6 +145,34 @@ function markersToPluginShape(markers: Block70Marker[]): SeriesMarker<Time>[] {
         shape: "arrowDown",
         text: m.label || "Sell",
       });
+    }
+  }
+  return out;
+}
+
+function toLineData(pts: { time: number; value: number }[]): LineData[] {
+  return pts.map((p) => ({ time: p.time as UTCTimestamp, value: p.value }));
+}
+
+function macdHistogramData(pts: MacdPackPoint[] | undefined): HistogramData[] {
+  if (!pts?.length) return [];
+  return pts.map((p) => {
+    const v = typeof p.histogram === "number" ? p.histogram : 0;
+    return {
+      time: p.time as UTCTimestamp,
+      value: v,
+      color: v >= 0 ? "rgba(0, 255, 163, 0.45)" : "rgba(255, 107, 107, 0.45)",
+    };
+  });
+}
+
+function macdComponentLine(pts: MacdPackPoint[] | undefined, key: "line" | "signal"): LineData[] {
+  if (!pts?.length) return [];
+  const out: LineData[] = [];
+  for (const p of pts) {
+    const v = p[key];
+    if (typeof v === "number" && Number.isFinite(v)) {
+      out.push({ time: p.time as UTCTimestamp, value: v });
     }
   }
   return out;
@@ -165,7 +219,6 @@ function applyOhlcvToSeries(
   }
 
   const n = ohlcv.length;
-  // High-frequency TFs: default zoom to recent bars so each candle has enough px (avoids line "conflation" look).
   if (packTimeframe === "1m" && n > 90) {
     chart.timeScale().setVisibleLogicalRange({ from: n - 90 - 0.5, to: n - 0.5 });
   } else if (packTimeframe === "5m" && n > 72) {
@@ -174,6 +227,30 @@ function applyOhlcvToSeries(
     chart.timeScale().fitContent();
   }
 }
+
+function applyIndicatorSeries(b: ChartSeriesBundle, ind: ChartPackPayload["indicators"] | null | undefined) {
+  if (b.ma50) {
+    b.ma50.setData(ind?.ma50?.length ? toLineData(ind.ma50) : []);
+  }
+  if (b.ma200) {
+    b.ma200.setData(ind?.ma200?.length ? toLineData(ind.ma200) : []);
+  }
+  if (b.rsi) {
+    b.rsi.setData(ind?.rsi?.length ? toLineData(ind.rsi) : []);
+  }
+  if (b.macdHist) {
+    b.macdHist.setData(macdHistogramData(ind?.macd));
+  }
+  if (b.macdLine) {
+    b.macdLine.setData(macdComponentLine(ind?.macd, "line"));
+  }
+  if (b.macdSig) {
+    b.macdSig.setData(macdComponentLine(ind?.macd, "signal"));
+  }
+}
+
+const AUX_MACD_H = 88;
+const AUX_RSI_H = 76;
 
 export function PriceChart({
   coin,
@@ -188,9 +265,7 @@ export function PriceChart({
 
   const containerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
-  const mainRef = useRef<ISeriesApi<"Line"> | ISeriesApi<"Candlestick"> | null>(null);
-  const volumeRef = useRef<ISeriesApi<"Histogram"> | null>(null);
-  const markersRef = useRef<ISeriesMarkersPluginApi<Time> | null>(null);
+  const bundleRef = useRef<ChartSeriesBundle | null>(null);
   const ohlcvRef = useRef<OHLCVPoint[]>([]);
 
   const [packTf, setPackTf] = useState<PackTimeframe>("1h");
@@ -203,6 +278,19 @@ export function PriceChart({
   const [block70Score, setBlock70Score] = useState<number | null>(null);
   const [block70Signal, setBlock70Signal] = useState<string | null>(null);
   const [overlayMarkers, setOverlayMarkers] = useState<Block70Marker[]>([]);
+  const [indPack, setIndPack] = useState<ChartPackPayload["indicators"] | null>(null);
+
+  const [showMa50, setShowMa50] = useState(true);
+  const [showMa200, setShowMa200] = useState(true);
+  const [showRsi, setShowRsi] = useState(false);
+  const [showMacd, setShowMacd] = useState(false);
+
+  const clearInd = useCallback(() => {
+    setIndPack(null);
+    setBlock70Score(null);
+    setBlock70Signal(null);
+    setOverlayMarkers([]);
+  }, []);
 
   const fetchData = useCallback(async () => {
     if (usePackApi) {
@@ -222,9 +310,7 @@ export function PriceChart({
           setError(data.error || `HTTP ${res.status}`);
           setOhlcv([]);
           setSource(null);
-          setBlock70Score(null);
-          setBlock70Signal(null);
-          setOverlayMarkers([]);
+          clearInd();
           return;
         }
         let bars = data.ohlc ?? [];
@@ -261,10 +347,9 @@ export function PriceChart({
           setBlock70Score(typeof ind.score === "number" ? ind.score : null);
           setBlock70Signal(ind.signal ?? null);
           setOverlayMarkers(Array.isArray(ind.markers) ? ind.markers : []);
+          setIndPack(ind);
         } else {
-          setBlock70Score(null);
-          setBlock70Signal(null);
-          setOverlayMarkers([]);
+          clearInd();
         }
         if (!bars.length) {
           setError("No OHLCV data available for this token on current markets.");
@@ -275,9 +360,7 @@ export function PriceChart({
         setError(e instanceof Error ? e.message : "Failed to load chart");
         setOhlcv([]);
         setSource(null);
-        setBlock70Score(null);
-        setBlock70Signal(null);
-        setOverlayMarkers([]);
+        clearInd();
       } finally {
         setLoading(false);
       }
@@ -302,36 +385,28 @@ export function PriceChart({
         setError(data.error || `HTTP ${res.status}`);
         setOhlcv([]);
         setSource(null);
-        setBlock70Score(null);
-        setBlock70Signal(null);
-        setOverlayMarkers([]);
+        clearInd();
         return;
       }
       if (data.error && !(data.ohlcv?.length)) {
         setError(data.error);
         setOhlcv([]);
         setSource(null);
-        setBlock70Score(null);
-        setBlock70Signal(null);
-        setOverlayMarkers([]);
+        clearInd();
         return;
       }
       setOhlcv(data.ohlcv ?? []);
       setSource(data.source ?? null);
-      setBlock70Score(null);
-      setBlock70Signal(null);
-      setOverlayMarkers([]);
+      clearInd();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to load chart");
       setOhlcv([]);
       setSource(null);
-      setBlock70Score(null);
-      setBlock70Signal(null);
-      setOverlayMarkers([]);
+      clearInd();
     } finally {
       setLoading(false);
     }
-  }, [usePackApi, block70Slug, packTf, sym, legacyTf]);
+  }, [usePackApi, block70Slug, packTf, sym, legacyTf, clearInd]);
 
   useEffect(() => {
     void fetchData();
@@ -344,6 +419,12 @@ export function PriceChart({
   const chartMountKey = usePackApi ? `pack:${block70Slug}` : `legacy:${sym}`;
   const chartDepKey = usePackApi ? block70Slug : sym;
 
+  const layoutKey = `${showMa50}-${showMa200}-${showRsi}-${showMacd}`;
+  const auxMacd = showMacd ? AUX_MACD_H : 0;
+  const auxRsi = showRsi ? AUX_RSI_H : 0;
+  const mainChartH = height;
+  const totalChartH = mainChartH + auxMacd + auxRsi;
+
   useEffect(() => {
     const el = containerRef.current;
     if (!el || !chartDepKey) return;
@@ -355,7 +436,7 @@ export function PriceChart({
         attributionLogo: false,
       },
       width: el.clientWidth,
-      height,
+      height: totalChartH,
       grid: {
         vertLines: { color: "rgba(148, 163, 184, 0.08)" },
         horzLines: { color: "rgba(148, 163, 184, 0.08)" },
@@ -388,37 +469,135 @@ export function PriceChart({
     });
 
     chartRef.current = chart;
+    const p0 = chart.panes()[0];
+    p0.setHeight(mainChartH);
 
-    const volumeSeries = chart.addSeries(HistogramSeries, {
-      color: chartColors.volume,
-      priceFormat: { type: "volume" },
-      priceScaleId: "",
-    });
+    const volumeSeries = chart.addSeries(
+      HistogramSeries,
+      {
+        color: chartColors.volume,
+        priceFormat: { type: "volume" },
+        priceScaleId: "",
+      },
+      0
+    );
     volumeSeries.priceScale().applyOptions({
       scaleMargins: { top: 0.82, bottom: 0 },
     });
-    volumeRef.current = volumeSeries;
 
     const main =
       chartMode === "line"
-        ? chart.addSeries(LineSeries, {
-            color: chartColors.up,
-            lineWidth: 2,
-            crosshairMarkerVisible: true,
-            lastValueVisible: true,
-            priceLineVisible: true,
-          })
-        : chart.addSeries(CandlestickSeries, {
-            upColor: chartColors.up,
-            downColor: chartColors.down,
-            borderVisible: false,
-            wickUpColor: chartColors.up,
-            wickDownColor: chartColors.down,
-          });
-    mainRef.current = main;
+        ? chart.addSeries(
+            LineSeries,
+            {
+              color: chartColors.up,
+              lineWidth: 2,
+              crosshairMarkerVisible: true,
+              lastValueVisible: true,
+              priceLineVisible: true,
+            },
+            0
+          )
+        : chart.addSeries(
+            CandlestickSeries,
+            {
+              upColor: chartColors.up,
+              downColor: chartColors.down,
+              borderVisible: false,
+              wickUpColor: chartColors.up,
+              wickDownColor: chartColors.down,
+            },
+            0
+          );
 
-    const mk = createSeriesMarkers(main, []);
-    markersRef.current = mk;
+    let ma50: ISeriesApi<"Line"> | undefined;
+    let ma200: ISeriesApi<"Line"> | undefined;
+    if (showMa50) {
+      ma50 = chart.addSeries(
+        LineSeries,
+        {
+          color: "#38bdf8",
+          lineWidth: 1,
+          lastValueVisible: true,
+          priceLineVisible: false,
+        },
+        0
+      );
+    }
+    if (showMa200) {
+      ma200 = chart.addSeries(
+        LineSeries,
+        {
+          color: "#c084fc",
+          lineWidth: 1,
+          lastValueVisible: true,
+          priceLineVisible: false,
+        },
+        0
+      );
+    }
+
+    let macdHist: ISeriesApi<"Histogram"> | undefined;
+    let macdLine: ISeriesApi<"Line"> | undefined;
+    let macdSig: ISeriesApi<"Line"> | undefined;
+    if (showMacd) {
+      chart.addPane(false);
+      const pi = chart.panes().length - 1;
+      chart.panes()[pi].setHeight(auxMacd);
+      macdHist = chart.addSeries(
+        HistogramSeries,
+        {
+          priceFormat: { type: "price", precision: 4, minMove: 0.0001 },
+          priceScaleId: "macd",
+        },
+        pi
+      );
+      macdHist.priceScale().applyOptions({ scaleMargins: { top: 0.15, bottom: 0.05 } });
+      macdLine = chart.addSeries(
+        LineSeries,
+        { color: "#38bdf8", lineWidth: 1, priceScaleId: "macd" },
+        pi
+      );
+      macdSig = chart.addSeries(
+        LineSeries,
+        { color: "#e879f9", lineWidth: 1, priceScaleId: "macd" },
+        pi
+      );
+    }
+
+    let rsiLine: ISeriesApi<"Line"> | undefined;
+    if (showRsi) {
+      chart.addPane(false);
+      const pi = chart.panes().length - 1;
+      chart.panes()[pi].setHeight(auxRsi);
+      rsiLine = chart.addSeries(
+        LineSeries,
+        {
+          color: "#fbbf24",
+          lineWidth: 1,
+          priceScaleId: "rsi",
+        },
+        pi
+      );
+      rsiLine.priceScale().applyOptions({
+        scaleMargins: { top: 0.15, bottom: 0.05 },
+      });
+    }
+
+    const markersApi = createSeriesMarkers(main, []);
+    const bundle: ChartSeriesBundle = {
+      chart,
+      main,
+      volume: volumeSeries,
+      markers: markersApi,
+      ma50,
+      ma200,
+      rsi: rsiLine,
+      macdHist,
+      macdLine,
+      macdSig,
+    };
+    bundleRef.current = bundle;
 
     applyOhlcvToSeries(
       chart,
@@ -431,10 +610,8 @@ export function PriceChart({
 
     const ro = new ResizeObserver(() => {
       if (!containerRef.current || !chartRef.current) return;
-      chartRef.current.applyOptions({
-        width: containerRef.current.clientWidth,
-        height,
-      });
+      const w = containerRef.current.clientWidth;
+      chartRef.current.applyOptions({ width: w, height: totalChartH });
     });
     ro.observe(el);
 
@@ -442,19 +619,37 @@ export function PriceChart({
       ro.disconnect();
       chart.remove();
       chartRef.current = null;
-      mainRef.current = null;
-      volumeRef.current = null;
-      markersRef.current = null;
+      bundleRef.current = null;
     };
-  }, [chartMountKey, height, chartMode]);
+  }, [
+    chartMountKey,
+    chartDepKey,
+    height,
+    chartMode,
+    layoutKey,
+    mainChartH,
+    totalChartH,
+    auxMacd,
+    auxRsi,
+    packTf,
+    usePackApi,
+    showMa50,
+    showMa200,
+    showRsi,
+    showMacd,
+  ]);
 
   useEffect(() => {
-    const chart = chartRef.current;
-    const main = mainRef.current;
-    const vol = volumeRef.current;
-    if (!chart || !main || !vol) return;
-    applyOhlcvToSeries(chart, main, vol, ohlcv, chartMode, usePackApi ? packTf : null);
+    const b = bundleRef.current;
+    if (!b) return;
+    applyOhlcvToSeries(b.chart, b.main, b.volume, ohlcv, chartMode, usePackApi ? packTf : null);
   }, [ohlcv, chartMode, packTf, usePackApi]);
+
+  useEffect(() => {
+    const b = bundleRef.current;
+    if (!b) return;
+    applyIndicatorSeries(b, indPack);
+  }, [indPack]);
 
   useEffect(() => {
     const chart = chartRef.current;
@@ -466,9 +661,9 @@ export function PriceChart({
   }, [packTf, usePackApi]);
 
   useEffect(() => {
-    const mk = markersRef.current;
-    if (!mk) return;
-    mk.setMarkers(markersToPluginShape(overlayMarkers));
+    const b = bundleRef.current;
+    if (!b) return;
+    b.markers.setMarkers(markersToPluginShape(overlayMarkers));
   }, [overlayMarkers, ohlcv]);
 
   if (!chartDepKey) {
@@ -478,6 +673,9 @@ export function PriceChart({
       </p>
     );
   }
+
+  const fmtPct = (x: number) =>
+    `${x >= 0 ? "+" : ""}${(x * 100).toFixed(2)}%`;
 
   return (
     <section
@@ -510,72 +708,103 @@ export function PriceChart({
               <span className="text-xs font-normal text-slate-500"> / 100</span>
             </p>
           ) : null}
+          {usePackApi && indPack && (indPack.volume_trend != null || indPack.momentum != null) ? (
+            <p className="flex flex-wrap gap-x-4 text-[11px] text-slate-400">
+              {typeof indPack.volume_trend === "number" ? (
+                <span>
+                  Volume trend:{" "}
+                  <span className="font-semibold tabular-nums text-slate-200">
+                    {indPack.volume_trend.toFixed(2)}×
+                  </span>{" "}
+                  <span className="text-slate-500">(10 / 10 bar)</span>
+                </span>
+              ) : null}
+              {typeof indPack.momentum === "number" ? (
+                <span>
+                  Momentum (7-bar):{" "}
+                  <span className="font-semibold tabular-nums text-slate-200">
+                    {fmtPct(indPack.momentum)}
+                  </span>
+                </span>
+              ) : null}
+            </p>
+          ) : null}
           {source && !loading ? (
             <p className="text-[10px] text-slate-500">Data · {source}</p>
           ) : null}
         </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <div className="flex rounded-full border border-slate-700 bg-slate-800/60 p-0.5">
-            <button
-              type="button"
-              onClick={() => setChartMode("line")}
-              className={clsx(
-                "rounded-full px-2.5 py-1 text-xs font-semibold transition",
-                chartMode === "line"
-                  ? "bg-slate-600 text-white"
-                  : "text-slate-500 hover:text-slate-200"
-              )}
-            >
-              Line
-            </button>
-            <button
-              type="button"
-              onClick={() => setChartMode("candle")}
-              className={clsx(
-                "rounded-full px-2.5 py-1 text-xs font-semibold transition",
-                chartMode === "candle"
-                  ? "bg-slate-600 text-white"
-                  : "text-slate-500 hover:text-slate-200"
-              )}
-            >
-              Candles
-            </button>
+        <div className="flex flex-col gap-2 sm:items-end">
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="flex rounded-full border border-slate-700 bg-slate-800/60 p-0.5">
+              <button
+                type="button"
+                onClick={() => setChartMode("line")}
+                className={clsx(
+                  "rounded-full px-2.5 py-1 text-xs font-semibold transition",
+                  chartMode === "line"
+                    ? "bg-slate-600 text-white"
+                    : "text-slate-500 hover:text-slate-200"
+                )}
+              >
+                Line
+              </button>
+              <button
+                type="button"
+                onClick={() => setChartMode("candle")}
+                className={clsx(
+                  "rounded-full px-2.5 py-1 text-xs font-semibold transition",
+                  chartMode === "candle"
+                    ? "bg-slate-600 text-white"
+                    : "text-slate-500 hover:text-slate-200"
+                )}
+              >
+                Candles
+              </button>
+            </div>
+            <div className="flex flex-wrap gap-1">
+              {usePackApi
+                ? PACK_TIMEFRAMES.map((tf) => (
+                    <button
+                      key={tf.key}
+                      type="button"
+                      onClick={() => setPackTf(tf.key)}
+                      disabled={loading}
+                      className={clsx(
+                        "rounded-full px-2.5 py-1 text-xs font-semibold transition",
+                        packTf === tf.key
+                          ? "bg-slate-100 text-slate-900"
+                          : "text-slate-500 hover:bg-slate-800/80 hover:text-slate-200"
+                      )}
+                    >
+                      {tf.label}
+                    </button>
+                  ))
+                : LEGACY_TIMEFRAMES.map((tf) => (
+                    <button
+                      key={tf.key}
+                      type="button"
+                      onClick={() => setLegacyTf(tf.key)}
+                      disabled={loading}
+                      className={clsx(
+                        "rounded-full px-2.5 py-1 text-xs font-semibold transition",
+                        legacyTf === tf.key
+                          ? "bg-slate-100 text-slate-900"
+                          : "text-slate-500 hover:bg-slate-800/80 hover:text-slate-200"
+                      )}
+                    >
+                      {tf.label}
+                    </button>
+                  ))}
+            </div>
           </div>
-          <div className="flex flex-wrap gap-1">
-            {usePackApi
-              ? PACK_TIMEFRAMES.map((tf) => (
-                  <button
-                    key={tf.key}
-                    type="button"
-                    onClick={() => setPackTf(tf.key)}
-                    disabled={loading}
-                    className={clsx(
-                      "rounded-full px-2.5 py-1 text-xs font-semibold transition",
-                      packTf === tf.key
-                        ? "bg-slate-100 text-slate-900"
-                        : "text-slate-500 hover:bg-slate-800/80 hover:text-slate-200"
-                    )}
-                  >
-                    {tf.label}
-                  </button>
-                ))
-              : LEGACY_TIMEFRAMES.map((tf) => (
-                  <button
-                    key={tf.key}
-                    type="button"
-                    onClick={() => setLegacyTf(tf.key)}
-                    disabled={loading}
-                    className={clsx(
-                      "rounded-full px-2.5 py-1 text-xs font-semibold transition",
-                      legacyTf === tf.key
-                        ? "bg-slate-100 text-slate-900"
-                        : "text-slate-500 hover:bg-slate-800/80 hover:text-slate-200"
-                    )}
-                  >
-                    {tf.label}
-                  </button>
-                ))}
-          </div>
+          {usePackApi ? (
+            <div className="flex flex-wrap justify-end gap-1.5">
+              <IndicatorToggle label="MA 50" active={showMa50} onToggle={() => setShowMa50((v) => !v)} />
+              <IndicatorToggle label="MA 200" active={showMa200} onToggle={() => setShowMa200((v) => !v)} />
+              <IndicatorToggle label="RSI" active={showRsi} onToggle={() => setShowRsi((v) => !v)} />
+              <IndicatorToggle label="MACD" active={showMacd} onToggle={() => setShowMacd((v) => !v)} />
+            </div>
+          ) : null}
         </div>
       </div>
 
@@ -598,14 +827,43 @@ export function PriceChart({
             </button>
           </div>
         ) : null}
-        <div ref={containerRef} style={{ height: `${height}px` }} className="w-full min-h-[200px]" />
+        <div
+          ref={containerRef}
+          style={{ height: `${totalChartH}px` }}
+          className="w-full min-h-[200px]"
+        />
       </div>
 
       <p className="text-[10px] text-slate-500">
         {usePackApi
-          ? "OHLCV and Block70 signals are served from the Block70 API (cached). Not investment advice."
+          ? "OHLCV and Block70 signals are served from the Block70 API (cached). Indicators use Wilder RSI, EMA MACD (12,26,9), and SMA overlays. Not investment advice."
           : "Prices from public market APIs. Not investment advice."}
       </p>
     </section>
+  );
+}
+
+function IndicatorToggle({
+  label,
+  active,
+  onToggle,
+}: {
+  label: string;
+  active: boolean;
+  onToggle: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onToggle}
+      className={clsx(
+        "rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide transition",
+        active
+          ? "border-sky-500/60 bg-sky-500/15 text-sky-200"
+          : "border-slate-700 bg-slate-800/40 text-slate-500 hover:border-slate-600 hover:text-slate-300"
+      )}
+    >
+      {label}
+    </button>
   );
 }

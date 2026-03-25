@@ -394,6 +394,15 @@ def _run_chart_pack_short_job() -> None:
         pass
 
 
+def _run_crypto_alerts_job() -> None:
+    def _job(db: Session) -> None:
+        from app.services.alerts.crypto_alert_runner import run_crypto_alerts
+
+        run_crypto_alerts(db)
+
+    _with_db_session(_job)
+
+
 def _run_chart_pack_long_job() -> None:
     """Warm Block70 chart packs (1h, 4h, 1d) — every 5 minutes."""
     try:
@@ -666,6 +675,14 @@ def create_scheduler() -> BackgroundScheduler:
         _run_chart_pack_long_job,
         IntervalTrigger(minutes=5),
         id="chart_pack_long",
+        replace_existing=True,
+        max_instances=1,
+    )
+
+    scheduler.add_job(
+        _run_crypto_alerts_job,
+        IntervalTrigger(minutes=max(1, int(os.getenv("CRYPTO_ALERT_INTERVAL_MINUTES", "3")))),
+        id="crypto_block70_alerts",
         replace_existing=True,
         max_instances=1,
     )

@@ -132,9 +132,13 @@ def build_chart_pack(
             "indicators": {
                 "rsi": [],
                 "macd": [],
+                "ma50": [],
+                "ma200": [],
                 "score": None,
                 "signal": "Hold",
                 "markers": [],
+                "volume_trend": None,
+                "momentum": None,
             },
             "meta": {"slug": slug, "timeframe": tf, "ticker": ticker, "source": source},
         }
@@ -164,6 +168,8 @@ def build_chart_pack(
             "score": 50.0,
             "signal": "Hold",
             "markers": [],
+            "volume_trend": None,
+            "momentum": None,
         }
 
     payload: dict[str, Any] = {
