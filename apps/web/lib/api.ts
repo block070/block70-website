@@ -14,7 +14,7 @@ import type {
 // Server (SSR): use API_SERVER_URL in Docker so the Next.js container can reach the API.
 // Client (browser): use NEXT_PUBLIC_API_BASE_URL.
 // Node fetch requires absolute URLs; relative paths fail with "Invalid URL".
-function getApiBaseUrl(): string {
+export function getApiBaseUrl(): string {
   const url =
     process.env.API_SERVER_URL ||
     process.env.NEXT_PUBLIC_API_BASE_URL ||

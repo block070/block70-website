@@ -25,6 +25,40 @@ def _get(path: str, params: Optional[Dict[str, Any]] = None) -> Any:
     return resp.json()
 
 
+def fetch_coin_markets_row_by_id(coin_gecko_id: str) -> Optional[Dict[str, Any]]:
+    """
+    One-row snapshot from /coins/markets?ids=... — fast path for live price,
+    24h/7d %, market cap, volume (avoids scanning paginated markets).
+    coin_gecko_id: CoinGecko coin id (e.g. ripple, bitcoin).
+    """
+    cid = (coin_gecko_id or "").lower().strip()
+    if not cid:
+        return None
+    url = f"{COINGECKO_API_BASE}/coins/markets"
+    try:
+        resp = requests.get(
+            url,
+            params={
+                "vs_currency": "usd",
+                "ids": cid,
+                "order": "market_cap_desc",
+                "per_page": 1,
+                "page": 1,
+                "sparkline": "false",
+            },
+            timeout=8,
+        )
+        if resp.status_code != 200:
+            logger.debug("markets by id non-200 %s: %s", cid, resp.status_code)
+            return None
+        rows = resp.json()
+        if isinstance(rows, list) and rows and isinstance(rows[0], dict):
+            return rows[0]
+    except Exception as e:
+        logger.debug("fetch_coin_markets_row_by_id %s: %s", cid, e)
+    return None
+
+
 def fetch_all_coins(vs_currency: str = "usd", per_page: int = 250, page: int = 1) -> List[Dict[str, Any]]:
     """
     Fetch a page of coins from CoinGecko's /coins/markets endpoint.

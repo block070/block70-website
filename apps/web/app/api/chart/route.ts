@@ -51,7 +51,10 @@ export async function GET(request: NextRequest) {
   const url = `${API_BASE}/api/v1/chart?${new URLSearchParams({ coin, timeframe }).toString()}`;
   try {
     // Do not use Next fetch Data Cache — it can pin empty 4h/1d bodies after a transient miss.
-    const res = await fetch(url, { cache: "no-store" });
+    const res = await fetch(url, {
+      cache: "no-store",
+      signal: AbortSignal.timeout(22_000),
+    });
     const text = await res.text();
     if (!res.ok) {
       return NextResponse.json(

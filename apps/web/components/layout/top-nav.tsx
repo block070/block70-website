@@ -29,7 +29,7 @@ export function TopNav() {
   }
 
   return (
-    <header className="sticky top-0 z-40 flex h-14 shrink-0 items-center gap-4 border-b border-[var(--b70-border)] bg-[var(--b70-card)] px-4 shadow-b70-card">
+    <header className="fixed inset-x-0 top-0 z-50 flex h-14 shrink-0 items-center gap-4 border-b border-[var(--b70-border)] bg-[var(--b70-card)]/95 px-4 shadow-b70-card backdrop-blur-md supports-[backdrop-filter]:bg-[var(--b70-card)]/90">
       <Link
         href="/"
         className="flex shrink-0 items-center gap-2 font-semibold text-[var(--b70-text)]"

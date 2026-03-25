@@ -20,7 +20,7 @@ export function AppLayout({ children, rightPanel }: AppLayoutProps) {
     <div className="flex min-h-screen flex-col bg-[var(--b70-bg)]">
       <TopNav />
 
-      <div className="flex flex-1">
+      <div className="flex flex-1 pt-14">
         <button
           type="button"
           onClick={() => setSidebarOpen((o) => !o)}

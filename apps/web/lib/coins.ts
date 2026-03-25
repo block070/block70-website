@@ -1,4 +1,4 @@
-import { API_BASE_URL, fetchJson } from "./api";
+import { API_BASE_URL, fetchJson, getApiBaseUrl } from "./api";
 import { COINS, COIN_PRICES } from "./crypto-mock";
 
 export type CoinInfoDto = {
@@ -57,7 +57,27 @@ export type CoinDetailDto = {
 };
 
 export async function getCoinBySlug(slug: string): Promise<CoinDetailDto> {
-  return fetchJson<CoinDetailDto>(`/api/v1/coins/${encodeURIComponent(slug)}`);
+  const root = getApiBaseUrl().replace(/\/$/, "");
+  const path = `/api/v1/coins/${encodeURIComponent(slug)}`;
+  const url = root ? `${root}${path}` : path;
+  const res = await fetch(url, {
+    cache: "no-store",
+    headers: { "Content-Type": "application/json" },
+    signal: AbortSignal.timeout(14_000),
+  });
+  if (!res.ok) {
+    throw new Error(`API request failed with status ${res.status}`);
+  }
+  return (await res.json()) as CoinDetailDto;
+}
+
+/** Prefer last row with a positive price (DB series can trail with zeros). */
+export function pickLatestMarketPoint(series: MarketDataPointDto[]): MarketDataPointDto | undefined {
+  for (let i = series.length - 1; i >= 0; i--) {
+    const p = series[i]!;
+    if (typeof p.price === "number" && Number.isFinite(p.price) && p.price > 0) return p;
+  }
+  return series[0];
 }
 
 /** Resolve slug or symbol to mock coin (e.g. "sol" -> Solana). Used when API 404s. */
@@ -80,10 +100,31 @@ const MOCK_LINKS: Record<string, { website?: string; whitepaper?: string; explor
   cosmos: { website: "https://cosmos.network", whitepaper: "https://cosmos.network/resources/whitepaper", explorer: "https://mintscan.io/cosmos/", twitter: "cosmos" },
 };
 
+/** Well-known CoinGecko slugs → display symbol when API is unavailable */
+const STUB_SLUG_SYMBOL: Record<string, string> = {
+  ripple: "XRP",
+  bitcoin: "BTC",
+  ethereum: "ETH",
+  solana: "SOL",
+  cardano: "ADA",
+  dogecoin: "DOGE",
+  polkadot: "DOT",
+  chainlink: "LINK",
+  litecoin: "LTC",
+  monero: "XMR",
+  avalanche: "AVAX",
+  "avalanche-2": "AVAX",
+  uniswap: "UNI",
+  cosmos: "ATOM",
+};
+
 /** Build minimal stub from slug so every /coins/{slug} has a page (no 404). */
 export function getStubCoinDetail(slug: string): CoinDetailDto {
+  const key = slug.toLowerCase();
   const name = slug.replace(/-/g, " ").replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
-  const symbol = (slug.includes("-") ? slug.split("-")[0] : slug).slice(0, 10).toUpperCase();
+  const symbol =
+    STUB_SLUG_SYMBOL[key] ??
+    (slug.includes("-") ? slug.split("-")[0] : slug).slice(0, 10).toUpperCase();
   return {
     coin: {
       id: 0,
@@ -171,13 +212,20 @@ export function getMockCoinDetail(slug: string): CoinDetailDto | null {
 
 /** Fetch coin by slug from API; on failure use mock then stub. Never 404 for /coins/{slug}. */
 export async function getCoinBySlugOrMock(slug: string): Promise<CoinDetailDto> {
-  try {
-    return await getCoinBySlug(slug);
-  } catch {
-    const mock = getMockCoinDetail(slug);
-    if (mock) return mock;
-    return getStubCoinDetail(slug);
+  const attempts = 3;
+  for (let i = 0; i < attempts; i++) {
+    try {
+      if (i > 0) {
+        await new Promise((r) => setTimeout(r, 250 * i));
+      }
+      return await getCoinBySlug(slug);
+    } catch {
+      /* retry */
+    }
   }
+  const mock = getMockCoinDetail(slug);
+  if (mock) return mock;
+  return getStubCoinDetail(slug);
 }
 
 export type CoinListItemDto = {

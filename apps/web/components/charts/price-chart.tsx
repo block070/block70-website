@@ -209,10 +209,14 @@ export function PriceChart({
       setLoading(true);
       setError(null);
       try {
-        const res = await fetch(
-          `/api/chart?${new URLSearchParams({ coin: block70Slug, timeframe: packTf }).toString()}`,
-          { cache: "default" }
-        );
+        const chartUrl = `/api/chart?${new URLSearchParams({ coin: block70Slug, timeframe: packTf }).toString()}`;
+        const fetchPack = () =>
+          fetch(chartUrl, { cache: "default", signal: AbortSignal.timeout(20_000) });
+        let res = await fetchPack();
+        if (!res.ok && res.status >= 500) {
+          await new Promise((r) => setTimeout(r, 400));
+          res = await fetchPack();
+        }
         const data = (await res.json()) as ChartPackPayload;
         if (!res.ok) {
           setError(data.error || `HTTP ${res.status}`);
@@ -233,6 +237,7 @@ export function PriceChart({
           sp.set("slug", block70Slug);
           const res2 = await fetch(`/api/charts/${encodeURIComponent(sym)}?${sp}`, {
             cache: "default",
+            signal: AbortSignal.timeout(18_000),
           });
           const data2 = (await res2.json()) as {
             ohlcv?: OHLCVPoint[];

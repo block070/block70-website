@@ -109,7 +109,7 @@ def build_chart_pack(
     timeframe: str,
     db: Session | None = None,
     *,
-    limit: int = 300,
+    limit: int | None = None,
     write_redis: bool = True,
     write_pg: bool = True,
 ) -> dict[str, Any]:
@@ -117,8 +117,12 @@ def build_chart_pack(
     if tf not in PACK_TIMEFRAMES:
         raise ValueError(f"Unsupported timeframe: {timeframe}")
 
+    raw_env = os.getenv("CHART_PACK_OHLC_LIMIT", "280")
+    eff_limit = limit if limit is not None else (int(raw_env) if raw_env.isdigit() else 280)
+    eff_limit = min(max(eff_limit, 50), 500)
+
     ticker, slug = resolve_ticker_slug(coin, db)
-    ohlcv, source = _fetch_ohlcv_with_source(ticker, slug, tf, limit)
+    ohlcv, source = _fetch_ohlcv_with_source(ticker, slug, tf, eff_limit)
     if ohlcv:
         ohlcv = align_ohlcv_bar_times(ohlcv, tf)
     if not ohlcv:

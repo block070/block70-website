@@ -745,6 +745,41 @@ def get_coin_detail(
             if mc.logo_url and not coin.logo_url:
                 coin.logo_url = mc.logo_url
 
+    # Fast live header: DB/enrichment can leave empty or stale points; single CG markets row fixes price/24h/7d/mcap/vol.
+    market_row: dict | None = None
+    tail_weak = True
+    if md_points:
+        try:
+            lp = md_points[-1].price
+            tail_weak = lp is None or float(lp) <= 0
+        except Exception:
+            tail_weak = True
+    if tail_weak:
+        try:
+            from app.services.connectors.coingecko_connector import fetch_coin_markets_row_by_id
+
+            _coingecko_throttle()
+            market_row = fetch_coin_markets_row_by_id(coin.slug)
+        except Exception:
+            market_row = None
+        if market_row and market_row.get("current_price") is not None:
+            try:
+                px = float(market_row["current_price"])
+                if px > 0:
+                    md_points = [
+                        MarketDataPoint(
+                            timestamp=datetime.now(timezone.utc),
+                            price=px,
+                            market_cap=market_row.get("market_cap"),
+                            volume_24h=market_row.get("total_volume"),
+                            price_change_24h=market_row.get("price_change_percentage_24h"),
+                            price_change_7d=market_row.get("price_change_percentage_7d_in_currency")
+                            or market_row.get("price_change_percentage_7d"),
+                        )
+                    ]
+            except (TypeError, ValueError):
+                pass
+
     # Narratives
     cn_rows = (
         db.query(CoinNarrative, Narrative)
@@ -787,8 +822,33 @@ def get_coin_detail(
         for row in news_rows
     ]
 
+    coin_info = CoinInfo.model_validate(coin)
+    if md_points:
+        try:
+            latest = md_points[-1]
+            lp = float(latest.price)
+            if lp > 0:
+                patch: dict = {"price": lp}
+                if latest.market_cap is not None:
+                    patch["market_cap"] = float(latest.market_cap)
+                if latest.volume_24h is not None:
+                    patch["volume_24h"] = float(latest.volume_24h)
+                if market_row:
+                    sym = market_row.get("symbol")
+                    if sym:
+                        patch["symbol"] = str(sym).upper()
+                    rnk = market_row.get("market_cap_rank")
+                    if rnk is not None:
+                        patch["market_cap_rank"] = int(rnk)
+                    img = market_row.get("image")
+                    if img and not coin_info.logo_url:
+                        patch["logo_url"] = str(img)
+                coin_info = coin_info.model_copy(update=patch)
+        except (TypeError, ValueError):
+            pass
+
     return CoinDetailResponse(
-        coin=CoinInfo.model_validate(coin),
+        coin=coin_info,
         market_data=md_points,
         narratives=narratives,
         news=news,

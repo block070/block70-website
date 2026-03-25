@@ -33,6 +33,7 @@ import {
   getCoinBySlugOrMock,
   getCoinsList,
   getStubCoinDetail,
+  pickLatestMarketPoint,
   type CoinInfoDto,
   type MarketDataPointDto,
 } from "@/lib/coins";
@@ -41,17 +42,33 @@ import { getNewsForCoin, getSignalsForToken } from "@/lib/api";
 import { getSentiment } from "@/lib/sentiment-api";
 import { withTimeout } from "@/lib/with-timeout";
 
-function coinToHeaderShape(coin: CoinInfoDto, latestMd?: MarketDataPointDto | null): Coin {
+function coinToHeaderShape(
+  coin: CoinInfoDto,
+  latestMd?: MarketDataPointDto | null,
+  series?: MarketDataPointDto[]
+): Coin {
+  const md =
+    latestMd ??
+    (series?.length ? pickLatestMarketPoint(series) : undefined) ??
+    undefined;
+  const priceFromCoin =
+    typeof coin.price === "number" && Number.isFinite(coin.price) && coin.price > 0
+      ? coin.price
+      : undefined;
+  const priceFromMd =
+    md && typeof md.price === "number" && Number.isFinite(md.price) && md.price > 0
+      ? md.price
+      : undefined;
   return {
     id: String(coin.id),
     slug: coin.slug,
     symbol: coin.symbol,
     name: coin.name,
-    priceUsd: coin.price ?? latestMd?.price ?? 0,
-    marketCapUsd: coin.market_cap ?? latestMd?.market_cap ?? 0,
-    volume24hUsd: coin.volume_24h ?? latestMd?.volume_24h ?? 0,
-    change24hPct: latestMd?.price_change_24h ?? Number.NaN,
-    change7dPct: latestMd?.price_change_7d ?? Number.NaN,
+    priceUsd: priceFromCoin ?? priceFromMd ?? 0,
+    marketCapUsd: (coin.market_cap ?? md?.market_cap) ?? 0,
+    volume24hUsd: (coin.volume_24h ?? md?.volume_24h) ?? 0,
+    change24hPct: md?.price_change_24h ?? Number.NaN,
+    change7dPct: md?.price_change_7d ?? Number.NaN,
     rank: coin.market_cap_rank ?? 0,
     categoryIds: coin.category ? [coin.category] : [],
     chainIds: coin.chain ? [coin.chain] : [],
@@ -83,7 +100,8 @@ export async function generateMetadata({ params }: { params: Params }) {
   }
 }
 
-const COIN_FETCH_TIMEOUT_MS = 8_000;
+/** Allow upstream retries in getCoinBySlugOrMock without cutting off early */
+const COIN_FETCH_TIMEOUT_MS = 36_000;
 
 export default async function CoinDetailPage({ params }: { params: Params }) {
   const slug = params.slug;
@@ -97,7 +115,7 @@ export default async function CoinDetailPage({ params }: { params: Params }) {
 
   const { coin, market_data: series, narratives, news: fallbackNews } = data;
 
-  const coinForHeader: Coin = coinToHeaderShape(coin, series[0]);
+  const coinForHeader: Coin = coinToHeaderShape(coin, series[0], series);
   const symbol = coin.symbol.toUpperCase();
   const block70Score = computeBlock70Score(coinForHeader);
   const investmentLabel = investmentLabelFromScore(block70Score);
