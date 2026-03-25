@@ -549,18 +549,32 @@ export function PriceChart({
         {
           priceFormat: { type: "price", precision: 4, minMove: 0.0001 },
           priceScaleId: "macd",
+          priceLineVisible: false,
+          lastValueVisible: true,
         },
         pi
       );
       macdHist.priceScale().applyOptions({ scaleMargins: { top: 0.15, bottom: 0.05 } });
       macdLine = chart.addSeries(
         LineSeries,
-        { color: "#38bdf8", lineWidth: 1, priceScaleId: "macd" },
+        {
+          color: "#38bdf8",
+          lineWidth: 1,
+          priceScaleId: "macd",
+          priceLineVisible: false,
+          lastValueVisible: true,
+        },
         pi
       );
       macdSig = chart.addSeries(
         LineSeries,
-        { color: "#e879f9", lineWidth: 1, priceScaleId: "macd" },
+        {
+          color: "#e879f9",
+          lineWidth: 1,
+          priceScaleId: "macd",
+          priceLineVisible: false,
+          lastValueVisible: true,
+        },
         pi
       );
     }
@@ -576,6 +590,12 @@ export function PriceChart({
           color: "#fbbf24",
           lineWidth: 1,
           priceScaleId: "rsi",
+          priceLineVisible: false,
+          lastValueVisible: true,
+          autoscaleInfoProvider: () => ({
+            priceRange: { minValue: 0, maxValue: 100 },
+            margins: { above: 8, below: 8 },
+          }),
         },
         pi
       );
@@ -649,7 +669,16 @@ export function PriceChart({
     const b = bundleRef.current;
     if (!b) return;
     applyIndicatorSeries(b, indPack);
-  }, [indPack]);
+  }, [
+    indPack,
+    layoutKey,
+    chartMountKey,
+    chartDepKey,
+    height,
+    chartMode,
+    packTf,
+    usePackApi,
+  ]);
 
   useEffect(() => {
     const chart = chartRef.current;
