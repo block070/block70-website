@@ -13,24 +13,29 @@ type Params = { topicId: string };
 function displayMarkdown(body: string, meta: Record<string, unknown>): string {
   const display = meta.displayBody;
   if (typeof display === "string" && display.trim()) return display;
-  if (body.trim().toUpperCase().startsWith("META:")) {
-    const nl = body.indexOf("\n");
-    if (nl !== -1) return body.slice(nl + 1).trimStart();
+  const b = typeof body === "string" ? body : "";
+  if (b.trim().toUpperCase().startsWith("META:")) {
+    const nl = b.indexOf("\n");
+    if (nl !== -1) return b.slice(nl + 1).trimStart();
   }
-  return body;
+  return b;
 }
 
 export async function generateMetadata({ params }: { params: Params }) {
   const pool = getCryptoHourPool();
   if (!pool || !isUuid(params.topicId)) return { title: "Article · Block70" };
-  const row = await getPublishedArticleByTopicId(pool, params.topicId);
-  if (!row) return { title: "Article · Block70" };
-  const desc =
-    typeof row.meta?.metaDescription === "string" ? row.meta.metaDescription : undefined;
-  return {
-    title: `${row.title} · Crypto On the Hour · Block70`,
-    description: desc ?? row.title,
-  };
+  try {
+    const row = await getPublishedArticleByTopicId(pool, params.topicId);
+    if (!row) return { title: "Article · Block70" };
+    const desc =
+      typeof row.meta?.metaDescription === "string" ? row.meta.metaDescription : undefined;
+    return {
+      title: `${row.title} · Crypto On the Hour · Block70`,
+      description: desc ?? row.title,
+    };
+  } catch {
+    return { title: "Article · Block70" };
+  }
 }
 
 export default async function CryptoHourArticlePage({ params }: { params: Params }) {
@@ -45,7 +50,17 @@ export default async function CryptoHourArticlePage({ params }: { params: Params
     );
   }
 
-  const row = await getPublishedArticleByTopicId(pool, params.topicId);
+  let row: Awaited<ReturnType<typeof getPublishedArticleByTopicId>>;
+  try {
+    row = await getPublishedArticleByTopicId(pool, params.topicId);
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    return (
+      <div className="mx-auto max-w-3xl px-4 py-8 text-sm text-red-200/90">
+        Database error while loading this article: <span className="opacity-90">{msg}</span>
+      </div>
+    );
+  }
   if (!row) notFound();
 
   const md = displayMarkdown(row.body_markdown, row.meta);

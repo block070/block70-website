@@ -13,7 +13,15 @@ export const metadata = {
 
 export default async function CryptoHourIndexPage() {
   const pool = getCryptoHourPool();
-  const articles = pool ? await listPublishedArticles(pool, 50) : [];
+  let articles: Awaited<ReturnType<typeof listPublishedArticles>> = [];
+  let listError: string | null = null;
+  if (pool) {
+    try {
+      articles = await listPublishedArticles(pool, 50);
+    } catch (e) {
+      listError = e instanceof Error ? e.message : String(e);
+    }
+  }
 
   return (
     <div className="mx-auto max-w-3xl space-y-6 px-4 py-8">
@@ -24,6 +32,13 @@ export default async function CryptoHourIndexPage() {
         </p>
       </header>
 
+      {listError ? (
+        <p className="rounded-lg border border-red-500/40 bg-red-950/30 p-4 text-sm text-red-200/90">
+          <strong className="font-medium">Could not load articles.</strong>{" "}
+          <span className="opacity-90">{listError}</span>
+        </p>
+      ) : null}
+
       {!pool ? (
         <p className="rounded-lg border border-amber-500/40 bg-amber-950/30 p-4 text-sm text-amber-200/90">
           <strong className="font-medium">Database not connected.</strong> Set{" "}
@@ -32,7 +47,7 @@ export default async function CryptoHourIndexPage() {
         </p>
       ) : null}
 
-      {articles.length === 0 && pool ? (
+      {articles.length === 0 && pool && !listError ? (
         <p className="text-sm text-slate-500">No published articles yet. Run the pipeline and webhook.</p>
       ) : null}
 

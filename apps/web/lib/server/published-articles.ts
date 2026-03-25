@@ -16,6 +16,26 @@ export function isUuid(s: string): boolean {
   return UUID_RE.test(s);
 }
 
+function coerceMeta(v: unknown): Record<string, unknown> {
+  if (v != null && typeof v === "object" && !Array.isArray(v)) {
+    return v as Record<string, unknown>;
+  }
+  return {};
+}
+
+/** JSONB/text columns may be null; null `meta` used to crash the article page (Next "digest" noise). */
+function normalizeRow(row: PublishedArticleRow): PublishedArticleRow {
+  return {
+    topic_id: String(row.topic_id ?? ""),
+    topic_slug: String(row.topic_slug ?? ""),
+    title: String(row.title ?? ""),
+    body_markdown: String(row.body_markdown ?? ""),
+    meta: coerceMeta(row.meta as unknown),
+    updated_at:
+      row.updated_at instanceof Date ? row.updated_at : new Date(String(row.updated_at ?? 0)),
+  };
+}
+
 export async function listPublishedArticles(
   pool: Pool,
   limit = 50,
@@ -27,7 +47,7 @@ export async function listPublishedArticles(
      LIMIT $1`,
     [limit]
   );
-  return r.rows;
+  return r.rows.map(normalizeRow);
 }
 
 export async function getPublishedArticleByTopicId(
@@ -40,5 +60,6 @@ export async function getPublishedArticleByTopicId(
      WHERE topic_id = $1`,
     [topicId]
   );
-  return r.rows[0] ?? null;
+  const row = r.rows[0];
+  return row ? normalizeRow(row) : null;
 }
