@@ -27,6 +27,7 @@ export async function publishToWebsite(payload: WebsitePayload): Promise<void> {
   };
   if (config.websitePublishSecret) {
     headers["X-Publish-Secret"] = config.websitePublishSecret;
+    headers["Authorization"] = `Bearer ${config.websitePublishSecret}`;
   }
 
   const res = await fetch(url, {

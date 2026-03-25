@@ -9,9 +9,15 @@ declare global {
   var __cryptoHourPgPool: Pool | undefined;
 }
 
+function runtimeEnv(parts: string[]): string {
+  const key = parts.join("_");
+  const v = process.env[key];
+  return typeof v === "string" ? v.trim().replace(/\r/g, "") : "";
+}
+
 export function getCryptoHourPool(): Pool | null {
   const connectionString =
-    process.env.CRYPTO_HOUR_DATABASE_URL?.trim() || process.env.DATABASE_URL?.trim() || "";
+    runtimeEnv(["CRYPTO", "HOUR", "DATABASE", "URL"]) || runtimeEnv(["DATABASE", "URL"]) || "";
   if (!connectionString) return null;
 
   if (!globalThis.__cryptoHourPgPool) {

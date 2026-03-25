@@ -23,6 +23,32 @@ function timingSafeEqualString(secret: string, expected: string): boolean {
   return timingSafeEqual(a, b);
 }
 
+/** Avoid Next/webpack inlining a build-time value; read at runtime from host env. */
+function runtimeProcessEnv(parts: string[]): string | undefined {
+  const key = parts.join("_");
+  return process.env[key];
+}
+
+function normalizeSecret(raw: string): string {
+  let s = raw.trim();
+  if (s.charCodeAt(0) === 0xfeff) s = s.slice(1);
+  return s.replace(/\r/g, "");
+}
+
+function expectedPublishSecret(): string {
+  const v = runtimeProcessEnv(["WEBSITE", "PUBLISH", "SECRET"]);
+  return typeof v === "string" ? normalizeSecret(v) : "";
+}
+
+function secretFromRequest(request: Request): string {
+  const fromHeader = request.headers.get("x-publish-secret");
+  if (fromHeader) return normalizeSecret(fromHeader);
+  const auth = request.headers.get("authorization");
+  if (!auth) return "";
+  const m = /^Bearer\s+(\S+)/i.exec(auth.trim());
+  return m?.[1] ? normalizeSecret(m[1]) : "";
+}
+
 function metaFromBody(markdown: string): { description: string | null; rest: string } {
   const trimmed = markdown.trimStart();
   if (trimmed.toUpperCase().startsWith("META:")) {
@@ -38,7 +64,7 @@ function metaFromBody(markdown: string): { description: string | null; rest: str
 }
 
 export async function POST(request: Request) {
-  const secret = process.env.WEBSITE_PUBLISH_SECRET?.trim();
+  const secret = expectedPublishSecret();
   if (!secret) {
     return NextResponse.json(
       { error: "WEBSITE_PUBLISH_SECRET is not configured on the web app" },
@@ -46,8 +72,8 @@ export async function POST(request: Request) {
     );
   }
 
-  const headerSecret = request.headers.get("x-publish-secret")?.trim() ?? "";
-  if (!headerSecret || !timingSafeEqualString(headerSecret, secret)) {
+  const provided = secretFromRequest(request);
+  if (!provided || !timingSafeEqualString(provided, secret)) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
 

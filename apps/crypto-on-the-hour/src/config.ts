@@ -10,6 +10,14 @@ function opt(name: string, fallback: string): string {
   return process.env[name] ?? fallback;
 }
 
+/** Trim, strip UTF-8 BOM and CR so .env / Windows line endings match webhook headers. */
+function normalizeEnvSecret(raw: string | undefined): string {
+  if (!raw) return "";
+  let s = raw.trim();
+  if (s.charCodeAt(0) === 0xfeff) s = s.slice(1);
+  return s.replace(/\r/g, "");
+}
+
 export const config = {
   nodeEnv: opt("NODE_ENV", "development"),
   databaseUrl: req("DATABASE_URL"),
@@ -22,7 +30,7 @@ export const config = {
   topicLookbackHours: parseInt(opt("TOPIC_LOOKBACK_HOURS", "24"), 10),
   minTopicScoreToGenerate: parseFloat(opt("MIN_TOPIC_SCORE_TO_GENERATE", "3")),
   websitePublishWebhookUrl: process.env.WEBSITE_PUBLISH_WEBHOOK_URL ?? "",
-  websitePublishSecret: process.env.WEBSITE_PUBLISH_SECRET ?? "",
+  websitePublishSecret: normalizeEnvSecret(process.env.WEBSITE_PUBLISH_SECRET),
   videoGenerationWebhookUrl: process.env.VIDEO_GENERATION_WEBHOOK_URL ?? "",
   linkedinAccessToken: process.env.LINKEDIN_ACCESS_TOKEN ?? "",
   linkedinOrgUrn: process.env.LINKEDIN_ORG_URN ?? "",
