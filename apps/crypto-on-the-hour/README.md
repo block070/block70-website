@@ -92,7 +92,9 @@ npm run dev
 npm run worker
 ```
 
-Registers a **repeatable BullMQ job** on cron `0 * * * *` (top of every hour) and processes `hourly` jobs with concurrency `1`.
+Registers a **repeatable BullMQ job** on cron `0 * * * *` at **:00** in **`PIPELINE_CRON_TZ`** (default **`America/Chicago`**, US Central). Requires the **worker** process (`npm run start:worker`). To verify the next fire time, see Redis/BullMQ `getRepeatableJobs` or watch worker logs when the hour rolls in Central time.
+
+**Existing `/crypto-on-the-hour` “Updated” labels:** optional one-off `scripts/stagger-web-published-updated-at.sql` makes each row’s `updated_at` a distinct Central top-of-hour (staggered backward by row).
 
 ### 6. Production
 
@@ -121,7 +123,7 @@ Implement `IngestionSource` in `src/modules/ingestion/ingestion-source.ts`, then
 
 ## Block70 monorepo note
 
-This app is **standalone Node** alongside the existing Python/Next stack. Wire `WEBSITE_PUBLISH_WEBHOOK_URL` to the Block70 ingest route **`POST /api/publish/crypto-hour`** (see `apps/web/app/api/publish/crypto-hour/route.ts`). Use the **same Postgres** via `CRYPTO_HOUR_DATABASE_URL` on Vercel as `DATABASE_URL` on the engine so articles appear on **`/crypto-hour`** and **`/crypto-hour/:topic-slug`** (UUID URLs redirect to the slug).
+This app is **standalone Node** alongside the existing Python/Next stack. Wire `WEBSITE_PUBLISH_WEBHOOK_URL` to **`POST /api/publish/crypto-on-the-hour`** on the Next app (`apps/web/app/api/publish/crypto-on-the-hour/route.ts`; legacy **`/api/publish/crypto-hour`** re-exports the same handler). Use the **same Postgres** via `CRYPTO_HOUR_DATABASE_URL` on the web host as `DATABASE_URL` on the engine so articles appear on **`/crypto-on-the-hour`** and **`/crypto-on-the-hour/:topic-slug`** (old **`/crypto-hour`** URLs redirect with **308**).
 
 - Health: `GET /health/pipeline` — returns `503` if the last hourly run is missing, failed, or older than ~2.5h (for uptime monitors).
 

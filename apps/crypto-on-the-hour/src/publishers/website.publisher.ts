@@ -10,7 +10,7 @@ export type WebsitePayload = {
 
 export function websiteIdempotencyKey(topicId: string, body: string): string {
   const hash = createHash("sha256").update(body, "utf8").digest("hex").slice(0, 32);
-  return `crypto-hour-${topicId}-${hash}`;
+  return `crypto-on-the-hour-${topicId}-${hash}`;
 }
 
 /** POST markdown + metadata to your CMS or Next.js ingest webhook. */

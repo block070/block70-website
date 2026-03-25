@@ -16,9 +16,12 @@ export function isUuid(s: string): boolean {
   return UUID_RE.test(s);
 }
 
-/** URL segment for article pages (`/crypto-hour/:slug`). */
+/** Public base path for published pipeline articles. */
+export const CRYPTO_ON_THE_HOUR_BASE = "/crypto-on-the-hour";
+
+/** URL for one article (`/crypto-on-the-hour/:slug`). */
 export function cryptoHourArticlePath(topicSlug: string): string {
-  return `/crypto-hour/${encodeURIComponent(topicSlug)}`;
+  return `${CRYPTO_ON_THE_HOUR_BASE}/${encodeURIComponent(topicSlug)}`;
 }
 
 function coerceMeta(v: unknown): Record<string, unknown> {

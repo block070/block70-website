@@ -1,4 +1,4 @@
--- Mirror of articles ingested by Block70 web (POST /api/publish/crypto-hour).
+-- Mirror of articles ingested by Block70 web (POST /api/publish/crypto-on-the-hour).
 -- Requires Next.js (or any consumer) to use same DATABASE_URL as this service.
 
 CREATE TABLE web_published_articles (

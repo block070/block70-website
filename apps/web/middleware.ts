@@ -9,6 +9,16 @@ const PROTECTED_PATTERNS = [
 
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
+
+  if (pathname === "/crypto-hour" || pathname.startsWith("/crypto-hour/")) {
+    const url = request.nextUrl.clone();
+    url.pathname =
+      pathname === "/crypto-hour"
+        ? "/crypto-on-the-hour"
+        : `/crypto-on-the-hour${pathname.slice("/crypto-hour".length)}`;
+    return NextResponse.redirect(url, 308);
+  }
+
   const isProtected = PROTECTED_PATTERNS.some((pattern) => pattern.test(pathname));
   if (!isProtected) return NextResponse.next();
 
@@ -23,6 +33,6 @@ export function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/wallets/:path*"],
+  matcher: ["/wallets/:path*", "/crypto-hour", "/crypto-hour/:path*"],
 };
 

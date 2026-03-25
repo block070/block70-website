@@ -2,6 +2,7 @@
  * BullMQ repeatable job registration — hourly crypto pipeline.
  */
 import type { Queue } from "bullmq";
+import { config } from "../config.js";
 import { getDefaultJobOptions } from "../queue/queues.js";
 import { logInfo } from "../lib/logger.js";
 
@@ -20,9 +21,12 @@ export async function registerHourlyRepeatableJob(queue: Queue): Promise<void> {
     {},
     {
       ...defaults,
-      repeat: { pattern: HOURLY_CRON_PATTERN },
+      repeat: { pattern: HOURLY_CRON_PATTERN, tz: config.pipelineCronTz },
       jobId: HOURLY_REPEAT_JOB_ID,
     }
   );
-  logInfo("scheduler", "registered repeatable hourly job", { pattern: HOURLY_CRON_PATTERN });
+  logInfo("scheduler", "registered repeatable hourly job", {
+    pattern: HOURLY_CRON_PATTERN,
+    tz: config.pipelineCronTz,
+  });
 }

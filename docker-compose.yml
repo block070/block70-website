@@ -53,7 +53,7 @@ services:
     environment:
       API_SERVER_URL: ${API_SERVER_URL:-http://api:8000}
       NEXT_PUBLIC_API_BASE_URL: ${NEXT_PUBLIC_API_BASE_URL}
-      # Ingest webhook + /crypto-hour DB; must match repo root .env (visible via docker exec block70-web env)
+      # Ingest webhook + crypto-on-the-hour DB; must match repo root .env (visible via docker exec block70-web env)
       WEBSITE_PUBLISH_SECRET: ${WEBSITE_PUBLISH_SECRET:-}
       CRYPTO_HOUR_DATABASE_URL: ${CRYPTO_HOUR_DATABASE_URL:-}
     extra_hosts:

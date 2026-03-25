@@ -38,4 +38,9 @@ export const config = {
   workerJobAttempts: parseInt(opt("WORKER_JOB_ATTEMPTS", "5"), 10),
   /** Initial backoff delay (ms); BullMQ uses exponential backoff */
   workerJobBackoffMs: parseInt(opt("WORKER_JOB_BACKOFF_MS", "30000"), 10),
+  /**
+   * IANA timezone for hourly cron (`0 * * * *`). BullMQ runs at **local** :00 in this zone
+   * (America/Chicago ≈ US Central, CST/CDT). Match `timedatectl` on the host or override via env.
+   */
+  pipelineCronTz: opt("PIPELINE_CRON_TZ", "America/Chicago"),
 };
