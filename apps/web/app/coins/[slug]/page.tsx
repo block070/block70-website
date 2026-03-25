@@ -1,6 +1,19 @@
 import Link from "next/link";
+import dynamic from "next/dynamic";
 
-import { PriceChart } from "@/components/charts/price-chart";
+const PriceChart = dynamic(
+  () =>
+    import("@/components/charts/price-chart").then((m) => ({ default: m.PriceChart })),
+  {
+    ssr: false,
+    loading: () => (
+      <div
+        className="h-[420px] w-full max-w-full animate-pulse rounded-xl border border-slate-800 bg-slate-900/50"
+        aria-hidden
+      />
+    ),
+  }
+);
 import { CoinDescription } from "@/components/coins/coin-description";
 import { CoinFaqJsonLd } from "@/components/coins/coin-faq-json-ld";
 import { CoinHeroConversion } from "@/components/coins/coin-hero-conversion";
@@ -113,9 +126,10 @@ export default async function CoinDetailPage({ params }: { params: Params }) {
         investmentLabel={investmentLabel}
       />
 
+      <PriceChart coin={coin.slug} symbol={symbol} height={400} />
+
       <section className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
         <div className="min-w-0 space-y-4">
-          <PriceChart symbol={symbol} slug={coin.slug} height={420} />
 
           <section className="space-y-2 rounded-xl border border-slate-800 bg-slate-900/60 p-4 text-xs">
             <p className="text-[11px] uppercase tracking-wide text-slate-400">

@@ -15,6 +15,7 @@ import {
 } from "lightweight-charts";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { chartColors } from "@/components/ui/charts/chart-styles";
+import type { ChartTimeframeKey } from "@/lib/ohlcv-providers";
 import { clsx } from "clsx";
 
 export type OHLCVPoint = {
@@ -26,76 +27,147 @@ export type OHLCVPoint = {
   volume: number;
 };
 
-export type ChartTimeframe = "1H" | "4H" | "1D" | "1W";
-
-const TIMEFRAMES: { key: ChartTimeframe; label: string; api: string }[] = [
-  { key: "1H", label: "1H", api: "1h" },
-  { key: "4H", label: "4H", api: "4h" },
-  { key: "1D", label: "1D", api: "1d" },
-  { key: "1W", label: "1W", api: "1w" },
-];
-
-const MA_PERIOD = 20;
-
-function smaLineFromOhlcv(ohlcv: OHLCVPoint[], period: number): LineData[] {
-  const out: LineData[] = [];
-  for (let i = 0; i < ohlcv.length; i++) {
-    if (i < period - 1) continue;
-    let sum = 0;
-    for (let j = 0; j < period; j++) sum += ohlcv[i - period + 1 + j].close;
-    out.push({ time: ohlcv[i].time as UTCTimestamp, value: sum / period });
-  }
-  return out;
-}
-
-type Props = {
-  symbol: string;
+export type PriceChartProps = {
+  /** CoinGecko id / URL slug (e.g. bitcoin) — improves fallback data */
+  coin?: string;
+  symbol?: string;
   slug?: string;
   height?: number;
   className?: string;
 };
 
-export function PriceChart({ symbol, slug, height = 400, className }: Props) {
+const TIMEFRAMES: { key: ChartTimeframeKey; label: string }[] = [
+  { key: "1H", label: "1H" },
+  { key: "4H", label: "4H" },
+  { key: "1D", label: "1D" },
+  { key: "7D", label: "7D" },
+];
+
+export type ChartMode = "line" | "candle";
+
+function applyOhlcvToSeries(
+  chart: IChartApi,
+  main: ISeriesApi<"Line"> | ISeriesApi<"Candlestick">,
+  volume: ISeriesApi<"Histogram">,
+  ohlcv: OHLCVPoint[],
+  mode: ChartMode
+) {
+  if (!ohlcv.length) {
+    if (mode === "line") (main as ISeriesApi<"Line">).setData([]);
+    else (main as ISeriesApi<"Candlestick">).setData([]);
+    volume.setData([]);
+    return;
+  }
+
+  const volData: HistogramData[] = ohlcv.map((c) => ({
+    time: c.time as UTCTimestamp,
+    value: c.volume,
+    color:
+      c.close >= c.open
+        ? "rgba(0, 255, 163, 0.35)"
+        : "rgba(255, 107, 107, 0.35)",
+  }));
+  volume.setData(volData);
+
+  if (mode === "line") {
+    const lineData: LineData[] = ohlcv.map((c) => ({
+      time: c.time as UTCTimestamp,
+      value: c.close,
+    }));
+    (main as ISeriesApi<"Line">).setData(lineData);
+  } else {
+    const candleData: CandlestickData[] = ohlcv.map((c) => ({
+      time: c.time as UTCTimestamp,
+      open: c.open,
+      high: c.high,
+      low: c.low,
+      close: c.close,
+    }));
+    (main as ISeriesApi<"Candlestick">).setData(candleData);
+  }
+  chart.timeScale().fitContent();
+}
+
+export function PriceChart({
+  coin,
+  symbol,
+  slug: slugProp,
+  height = 400,
+  className,
+}: PriceChartProps) {
+  const slug = (coin ?? slugProp ?? "").trim();
+  const sym = (symbol ?? "").trim().toUpperCase();
   const containerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
-  const candlestickRef = useRef<ISeriesApi<"Candlestick"> | null>(null);
+  const mainRef = useRef<ISeriesApi<"Line"> | ISeriesApi<"Candlestick"> | null>(null);
   const volumeRef = useRef<ISeriesApi<"Histogram"> | null>(null);
-  const maRef = useRef<ISeriesApi<"Line"> | null>(null);
-  const [timeframe, setTimeframe] = useState<ChartTimeframe>("1D");
-  const [showMa, setShowMa] = useState(true);
+  const ohlcvRef = useRef<OHLCVPoint[]>([]);
+
+  const [timeframe, setTimeframe] = useState<ChartTimeframeKey>("1D");
+  const [chartMode, setChartMode] = useState<ChartMode>("line");
+  const [ohlcv, setOhlcv] = useState<OHLCVPoint[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-
-  const apiSymbol = symbol?.toUpperCase() || slug || "";
-  const tfConfig = TIMEFRAMES.find((t) => t.key === timeframe)!;
+  const [source, setSource] = useState<string | null>(null);
 
   const fetchData = useCallback(async () => {
-    if (!apiSymbol) return;
+    if (!sym) return;
     setLoading(true);
     setError(null);
     try {
-      const url = `/api/charts/${encodeURIComponent(apiSymbol)}?timeframe=${tfConfig.api}&limit=200`;
-      const res = await fetch(url, { cache: "no-store" });
-      const data = (await res.json()) as { ohlcv?: OHLCVPoint[] };
-      const ohlcv = data.ohlcv ?? [];
-      return ohlcv;
+      const sp = new URLSearchParams({ timeframe });
+      if (slug) sp.set("slug", slug);
+      const res = await fetch(`/api/charts/${encodeURIComponent(sym)}?${sp}`, {
+        cache: "default",
+      });
+      const data = (await res.json()) as {
+        ohlcv?: OHLCVPoint[];
+        error?: string | null;
+        source?: string | null;
+      };
+      if (!res.ok) {
+        setError(data.error || `HTTP ${res.status}`);
+        setOhlcv([]);
+        setSource(null);
+        return;
+      }
+      if (data.error && !(data.ohlcv?.length)) {
+        setError(data.error);
+        setOhlcv([]);
+        setSource(null);
+        return;
+      }
+      setOhlcv(data.ohlcv ?? []);
+      setSource(data.source ?? null);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to load chart");
-      return [];
+      setOhlcv([]);
+      setSource(null);
     } finally {
       setLoading(false);
     }
-  }, [apiSymbol, tfConfig.api]);
+  }, [sym, slug, timeframe]);
 
   useEffect(() => {
-    if (!containerRef.current || !apiSymbol) return;
+    void fetchData();
+  }, [fetchData]);
 
-    const isDark = true;
-    const chart = createChart(containerRef.current, {
+  useEffect(() => {
+    ohlcvRef.current = ohlcv;
+  }, [ohlcv]);
+
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el || !sym) return;
+
+    const chart = createChart(el, {
       layout: {
         background: { type: ColorType.Solid, color: "transparent" },
-        textColor: "var(--b70-text-muted)",
+        textColor: "#94a3b8",
+        attributionLogo: true,
       },
+      width: el.clientWidth,
+      height,
       grid: {
         vertLines: { color: "rgba(148, 163, 184, 0.08)" },
         horzLines: { color: "rgba(148, 163, 184, 0.08)" },
@@ -103,23 +175,22 @@ export function PriceChart({ symbol, slug, height = 400, className }: Props) {
       crosshair: {
         mode: 1,
         vertLine: {
-          color: "var(--b70-border)",
+          color: "rgba(148, 163, 184, 0.4)",
           width: 1,
-          labelBackgroundColor: chartColors.up,
+          labelBackgroundColor: "#334155",
         },
         horzLine: {
-          color: "var(--b70-border)",
+          color: "rgba(148, 163, 184, 0.4)",
           width: 1,
-          labelBackgroundColor: chartColors.up,
+          labelBackgroundColor: "#334155",
         },
       },
       rightPriceScale: {
-        borderColor: "var(--b70-border)",
-        scaleMargins: { top: 0.1, bottom: 0.25 },
-        entireTextOnly: true,
+        borderColor: "rgba(51, 65, 85, 0.6)",
+        scaleMargins: { top: 0.08, bottom: 0.22 },
       },
       timeScale: {
-        borderColor: "var(--b70-border)",
+        borderColor: "rgba(51, 65, 85, 0.6)",
         timeVisible: true,
         secondsVisible: false,
       },
@@ -128,82 +199,69 @@ export function PriceChart({ symbol, slug, height = 400, className }: Props) {
 
     chartRef.current = chart;
 
-    const candlestickSeries = chart.addSeries(CandlestickSeries, {
-      upColor: chartColors.up,
-      downColor: chartColors.down,
-      borderVisible: false,
-      wickUpColor: chartColors.up,
-      wickDownColor: chartColors.down,
-    });
-    candlestickRef.current = candlestickSeries as ISeriesApi<"Candlestick">;
-
     const volumeSeries = chart.addSeries(HistogramSeries, {
       color: chartColors.volume,
       priceFormat: { type: "volume" },
       priceScaleId: "",
-    }) as ISeriesApi<"Histogram">;
+    });
     volumeSeries.priceScale().applyOptions({
-      scaleMargins: { top: 0.85, bottom: 0 },
-      visible: false,
+      scaleMargins: { top: 0.82, bottom: 0 },
     });
     volumeRef.current = volumeSeries;
 
-    const maSeries = chart.addSeries(LineSeries, {
-      color: "rgba(251, 191, 36, 0.9)",
-      lineWidth: 2,
-      priceLineVisible: false,
-      lastValueVisible: true,
+    const main =
+      chartMode === "line"
+        ? chart.addSeries(LineSeries, {
+            color: chartColors.up,
+            lineWidth: 2,
+            crosshairMarkerVisible: true,
+            lastValueVisible: true,
+            priceLineVisible: true,
+          })
+        : chart.addSeries(CandlestickSeries, {
+            upColor: chartColors.up,
+            downColor: chartColors.down,
+            borderVisible: false,
+            wickUpColor: chartColors.up,
+            wickDownColor: chartColors.down,
+          });
+    mainRef.current = main;
+
+    applyOhlcvToSeries(chart, main, volumeSeries, ohlcvRef.current, chartMode);
+
+    const ro = new ResizeObserver(() => {
+      if (!containerRef.current || !chartRef.current) return;
+      chartRef.current.applyOptions({
+        width: containerRef.current.clientWidth,
+        height,
+      });
     });
-    maRef.current = maSeries;
-    maSeries.applyOptions({ visible: false });
+    ro.observe(el);
 
     return () => {
+      ro.disconnect();
       chart.remove();
       chartRef.current = null;
-      candlestickRef.current = null;
+      mainRef.current = null;
       volumeRef.current = null;
-      maRef.current = null;
     };
-  }, [apiSymbol]);
+  }, [sym, height, chartMode]);
 
   useEffect(() => {
-    fetchData().then((ohlcv) => {
-      if (!candlestickRef.current || !volumeRef.current) return;
-      if (!ohlcv?.length) {
-        candlestickRef.current.setData([]);
-        volumeRef.current.setData([]);
-        return;
-      }
+    const chart = chartRef.current;
+    const main = mainRef.current;
+    const vol = volumeRef.current;
+    if (!chart || !main || !vol) return;
+    applyOhlcvToSeries(chart, main, vol, ohlcv, chartMode);
+  }, [ohlcv, chartMode]);
 
-      const candleData: CandlestickData[] = ohlcv.map((c) => ({
-        time: c.time as UTCTimestamp,
-        open: c.open,
-        high: c.high,
-        low: c.low,
-        close: c.close,
-      }));
-      const volData: HistogramData[] = ohlcv.map((c) => ({
-        time: c.time as UTCTimestamp,
-        value: c.volume,
-        color: c.close >= c.open ? "rgba(0, 255, 163, 0.4)" : "rgba(255, 107, 107, 0.4)",
-      }));
-
-      candlestickRef.current.setData(candleData);
-      volumeRef.current.setData(volData);
-
-      if (maRef.current) {
-        if (showMa && ohlcv.length >= MA_PERIOD) {
-          maRef.current.setData(smaLineFromOhlcv(ohlcv, MA_PERIOD));
-          maRef.current.applyOptions({ visible: true });
-        } else {
-          maRef.current.setData([]);
-          maRef.current.applyOptions({ visible: false });
-        }
-      }
-
-      chartRef.current?.timeScale().fitContent();
-    });
-  }, [fetchData, showMa]);
+  if (!sym) {
+    return (
+      <p className={clsx("rounded-xl border border-slate-800 bg-slate-900/60 p-4 text-sm text-slate-500", className)}>
+        Chart unavailable (missing symbol).
+      </p>
+    );
+  }
 
   return (
     <section
@@ -213,53 +271,87 @@ export function PriceChart({ symbol, slug, height = 400, className }: Props) {
       )}
     >
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex flex-wrap items-center gap-3">
+        <div>
           <p className="text-sm font-semibold uppercase tracking-wide text-slate-300">
             Price chart
           </p>
-          <button
-            type="button"
-            onClick={() => setShowMa((v) => !v)}
-            className={clsx(
-              "rounded-full border px-3 py-1 text-xs font-medium transition",
-              showMa
-                ? "border-amber-500/60 bg-amber-500/10 text-amber-200"
-                : "border-slate-600 text-slate-500 hover:bg-slate-800/60"
-            )}
-          >
-            MA ({MA_PERIOD})
-          </button>
+          {source && !loading ? (
+            <p className="mt-0.5 text-[10px] text-slate-500">Data · {source}</p>
+          ) : null}
         </div>
-        <div className="flex gap-1.5">
-          {TIMEFRAMES.map((tf) => (
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="flex rounded-full border border-slate-700 bg-slate-800/60 p-0.5">
             <button
-              key={tf.key}
               type="button"
-              onClick={() => setTimeframe(tf.key)}
+              onClick={() => setChartMode("line")}
               className={clsx(
-                "rounded-full px-3 py-1.5 text-xs font-semibold transition-all",
-                timeframe === tf.key
-                  ? "bg-white/95 text-slate-900 dark:bg-slate-100 dark:text-slate-900"
-                  : "text-slate-500 hover:bg-slate-700/60 hover:text-slate-200"
+                "rounded-full px-2.5 py-1 text-xs font-semibold transition",
+                chartMode === "line"
+                  ? "bg-slate-600 text-white"
+                  : "text-slate-500 hover:text-slate-200"
               )}
             >
-              {tf.label}
+              Line
             </button>
-          ))}
+            <button
+              type="button"
+              onClick={() => setChartMode("candle")}
+              className={clsx(
+                "rounded-full px-2.5 py-1 text-xs font-semibold transition",
+                chartMode === "candle"
+                  ? "bg-slate-600 text-white"
+                  : "text-slate-500 hover:text-slate-200"
+              )}
+            >
+              Candles
+            </button>
+          </div>
+          <div className="flex flex-wrap gap-1">
+            {TIMEFRAMES.map((tf) => (
+              <button
+                key={tf.key}
+                type="button"
+                onClick={() => setTimeframe(tf.key)}
+                disabled={loading}
+                className={clsx(
+                  "rounded-full px-2.5 py-1 text-xs font-semibold transition",
+                  timeframe === tf.key
+                    ? "bg-slate-100 text-slate-900"
+                    : "text-slate-500 hover:bg-slate-800/80 hover:text-slate-200"
+                )}
+              >
+                {tf.label}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
 
-      <div className="relative" style={{ height: `${height}px` }}>
-        {(loading || error) && (
-          <div
-            className="absolute inset-0 z-10 flex items-center justify-center bg-slate-900/80 text-slate-500"
-            style={{ height: `${height}px` }}
-          >
-            {error ? <span className="text-rose-400">{error}</span> : "Loading chart…"}
+      <div className="relative w-full overflow-hidden rounded-lg border border-slate-800/80 bg-slate-950/40">
+        {loading && (
+          <div className="absolute inset-0 z-10 flex flex-col justify-end gap-2 p-4">
+            <div className="h-32 w-full animate-pulse rounded bg-slate-800/60" />
+            <div className="h-10 w-full animate-pulse rounded bg-slate-800/40" />
           </div>
         )}
-        <div ref={containerRef} className="h-full w-full" />
+        {error && !ohlcv.length && !loading ? (
+          <div className="absolute inset-0 z-10 flex items-center justify-center bg-slate-950/90 px-4 text-center text-sm text-rose-400">
+            <span>{error}</span>
+            <button
+              type="button"
+              onClick={() => void fetchData()}
+              className="ml-3 text-xs text-sky-400 underline hover:text-sky-300"
+            >
+              Retry
+            </button>
+          </div>
+        ) : null}
+        <div ref={containerRef} style={{ height: `${height}px` }} className="w-full min-h-[200px]" />
       </div>
+
+      <p className="text-[10px] text-slate-500">
+        Prices from public market APIs (Binance → Coinbase → CoinGecko). Not investment advice.
+      </p>
     </section>
   );
 }

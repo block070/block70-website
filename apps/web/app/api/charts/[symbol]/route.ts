@@ -1,48 +1,75 @@
 import { NextRequest, NextResponse } from "next/server";
+import {
+  fetchOHLCVWithFallback,
+  type ChartTimeframeKey,
+} from "@/lib/ohlcv-providers";
 
-const API_BASE =
-  process.env.API_SERVER_URL || process.env.NEXT_PUBLIC_API_BASE_URL || "";
+const TIMEFRAMES = new Set<string>(["1H", "4H", "1D", "7D"]);
+
+/** Short-lived server cache to avoid duplicate external calls within a minute */
+const memCache = new Map<string, { at: number; payload: Record<string, unknown> }>();
+const MEM_TTL_MS = 55_000;
 
 export async function GET(
   request: NextRequest,
   context: { params: Promise<{ symbol: string }> | { symbol: string } }
 ) {
   const params = await Promise.resolve(context.params);
-  const symbol = params.symbol;
-  const timeframe = request.nextUrl.searchParams.get("timeframe") || "1h";
-  const limit = request.nextUrl.searchParams.get("limit") || "200";
+  const symbol = decodeURIComponent(params.symbol || "").trim();
+  const tfParam =
+    (request.nextUrl.searchParams.get("timeframe") || "1D").toUpperCase();
+  const slug = request.nextUrl.searchParams.get("slug")?.trim() || null;
 
-  if (!API_BASE) {
+  if (!symbol) {
     return NextResponse.json(
-      { ohlcv: [], error: "API backend not configured" },
-      { status: 503 }
-    );
-  }
-  if (!symbol || typeof symbol !== "string") {
-    return NextResponse.json(
-      { ohlcv: [], error: "Invalid symbol" },
+      { ohlcv: [], error: "Missing symbol", source: null },
       { status: 400 }
     );
   }
+
+  const timeframe: ChartTimeframeKey = TIMEFRAMES.has(tfParam)
+    ? (tfParam as ChartTimeframeKey)
+    : "1D";
+
+  const cacheKey = `${symbol}|${timeframe}|${slug ?? ""}`;
+  const hit = memCache.get(cacheKey);
+  if (hit && Date.now() - hit.at < MEM_TTL_MS) {
+    return NextResponse.json(hit.payload, {
+      headers: { "Cache-Control": "public, s-maxage=60, stale-while-revalidate=120" },
+    });
+  }
+
   try {
-    const res = await fetch(
-      `${API_BASE}/api/v1/charts/${encodeURIComponent(symbol)}?timeframe=${timeframe}&limit=${limit}`,
-      { cache: "no-store" }
+    const { ohlcv, source } = await fetchOHLCVWithFallback(
+      symbol,
+      timeframe,
+      slug
     );
-    const data = (await res.json()) as { ohlcv?: unknown[]; detail?: string };
-    if (!res.ok) {
-      return NextResponse.json(
-        { ohlcv: [], error: data.detail || data || "Chart unavailable" },
-        { status: res.status >= 500 ? 502 : res.status }
-      );
+
+    let bars = ohlcv;
+    if (timeframe === "7D" && bars.length > 7) {
+      bars = bars.slice(-7);
     }
-    return NextResponse.json({ ohlcv: data.ohlcv ?? [] });
-  } catch (err) {
+
+    const payload = {
+      ohlcv: bars,
+      source,
+      timeframe,
+      error: null as string | null,
+    };
+    memCache.set(cacheKey, { at: Date.now(), payload });
+    if (memCache.size > 500) {
+      const oldest = [...memCache.keys()].slice(0, 100);
+      oldest.forEach((k) => memCache.delete(k));
+    }
+
+    return NextResponse.json(payload, {
+      headers: { "Cache-Control": "public, s-maxage=60, stale-while-revalidate=120" },
+    });
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : "Chart data unavailable";
     return NextResponse.json(
-      {
-        ohlcv: [],
-        error: err instanceof Error ? err.message : "Failed to fetch chart data",
-      },
+      { ohlcv: [], source: null, timeframe, error: msg },
       { status: 502 }
     );
   }
