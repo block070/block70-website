@@ -15,15 +15,16 @@ from app.services.connectors.chart_cache import chart_cache_get, chart_cache_set
 
 logger = logging.getLogger(__name__)
 
-# Timeframe → (granularity_seconds, limit, cache_ttl)
+# Timeframe → (granularity_seconds, default_candle_limit, cache_ttl)
+# Default limit 500 aligns with long-period moving averages (e.g. 200) and Binance kline cap.
 TIMEFRAME_CONFIG = {
-    "1m": (60, 200, 30),
-    "5m": (300, 200, 60),
-    "15m": (900, 200, 120),
-    "1h": (3600, 200, 300),
-    "4h": (14400, 200, 600),
-    "1d": (86400, 200, 900),
-    "1w": (604800, 200, 900),
+    "1m": (60, 500, 30),
+    "5m": (300, 500, 60),
+    "15m": (900, 500, 120),
+    "1h": (3600, 500, 300),
+    "4h": (14400, 500, 600),
+    "1d": (86400, 500, 900),
+    "1w": (604800, 500, 900),
 }
 
 OHLCVRecord = dict[str, Any]
@@ -59,7 +60,7 @@ def _ohlcv_cache_set(key: str, data: list[OHLCVRecord], ttl: int) -> None:
     chart_cache_set(key, {"ohlcv": data}, ttl)
 
 
-def get_ohlcv(symbol: str, timeframe: str, limit: int = 200) -> list[OHLCVRecord]:
+def get_ohlcv(symbol: str, timeframe: str, limit: int = 500) -> list[OHLCVRecord]:
     """
     Fetch OHLCV data. Priority: Coinbase → Binance.US → CoinGecko.
     symbol: base ticker (BTC, ETH, SOL) or slug (bitcoin, ethereum).

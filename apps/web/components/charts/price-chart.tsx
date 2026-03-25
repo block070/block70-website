@@ -249,8 +249,9 @@ function applyIndicatorSeries(b: ChartSeriesBundle, ind: ChartPackPayload["indic
   }
 }
 
-const AUX_MACD_H = 88;
-const AUX_RSI_H = 76;
+/** Dedicated pane heights so MACD/RSI are readable (main price uses `height` prop). */
+const AUX_MACD_H = 168;
+const AUX_RSI_H = 140;
 
 export function PriceChart({
   coin,

@@ -117,8 +117,8 @@ def build_chart_pack(
     if tf not in PACK_TIMEFRAMES:
         raise ValueError(f"Unsupported timeframe: {timeframe}")
 
-    raw_env = os.getenv("CHART_PACK_OHLC_LIMIT", "280")
-    eff_limit = limit if limit is not None else (int(raw_env) if raw_env.isdigit() else 280)
+    raw_env = os.getenv("CHART_PACK_OHLC_LIMIT", "500")
+    eff_limit = limit if limit is not None else (int(raw_env) if raw_env.isdigit() else 500)
     eff_limit = min(max(eff_limit, 50), 500)
 
     ticker, slug = resolve_ticker_slug(coin, db)
