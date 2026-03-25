@@ -1,20 +1,18 @@
 # Crypto On the Hour — BullMQ worker (hourly pipeline + webhooks).
 #
-# Install (adjust paths and User for your VPS):
+# Install:
 #   sudo cp deploy/crypto-on-the-hour-worker.service.example /etc/systemd/system/crypto-on-the-hour-worker.service
-#   sudo nano /etc/systemd/system/crypto-on-the-hour-worker.service   # fix paths
-#   sudo systemctl daemon-reload
-#   sudo systemctl enable crypto-on-the-hour-worker
-#   sudo systemctl start crypto-on-the-hour-worker
-#   sudo systemctl status crypto-on-the-hour-worker
-#   journalctl -u crypto-on-the-hour-worker -f
+#   sudo nano /etc/systemd/system/crypto-on-the-hour-worker.service
+#   sudo systemctl daemon-reload && sudo systemctl enable --now crypto-on-the-hour-worker
 #
-# Requires: Node 20+, Redis reachable at REDIS_URL, Postgres at DATABASE_URL (see .env).
+# StartLimit* belongs in [Unit] (systemd warns if placed under [Service] on some versions).
 
 [Unit]
 Description=Block70 Crypto On the Hour worker (BullMQ hourly pipeline)
 After=network-online.target
 Wants=network-online.target
+StartLimitIntervalSec=200
+StartLimitBurst=5
 
 [Service]
 Type=simple
@@ -24,10 +22,6 @@ EnvironmentFile=/root/block70/apps/crypto-on-the-hour/.env
 ExecStart=/usr/bin/node dist/workers/index.js
 Restart=always
 RestartSec=15
-
-# Safety: don't tight-loop forever if Node/env is broken
-StartLimitIntervalSec=200
-StartLimitBurst=5
 
 [Install]
 WantedBy=multi-user.target

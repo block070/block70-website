@@ -1,0 +1,28 @@
+# Crypto On the Hour — HTTP API (health routes, manual POST /admin/trigger-hourly).
+# Optional if you only rely on the hourly worker cron; required for curl-based manual enqueue.
+#
+# Install:
+#   sudo cp deploy/crypto-on-the-hour-api.service.example /etc/systemd/system/crypto-on-the-hour-api.service
+#   sudo nano /etc/systemd/system/crypto-on-the-hour-api.service
+#   sudo systemctl daemon-reload && sudo systemctl enable --now crypto-on-the-hour-api
+#
+# Default listen: API_HOST=0.0.0.0 API_PORT=4001 in .env
+
+[Unit]
+Description=Block70 Crypto On the Hour API (Fastify)
+After=network-online.target
+Wants=network-online.target
+StartLimitIntervalSec=200
+StartLimitBurst=5
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/root/block70/apps/crypto-on-the-hour
+EnvironmentFile=/root/block70/apps/crypto-on-the-hour/.env
+ExecStart=/usr/bin/node dist/index.js
+Restart=always
+RestartSec=15
+
+[Install]
+WantedBy=multi-user.target

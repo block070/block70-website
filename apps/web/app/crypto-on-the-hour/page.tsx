@@ -9,7 +9,8 @@ export const dynamic = "force-dynamic";
 
 export const metadata = {
   title: "Crypto On the Hour · Block70",
-  description: "Automated hourly crypto briefs published from the Block70 content engine.",
+  description:
+    "Fresh crypto headlines each hour—what moved the market, why it matters, and the angles serious readers are tracking right now.",
 };
 
 export default async function CryptoHourIndexPage() {
@@ -29,9 +30,9 @@ export default async function CryptoHourIndexPage() {
       <header className="space-y-1">
         <h1 className="text-2xl font-semibold text-slate-100">Crypto On the Hour</h1>
         <p className="text-sm text-slate-400">
-          Hourly ranked topics & SEO articles from the Block70 automated pipeline. “Updated” is when
-          the article landed on the site (webhook), in US Central; the hourly job often finishes a few
-          minutes after :00 once generation and publish run.
+          A running feed of timely crypto stories—concise summaries you can scan between meetings or on
+          your phone, grounded in what&apos;s actually moving. Each piece is timestamped in US Central
+          when it went live; new entries usually appear shortly after the top of the hour.
         </p>
       </header>
 
