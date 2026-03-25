@@ -38,6 +38,10 @@ COINGECKO_MAX_PAGE = 5
 _coins_list_cache = TTLCache()
 COINS_LIST_CACHE_TTL = 90
 
+# Per-slug cache for `/coins/{slug}` live header: bounds duplicate CG calls (predictable quota).
+_coin_header_cg_cache = TTLCache()
+COINGECKO_COIN_HEADER_CACHE_TTL = int(os.getenv("COINGECKO_COIN_HEADER_CACHE_TTL", "120"))
+
 # Minimum seconds between CoinGecko requests to stay under ~30/min.
 COINGECKO_MIN_INTERVAL = 2.5
 _last_coingecko_call: float = 0
@@ -51,6 +55,64 @@ def _coingecko_throttle() -> None:
     if elapsed < COINGECKO_MIN_INTERVAL and _last_coingecko_call > 0:
         time.sleep(COINGECKO_MIN_INTERVAL - elapsed)
     _last_coingecko_call = time.time()
+
+
+def _cg_env_truthy(name: str) -> bool:
+    return (os.getenv(name) or "").strip().lower() in ("1", "true", "yes", "on")
+
+
+def _fetch_coin_markets_row_cached(slug: str) -> dict | None:
+    """One CoinGecko `/coins/markets` row per slug per TTL window (shared by fallback + optional supplement)."""
+    s = (slug or "").lower().strip()
+    if not s:
+        return None
+    key = f"cg:coin_header:{s}"
+    cached = _coin_header_cg_cache.get(key)
+    if cached is not None:
+        return cached
+    from app.services.connectors.coingecko_connector import fetch_coin_markets_row_by_id
+
+    _coingecko_throttle()
+    row = fetch_coin_markets_row_by_id(s)
+    if row:
+        _coin_header_cg_cache.set(key, row, max(30, COINGECKO_COIN_HEADER_CACHE_TTL))
+    return row
+
+
+def _exchange_row_wants_cg_topup(row: dict) -> bool:
+    """
+    When exchange-first pricing exists, only call CoinGecko for obvious gaps so we
+    do not burn quota on every Binance row (those often omit 7d / market_cap).
+    """
+    if row.get("current_price") is None:
+        return False
+    if row.get("_source") == "coinbase":
+        return True
+    return row.get("price_change_percentage_24h") is None
+
+
+def _merge_coingecko_header_gaps(exchange_row: dict, cg_row: dict | None) -> dict:
+    """Keep exchange `current_price`; fill missing 24h/7d/volume/mcap from CoinGecko when present."""
+    if not cg_row:
+        return exchange_row
+    out = dict(exchange_row)
+    if out.get("price_change_percentage_24h") is None:
+        v = cg_row.get("price_change_percentage_24h")
+        if v is not None:
+            out["price_change_percentage_24h"] = v
+    if out.get("price_change_percentage_7d_in_currency") is None:
+        v = cg_row.get("price_change_percentage_7d_in_currency") or cg_row.get("price_change_percentage_7d")
+        if v is not None:
+            out["price_change_percentage_7d_in_currency"] = v
+    if out.get("total_volume") is None:
+        v = cg_row.get("total_volume")
+        if v is not None:
+            out["total_volume"] = v
+    if out.get("market_cap") is None:
+        v = cg_row.get("market_cap")
+        if v is not None:
+            out["market_cap"] = v
+    return out
 
 
 def _fetch_coingecko_price_changes(limit: int, max_pages: int = 2) -> dict[str, dict]:
@@ -745,7 +807,10 @@ def get_coin_detail(
             if mc.logo_url and not coin.logo_url:
                 coin.logo_url = mc.logo_url
 
-    # Fast live header: DB/enrichment can leave empty or stale points; single CG markets row fixes price/24h/7d/mcap/vol.
+    # Fast live header when DB/enrichment is stale: exchanges first (Binance.com → Coinbase → Binance.US),
+    # then CoinGecko /coins/markets only if snapshot has no price. Optional supplement (off by default):
+    # COINGECKO_COIN_HEADER_SUPPLEMENT=1 — one cached CG row per slug to fill gaps (e.g. Coinbase spot + CG 24h)
+    # without replacing exchange price; CG calls still throttled and deduped via TTL cache.
     market_row: dict | None = None
     tail_weak = True
     if md_points:
@@ -756,12 +821,27 @@ def get_coin_detail(
             tail_weak = True
     if tail_weak:
         try:
-            from app.services.connectors.coingecko_connector import fetch_coin_markets_row_by_id
+            from app.services.connectors.coin_market_snapshot import fetch_exchange_first_market_snapshot
 
-            _coingecko_throttle()
-            market_row = fetch_coin_markets_row_by_id(coin.slug)
+            market_row = fetch_exchange_first_market_snapshot(coin.slug, coin.symbol)
         except Exception:
             market_row = None
+        if (
+            market_row
+            and market_row.get("current_price") is not None
+            and _cg_env_truthy("COINGECKO_COIN_HEADER_SUPPLEMENT")
+            and _exchange_row_wants_cg_topup(market_row)
+        ):
+            try:
+                cg_row = _fetch_coin_markets_row_cached(coin.slug)
+                market_row = _merge_coingecko_header_gaps(market_row, cg_row)
+            except Exception:
+                pass
+        if not market_row or market_row.get("current_price") is None:
+            try:
+                market_row = _fetch_coin_markets_row_cached(coin.slug)
+            except Exception:
+                market_row = None
         if market_row and market_row.get("current_price") is not None:
             try:
                 px = float(market_row["current_price"])
