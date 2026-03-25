@@ -54,7 +54,7 @@ cp .env.example .env
 Edit `.env`:
 
 - `DATABASE_URL` — e.g. `postgres://postgres:postgres@localhost:5432/crypto_on_the_hour`
-- `REDIS_URL` — e.g. `redis://127.0.0.1:6379`
+- `REDIS_URL` — e.g. `redis://127.0.0.1:6380` (compose maps host **6380** → container 6379 if 6379 is busy on the host)
 - `OPENAI_API_KEY` — required for generation (worker process)
 - Optional publish hooks: `WEBSITE_PUBLISH_WEBHOOK_URL`, `VIDEO_GENERATION_WEBHOOK_URL`, LinkedIn tokens (see `.env.example`)
 
