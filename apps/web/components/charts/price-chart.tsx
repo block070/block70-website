@@ -44,11 +44,11 @@ export type PriceChartProps = {
 type PackTimeframe = "1m" | "5m" | "1h" | "4h" | "1d";
 
 const PACK_TIMEFRAMES: { key: PackTimeframe; label: string }[] = [
-  { key: "1m", label: "1M" },
-  { key: "5m", label: "5M" },
-  { key: "1h", label: "1H" },
-  { key: "4h", label: "4H" },
-  { key: "1d", label: "1D" },
+  { key: "1m", label: "1m" },
+  { key: "5m", label: "5m" },
+  { key: "1h", label: "1h" },
+  { key: "4h", label: "4h" },
+  { key: "1d", label: "1d" },
 ];
 
 const LEGACY_TIMEFRAMES: { key: ChartTimeframeKey; label: string }[] = [
@@ -129,7 +129,8 @@ function applyOhlcvToSeries(
   main: ISeriesApi<"Line"> | ISeriesApi<"Candlestick">,
   volume: ISeriesApi<"Histogram">,
   ohlcv: OHLCVPoint[],
-  mode: ChartMode
+  mode: ChartMode,
+  packTimeframe: PackTimeframe | null
 ) {
   if (!ohlcv.length) {
     if (mode === "line") (main as ISeriesApi<"Line">).setData([]);
@@ -162,7 +163,16 @@ function applyOhlcvToSeries(
     }));
     (main as ISeriesApi<"Candlestick">).setData(candleData);
   }
-  chart.timeScale().fitContent();
+
+  const n = ohlcv.length;
+  // High-frequency TFs: default zoom to recent bars so each candle has enough px (avoids line "conflation" look).
+  if (packTimeframe === "1m" && n > 90) {
+    chart.timeScale().setVisibleLogicalRange({ from: n - 90 - 0.5, to: n - 0.5 });
+  } else if (packTimeframe === "5m" && n > 72) {
+    chart.timeScale().setVisibleLogicalRange({ from: n - 72 - 0.5, to: n - 0.5 });
+  } else {
+    chart.timeScale().fitContent();
+  }
 }
 
 export function PriceChart({
@@ -366,6 +376,8 @@ export function PriceChart({
         borderColor: "rgba(51, 65, 85, 0.6)",
         timeVisible: true,
         secondsVisible: false,
+        enableConflation: false,
+        rightOffset: 2,
       },
       handleScroll: { vertTouchDrag: true, horzTouchDrag: true },
     });
@@ -403,7 +415,14 @@ export function PriceChart({
     const mk = createSeriesMarkers(main, []);
     markersRef.current = mk;
 
-    applyOhlcvToSeries(chart, main, volumeSeries, ohlcvRef.current, chartMode);
+    applyOhlcvToSeries(
+      chart,
+      main,
+      volumeSeries,
+      ohlcvRef.current,
+      chartMode,
+      usePackApi ? packTf : null
+    );
 
     const ro = new ResizeObserver(() => {
       if (!containerRef.current || !chartRef.current) return;
@@ -429,8 +448,17 @@ export function PriceChart({
     const main = mainRef.current;
     const vol = volumeRef.current;
     if (!chart || !main || !vol) return;
-    applyOhlcvToSeries(chart, main, vol, ohlcv, chartMode);
-  }, [ohlcv, chartMode]);
+    applyOhlcvToSeries(chart, main, vol, ohlcv, chartMode, usePackApi ? packTf : null);
+  }, [ohlcv, chartMode, packTf, usePackApi]);
+
+  useEffect(() => {
+    const chart = chartRef.current;
+    if (!chart || !usePackApi) return;
+    const fine = packTf === "1m" || packTf === "5m";
+    chart.timeScale().applyOptions({
+      secondsVisible: fine,
+    });
+  }, [packTf, usePackApi]);
 
   useEffect(() => {
     const mk = markersRef.current;

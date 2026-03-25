@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import json
 import logging
+import math
 import os
 from typing import Any
 
@@ -135,19 +136,36 @@ def build_chart_pack(
         }
         return empty
 
-    ind = compute_indicators_for_ohlcv(ohlcv)
+    try:
+        ind_computed = compute_indicators_for_ohlcv(ohlcv)
+        score_val = ind_computed["score"]
+        if not isinstance(score_val, (int, float)) or not math.isfinite(float(score_val)):
+            score_val = 50.0
+        ind_block: dict[str, Any] = {
+            "rsi": ind_computed["rsi"],
+            "macd": ind_computed["macd"],
+            "ma50": ind_computed.get("ma50", []),
+            "ma200": ind_computed.get("ma200", []),
+            "score": round(float(score_val), 1),
+            "signal": ind_computed["signal"],
+            "markers": ind_computed["markers"],
+        }
+    except Exception:
+        logger.exception("Block70 indicators failed for %s tf=%s", slug, tf)
+        ind_block = {
+            "rsi": [],
+            "macd": [],
+            "ma50": [],
+            "ma200": [],
+            "score": 50.0,
+            "signal": "Hold",
+            "markers": [],
+        }
+
     payload: dict[str, Any] = {
         "ohlc": ohlcv,
         "volume": [{"time": int(b["time"]), "value": float(b.get("volume") or 0)} for b in ohlcv],
-        "indicators": {
-            "rsi": ind["rsi"],
-            "macd": ind["macd"],
-            "ma50": ind.get("ma50", []),
-            "ma200": ind.get("ma200", []),
-            "score": ind["score"],
-            "signal": ind["signal"],
-            "markers": ind["markers"],
-        },
+        "indicators": ind_block,
         "meta": {"slug": slug, "timeframe": tf, "ticker": ticker, "source": source},
     }
     if write_redis:

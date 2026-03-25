@@ -31,18 +31,27 @@ export async function GET(request: NextRequest) {
   const cacheKey = `${coin}|${timeframe}`;
   const hit = memCache.get(cacheKey);
   if (hit && Date.now() - hit.at < MEM_TTL_MS) {
-    return new NextResponse(hit.body, {
-      status: 200,
-      headers: {
-        "Content-Type": "application/json",
-        "Cache-Control": "public, s-maxage=50, stale-while-revalidate=120",
-      },
-    });
+    try {
+      const cached = JSON.parse(hit.body) as { ohlc?: unknown[] };
+      if (Array.isArray(cached?.ohlc) && cached.ohlc.length > 0) {
+        return new NextResponse(hit.body, {
+          status: 200,
+          headers: {
+            "Content-Type": "application/json",
+            "Cache-Control": "public, s-maxage=50, stale-while-revalidate=120",
+          },
+        });
+      }
+    } catch {
+      /* invalid cache entry */
+    }
+    memCache.delete(cacheKey);
   }
 
   const url = `${API_BASE}/api/v1/chart?${new URLSearchParams({ coin, timeframe }).toString()}`;
   try {
-    const res = await fetch(url, { next: { revalidate: 45 } });
+    // Do not use Next fetch Data Cache — it can pin empty 4h/1d bodies after a transient miss.
+    const res = await fetch(url, { cache: "no-store" });
     const text = await res.text();
     if (!res.ok) {
       return NextResponse.json(
@@ -55,7 +64,15 @@ export async function GET(request: NextRequest) {
         { status: res.status >= 500 ? 502 : res.status }
       );
     }
-    memCache.set(cacheKey, { at: Date.now(), body: text });
+    try {
+      const parsed = JSON.parse(text) as { ohlc?: unknown[] };
+      const len = Array.isArray(parsed?.ohlc) ? parsed.ohlc.length : 0;
+      if (len > 0) {
+        memCache.set(cacheKey, { at: Date.now(), body: text });
+      }
+    } catch {
+      /* still return body below */
+    }
     if (memCache.size > 400) {
       for (const k of [...memCache.keys()].slice(0, 80)) memCache.delete(k);
     }
