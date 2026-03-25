@@ -3,6 +3,7 @@ import { notFound, redirect } from "next/navigation";
 
 import type { HourSnapshotPayload } from "@/lib/coin-signals-types";
 import { ArticleMarkdown } from "@/components/crypto-hour/article-markdown";
+import { formatCryptoHourOnTheHour } from "@/lib/crypto-hour-dates";
 import { coinHrefFromSymbol } from "@/lib/coin-symbol-slugs";
 import { getCryptoHourPool } from "@/lib/server/crypto-hour-pool";
 import {
@@ -222,7 +223,7 @@ export default async function CryptoOnTheHourSegmentPage({ params }: { params: P
       <header className="space-y-2 border-b border-slate-800 pb-4">
         <h1 className="text-2xl font-semibold leading-tight text-slate-50">{row.title}</h1>
         <p className="text-[11px] text-slate-500">
-          Updated {new Date(row.updated_at).toLocaleString()} · Topic{" "}
+          Updated {formatCryptoHourOnTheHour(new Date(row.updated_at))} · Topic{" "}
           <code className="text-slate-400">{row.topic_id}</code>
         </p>
       </header>

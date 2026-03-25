@@ -1,5 +1,6 @@
 import Link from "next/link";
 
+import { formatCryptoHourOnTheHour } from "@/lib/crypto-hour-dates";
 import { getCryptoHourPool } from "@/lib/server/crypto-hour-pool";
 import { cryptoHourArticlePath, listPublishedArticles } from "@/lib/server/published-articles";
 
@@ -28,7 +29,9 @@ export default async function CryptoHourIndexPage() {
       <header className="space-y-1">
         <h1 className="text-2xl font-semibold text-slate-100">Crypto On the Hour</h1>
         <p className="text-sm text-slate-400">
-          Hourly ranked topics & SEO articles from the Block70 automated pipeline.
+          Hourly ranked topics & SEO articles from the Block70 automated pipeline. “Updated” is when
+          the article landed on the site (webhook), in US Central; the hourly job often finishes a few
+          minutes after :00 once generation and publish run.
         </p>
       </header>
 
@@ -60,7 +63,7 @@ export default async function CryptoHourIndexPage() {
             >
               <span className="font-medium text-slate-100">{a.title}</span>
               <p className="mt-0.5 text-[11px] text-slate-500">
-                {new Date(a.updated_at).toLocaleString()} ·{" "}
+                {formatCryptoHourOnTheHour(new Date(a.updated_at))} ·{" "}
                 <span className="text-slate-400">{a.topic_slug}</span>
               </p>
             </Link>

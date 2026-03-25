@@ -127,6 +127,17 @@ This app is **standalone Node** alongside the existing Python/Next stack. Wire `
 
 - Health: `GET /health/pipeline` — returns `503` if the last hourly run is missing, failed, or older than ~2.5h (for uptime monitors).
 
+### Why didn’t a new article appear on Block70 this hour?
+
+The website only gets a **new or updated** row when the webhook runs for a topic. Common reasons nothing new shows up:
+
+1. **No eligible topics** — Each run takes at most **5** topics that **already have no** `seo_article` in `content_pieces` and have `rank_score >= MIN_TOPIC_SCORE_TO_GENERATE` (default **3**). If RSS/clustering didn’t produce new topics above the threshold, **candidates can be empty** → nothing to publish.
+2. **Website already “sent” once** — `publish_events` with `channel = website` and `status = sent` causes the orchestrator to **skip** calling the webhook again for that `topic_id` (even if you tweak copy later). New URLs on the site require **new topic IDs** going through publish, or a product change to allow re-push.
+3. **Worker / cron** — The **API** does not schedule hours; **`npm run start:worker`** must be running with Redis and `PIPELINE_CRON_TZ` if you expect Central-time ticks.
+4. **Webhook errors** — Check engine logs and `publish_events` (`status = failed`) for `website`.
+
+Use **`GET /health/pipeline`**, worker logs (`hourly pipeline done`, `topics selected for generation`), and Postgres (`pipeline_runs`, `publish_events`) to see what actually ran.
+
 ## License
 
 Internal / project license as per parent repo.
