@@ -67,6 +67,8 @@ npm run db:migrate
 
 If you see `tsx: not found`, run **`npm install`** from **`apps/crypto-on-the-hour`** (not the repo root). Avoid `npm install --production` before migrate. After `npm run build`, you can use `npm run db:migrate:dist` instead.
 
+`db:migrate` only requires **`DATABASE_URL`** in `.env` (not Redis or OpenAI).
+
 This applies `001_init.sql` (tables) and `002_seed_rss.sql` (default feeds). Adjust feeds in DB or add rows to `rss_sources`.
 
 ### 4. Run API (terminal 1)

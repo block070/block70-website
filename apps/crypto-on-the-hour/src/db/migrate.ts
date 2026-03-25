@@ -1,8 +1,7 @@
-import "dotenv/config";
 import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { pool } from "./pool.js";
+import { migrationPool } from "./migration-pool.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -15,10 +14,10 @@ async function main() {
   ]) {
     const sqlPath = join(__dirname, "../../migrations", name);
     const sql = readFileSync(sqlPath, "utf8");
-    await pool.query(sql);
+    await migrationPool.query(sql);
     console.log("Migration applied:", name);
   }
-  await pool.end();
+  await migrationPool.end();
 }
 
 main().catch((e) => {
