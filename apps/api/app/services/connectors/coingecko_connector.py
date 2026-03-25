@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 import os
+from datetime import datetime
 from typing import Any, Dict, List, Optional
 
 import requests
@@ -107,6 +108,98 @@ def fetch_coin_details(coin_id: str, vs_currency: str = "usd") -> Dict[str, Any]
     return normalize_coin_detail(data, vs_currency=vs_currency)
 
 
+def _parse_coingecko_datetime(raw: Any) -> Optional[datetime]:
+    if not raw or not isinstance(raw, str):
+        return None
+    try:
+        s = raw.replace("Z", "+00:00") if isinstance(raw, str) else str(raw)
+        return datetime.fromisoformat(s)
+    except (TypeError, ValueError):
+        return None
+
+
+def market_extras_dict_from_coingecko_coin(
+    raw: Dict[str, Any], vs_currency: str = "usd"
+) -> Optional[Dict[str, Any]]:
+    """
+    ATH/ATL, supply, FDV, contract platforms from raw /coins/{id} JSON.
+    Returns a dict suitable for CoinMarketExtras.model_validate, or None if empty.
+    """
+    md = raw.get("market_data") or {}
+    vs = (vs_currency or "usd").lower()
+
+    def _f_nested(obj: Any, *keys: str) -> Optional[float]:
+        cur: Any = obj
+        for k in keys:
+            if not isinstance(cur, dict):
+                return None
+            cur = cur.get(k)
+        if cur is None:
+            return None
+        try:
+            v = float(cur)
+            return v if v == v else None  # NaN -> None
+        except (TypeError, ValueError):
+            return None
+
+    ath_usd = _f_nested(md, "ath", vs)
+    atl_usd = _f_nested(md, "atl", vs)
+    ath_chg = _f_nested(md, "ath_change_percentage", vs)
+    atl_chg = _f_nested(md, "atl_change_percentage", vs)
+    ath_date_raw = (md.get("ath_date") or {}).get(vs) if isinstance(md.get("ath_date"), dict) else None
+    atl_date_raw = (md.get("atl_date") or {}).get(vs) if isinstance(md.get("atl_date"), dict) else None
+    ath_date = _parse_coingecko_datetime(ath_date_raw)
+    atl_date = _parse_coingecko_datetime(atl_date_raw)
+
+    max_sup = md.get("max_supply")
+    max_supply: Optional[float] = None
+    if max_sup is not None:
+        try:
+            max_supply = float(max_sup)
+            if max_supply != max_supply:
+                max_supply = None
+        except (TypeError, ValueError):
+            max_supply = None
+
+    fdv = _f_nested(md, "fully_diluted_valuation", vs)
+
+    platforms_out: List[Dict[str, str]] = []
+    pl = raw.get("platforms") or {}
+    if isinstance(pl, dict):
+        for platform_id, addr in pl.items():
+            if not platform_id or addr is None:
+                continue
+            saddr = str(addr).strip()
+            if saddr:
+                platforms_out.append({"platform_id": str(platform_id), "contract_address": saddr})
+
+    if not any(
+        x is not None
+        for x in (
+            ath_usd,
+            atl_usd,
+            ath_chg,
+            atl_chg,
+            max_supply,
+            fdv,
+        )
+    ) and not platforms_out:
+        return None
+
+    out: Dict[str, Any] = {
+        "ath_usd": ath_usd,
+        "ath_change_pct_vs_current": ath_chg,
+        "ath_date": ath_date,
+        "atl_usd": atl_usd,
+        "atl_change_pct_vs_current": atl_chg,
+        "atl_date": atl_date,
+        "max_supply": max_supply,
+        "fully_diluted_valuation_usd": fdv,
+        "platforms": platforms_out,
+    }
+    return out
+
+
 def normalize_market_coin(raw: Dict[str, Any]) -> Dict[str, Any]:
     """
     Normalize /coins/markets response into the Coin model schema fields.
@@ -201,6 +294,7 @@ def normalize_coin_detail(raw: Dict[str, Any], vs_currency: str = "usd") -> Dict
             "price_change_24h": change_24h,
             "price_change_7d": change_7d,
         },
+        "market_extras": market_extras_dict_from_coingecko_coin(raw, vs_currency=vs_currency),
     }
 
 

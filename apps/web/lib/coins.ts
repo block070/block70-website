@@ -49,11 +49,30 @@ export type NewsArticleDto = {
   published_at: string | null;
 };
 
+export type PlatformContractDto = {
+  platform_id: string;
+  contract_address: string;
+};
+
+/** ATH/ATL, supply, FDV, multi-chain contracts (API aligns with CoinGecko detail fields). */
+export type CoinMarketExtrasDto = {
+  ath_usd: number | null;
+  ath_change_pct_vs_current: number | null;
+  ath_date: string | null;
+  atl_usd: number | null;
+  atl_change_pct_vs_current: number | null;
+  atl_date: string | null;
+  max_supply: number | null;
+  fully_diluted_valuation_usd: number | null;
+  platforms?: PlatformContractDto[];
+};
+
 export type CoinDetailDto = {
   coin: CoinInfoDto;
   market_data: MarketDataPointDto[];
   narratives: NarrativeDto[];
   news: NewsArticleDto[];
+  market_extras?: CoinMarketExtrasDto | null;
 };
 
 export async function getCoinBySlug(slug: string): Promise<CoinDetailDto> {
@@ -207,6 +226,7 @@ export function getMockCoinDetail(slug: string): CoinDetailDto | null {
     market_data,
     narratives: [],
     news: [],
+    market_extras: null,
   };
 }
 

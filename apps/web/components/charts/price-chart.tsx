@@ -6,14 +6,11 @@ import {
   CandlestickSeries,
   HistogramSeries,
   LineSeries,
-  createSeriesMarkers,
   type IChartApi,
   type ISeriesApi,
-  type ISeriesMarkersPluginApi,
   type CandlestickData,
   type HistogramData,
   type LineData,
-  type SeriesMarker,
   type Time,
   type UTCTimestamp,
 } from "lightweight-charts";
@@ -76,8 +73,6 @@ function packTfToLegacy(tf: PackTimeframe): ChartTimeframeKey {
 
 export type ChartMode = "line" | "candle";
 
-type Block70Marker = { time: number; kind: string; label?: string };
-
 type MacdPackPoint = {
   time: number;
   line?: number | null;
@@ -91,7 +86,6 @@ type ChartPackPayload = {
   indicators?: {
     score?: number | null;
     signal?: string;
-    markers?: Block70Marker[];
     rsi?: { time: number; value: number }[];
     macd?: MacdPackPoint[];
     ma50?: { time: number; value: number }[];
@@ -107,7 +101,6 @@ type ChartSeriesBundle = {
   chart: IChartApi;
   main: ISeriesApi<"Line"> | ISeriesApi<"Candlestick">;
   volume: ISeriesApi<"Histogram">;
-  markers: ISeriesMarkersPluginApi<Time>;
   ma50?: ISeriesApi<"Line">;
   ma200?: ISeriesApi<"Line">;
   rsi?: ISeriesApi<"Line">;
@@ -123,31 +116,6 @@ function signalBadgeClass(signal: string | undefined): string {
   if (s.includes("strong") && s.includes("sell")) return "bg-red-600/25 text-red-300 ring-red-500/45";
   if (s.includes("sell")) return "bg-rose-500/15 text-rose-300 ring-rose-500/35";
   return "bg-slate-600/30 text-slate-300 ring-slate-500/40";
-}
-
-function markersToPluginShape(markers: Block70Marker[]): SeriesMarker<Time>[] {
-  const out: SeriesMarker<Time>[] = [];
-  for (const m of markers) {
-    const t = m.time as Time;
-    if (m.kind === "buy") {
-      out.push({
-        time: t,
-        position: "belowBar",
-        color: "#34d399",
-        shape: "arrowUp",
-        text: m.label || "Buy",
-      });
-    } else if (m.kind === "sell") {
-      out.push({
-        time: t,
-        position: "aboveBar",
-        color: "#f87171",
-        shape: "arrowDown",
-        text: m.label || "Sell",
-      });
-    }
-  }
-  return out;
 }
 
 function toLineData(pts: { time: number; value: number }[]): LineData[] {
@@ -278,7 +246,6 @@ export function PriceChart({
   const [source, setSource] = useState<string | null>(null);
   const [block70Score, setBlock70Score] = useState<number | null>(null);
   const [block70Signal, setBlock70Signal] = useState<string | null>(null);
-  const [overlayMarkers, setOverlayMarkers] = useState<Block70Marker[]>([]);
   const [indPack, setIndPack] = useState<ChartPackPayload["indicators"] | null>(null);
 
   const [showMa50, setShowMa50] = useState(true);
@@ -290,7 +257,6 @@ export function PriceChart({
     setIndPack(null);
     setBlock70Score(null);
     setBlock70Signal(null);
-    setOverlayMarkers([]);
   }, []);
 
   const fetchData = useCallback(async () => {
@@ -347,7 +313,6 @@ export function PriceChart({
         if (ind) {
           setBlock70Score(typeof ind.score === "number" ? ind.score : null);
           setBlock70Signal(ind.signal ?? null);
-          setOverlayMarkers(Array.isArray(ind.markers) ? ind.markers : []);
           setIndPack(ind);
         } else {
           clearInd();
@@ -605,12 +570,10 @@ export function PriceChart({
       });
     }
 
-    const markersApi = createSeriesMarkers(main, []);
     const bundle: ChartSeriesBundle = {
       chart,
       main,
       volume: volumeSeries,
-      markers: markersApi,
       ma50,
       ma200,
       rsi: rsiLine,
@@ -689,12 +652,6 @@ export function PriceChart({
       secondsVisible: fine,
     });
   }, [packTf, usePackApi]);
-
-  useEffect(() => {
-    const b = bundleRef.current;
-    if (!b) return;
-    b.markers.setMarkers(markersToPluginShape(overlayMarkers));
-  }, [overlayMarkers, ohlcv]);
 
   if (!chartDepKey) {
     return (

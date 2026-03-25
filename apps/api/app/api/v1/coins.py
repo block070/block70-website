@@ -15,6 +15,7 @@ from app.schemas.coin_api import (
     CoinDetailResponse,
     CoinInfo,
     CoinListItem,
+    CoinMarketExtras,
     MarketDataPoint,
     NarrativeRead,
     NewsArticleRead,
@@ -42,9 +43,53 @@ COINS_LIST_CACHE_TTL = 90
 _coin_header_cg_cache = TTLCache()
 COINGECKO_COIN_HEADER_CACHE_TTL = int(os.getenv("COINGECKO_COIN_HEADER_CACHE_TTL", "120"))
 
+# Cached CoinGecko ATH/ATL/supply/FDV/contracts (bounded 2nd fetch when enrichment misses).
+_coin_extras_cache = TTLCache()
+COINGECKO_EXTRAS_CACHE_TTL = int(os.getenv("COINGECKO_EXTRAS_CACHE_TTL", "600"))
+
 # Minimum seconds between CoinGecko requests to stay under ~30/min.
 COINGECKO_MIN_INTERVAL = 2.5
 _last_coingecko_call: float = 0
+
+
+def _extras_non_empty(me: CoinMarketExtras) -> bool:
+    if me.platforms:
+        return True
+    return any(
+        x is not None
+        for x in (
+            me.ath_usd,
+            me.atl_usd,
+            me.max_supply,
+            me.fully_diluted_valuation_usd,
+            me.ath_change_pct_vs_current,
+            me.atl_change_pct_vs_current,
+            me.ath_date,
+            me.atl_date,
+        )
+    )
+
+
+def _load_market_extras_cached(slug: str) -> Optional[CoinMarketExtras]:
+    """One /coins/{id} worth of stats per slug per TTL (when enrichment did not return extras)."""
+    s = (slug or "").lower().strip()
+    if not s:
+        return None
+    key = f"cg:coin_extras:{s}"
+    hit = _coin_extras_cache.get(key)
+    if hit is not None:
+        return hit if _extras_non_empty(hit) else None
+    try:
+        from app.services.connectors.coingecko_connector import fetch_coin_details
+
+        _coingecko_throttle()
+        payload = fetch_coin_details(s, vs_currency="usd")
+        raw = payload.get("market_extras")
+        me = CoinMarketExtras.model_validate(raw) if raw else CoinMarketExtras()
+        _coin_extras_cache.set(key, me, max(60, COINGECKO_EXTRAS_CACHE_TTL))
+        return me if _extras_non_empty(me) else None
+    except Exception:
+        return None
 
 
 def _coingecko_throttle() -> None:
@@ -454,8 +499,8 @@ def list_coins(
     return items
 
 
-def _enrich_coin_from_coingecko(coin: Coin, db: Session) -> tuple[Coin, list]:
-    """Fetch live data from CoinGecko and enrich coin + market_data."""
+def _enrich_coin_from_coingecko(coin: Coin, db: Session) -> tuple[Coin, list, Optional[CoinMarketExtras]]:
+    """Fetch live data from CoinGecko and enrich coin + market_data + optional ATH/ATL/FDV/contracts."""
     from app.services.connectors.coingecko_connector import fetch_coin_details
 
     try:
@@ -516,9 +561,16 @@ def _enrich_coin_from_coingecko(coin: Coin, db: Session) -> tuple[Coin, list]:
             db.commit()
         except Exception:
             db.rollback()
-        return coin, [latest] + points
+        extras: CoinMarketExtras | None = None
+        raw_ex = payload.get("market_extras")
+        if raw_ex:
+            try:
+                extras = CoinMarketExtras.model_validate(raw_ex)
+            except Exception:
+                extras = None
+        return coin, [latest] + points, extras
     except Exception:
-        return coin, []
+        return coin, [], None
 
 
 def _persist_coin_from_coingecko(
@@ -631,6 +683,7 @@ def _fetch_coin_from_markets(slug: str) -> Optional[CoinDetailResponse]:
                         market_data=[md_point],
                         narratives=[],
                         news=[],
+                        market_extras=None,
                     )
         except Exception:
             break
@@ -677,6 +730,7 @@ def _make_stub_coin_response(slug: str) -> CoinDetailResponse:
         market_data=[md_point],
         narratives=[],
         news=[],
+        market_extras=None,
     )
 
 
@@ -738,12 +792,20 @@ def _fetch_coin_from_coingecko(slug: str) -> CoinDetailResponse:
         price_change_24h=md.get("price_change_24h"),
         price_change_7d=md.get("price_change_7d"),
     )
+    market_extras: Optional[CoinMarketExtras] = None
+    raw_extras = payload.get("market_extras")
+    if raw_extras:
+        try:
+            market_extras = CoinMarketExtras.model_validate(raw_extras)
+        except Exception:
+            market_extras = None
 
     return CoinDetailResponse(
         coin=coin_info,
         market_data=[md_point],
         narratives=[],
         news=[],
+        market_extras=market_extras if (market_extras and _extras_non_empty(market_extras)) else None,
     )
 
 
@@ -927,11 +989,17 @@ def get_coin_detail(
         except (TypeError, ValueError):
             pass
 
+    if market_extras is None or not _extras_non_empty(market_extras):
+        extra_fallback = _load_market_extras_cached(coin.slug)
+        if extra_fallback:
+            market_extras = extra_fallback
+
     return CoinDetailResponse(
         coin=coin_info,
         market_data=md_points,
         narratives=narratives,
         news=news,
+        market_extras=market_extras if (market_extras and _extras_non_empty(market_extras)) else None,
     )
 
 

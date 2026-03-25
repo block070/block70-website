@@ -14,6 +14,7 @@ const PriceChart = dynamic(
     ),
   }
 );
+import { CoinMarketExtrasPanel } from "@/components/coins/coin-market-extras";
 import { CoinDescription } from "@/components/coins/coin-description";
 import { CoinFaqJsonLd } from "@/components/coins/coin-faq-json-ld";
 import { CoinHeroConversion } from "@/components/coins/coin-hero-conversion";
@@ -148,6 +149,8 @@ export default async function CoinDetailPage({ params }: { params: Params }) {
       />
 
       <PriceChart coin={coin.slug} symbol={symbol} height={400} />
+
+      <CoinMarketExtrasPanel extras={data.market_extras} />
 
       <section className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
         <div className="min-w-0 space-y-4">
