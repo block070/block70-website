@@ -7,6 +7,7 @@ Score uses a weighted checklist: RSI, MACD vs signal, SMA50 vs SMA200, volume tr
 
 from __future__ import annotations
 
+import bisect
 from typing import Any
 
 
@@ -161,6 +162,36 @@ def signal_from_score(score: float) -> str:
     if score >= 20:
         return "Sell"
     return "Strong Sell"
+
+
+def ma200_daily_close_for_lower_timeframes(
+    intraday_ohlcv: list[dict[str, Any]],
+    daily_ohlcv: list[dict[str, Any]],
+) -> list[dict[str, Any]] | None:
+    """
+    Map 200-day SMA of **daily closes** onto each intraday bar (last daily bucket
+    with open time <= bar time). For 1h/4h this matches the usual 200-day MA, not
+    200 × bar length (~8 days on 1h).
+    """
+    if len(daily_ohlcv) < 200 or not intraday_ohlcv:
+        return None
+    closes = [float(b["close"]) for b in daily_ohlcv]
+    times_d = [int(b["time"]) for b in daily_ohlcv]
+    if times_d != sorted(times_d):
+        order = sorted(range(len(times_d)), key=lambda i: times_d[i])
+        times_d = [times_d[i] for i in order]
+        closes = [closes[i] for i in order]
+    ma200 = _rolling_mean(closes, 200)
+    out: list[dict[str, Any]] = []
+    for b in intraday_ohlcv:
+        t = int(b["time"])
+        idx = bisect.bisect_right(times_d, t) - 1
+        if idx < 199:
+            continue
+        v = ma200[idx]
+        if v is not None:
+            out.append({"time": t, "value": float(v)})
+    return out if out else None
 
 
 def compute_indicators_for_ohlcv(

@@ -17,7 +17,7 @@ chart_pack_router = APIRouter(prefix="/api/v1/chart", tags=["charts"])
 def get_chart_data(
     symbol: str,
     timeframe: str = Query("1h", description="1m, 5m, 15m, 1h, 4h, 1d, 1w"),
-    limit: int = Query(500, ge=1, le=500, description="Max candles to return"),
+    limit: int = Query(1000, ge=1, le=1000, description="Max candles to return"),
 ) -> dict:
     """
     Fetch OHLCV chart data. Priority: Binance.com → Coinbase → Binance.US → CoinGecko.

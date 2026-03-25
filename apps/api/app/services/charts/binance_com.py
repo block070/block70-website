@@ -22,14 +22,13 @@ TF_TO_INTERVAL = {
     "1d": "1d",
 }
 
-# Binance allows up to 1000 klines per call; 500 gives ~200 extra bars so SMA/EMA(200)
-# has history across most of the visible range (not only at the far right).
+# Binance max 1000 klines per request — use full depth so SMA(200) covers most of the chart.
 TF_TO_LIMIT = {
-    "1m": 500,
-    "5m": 500,
-    "1h": 500,
-    "4h": 500,
-    "1d": 500,
+    "1m": 1000,
+    "5m": 1000,
+    "1h": 1000,
+    "4h": 1000,
+    "1d": 1000,
 }
 
 
@@ -46,7 +45,7 @@ def fetch_binance_com_klines(ticker: str, timeframe: str) -> list[dict[str, Any]
     interval = TF_TO_INTERVAL.get(tf)
     if not interval:
         return None
-    limit = min(TF_TO_LIMIT.get(tf, 500), 1000)
+    limit = min(TF_TO_LIMIT.get(tf, 1000), 1000)
     sym = to_usdt_pair(ticker)
     try:
         r = requests.get(

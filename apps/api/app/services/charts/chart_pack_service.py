@@ -17,7 +17,10 @@ from app.db import engine
 from app.models.coin import Coin
 from app.services.charts.binance_com import fetch_binance_com_klines
 from app.services.charts.chart_service import get_ohlcv
-from app.services.charts.indicators import compute_indicators_for_ohlcv
+from app.services.charts.indicators import (
+    compute_indicators_for_ohlcv,
+    ma200_daily_close_for_lower_timeframes,
+)
 from app.services.charts.ohlcv_align import align_ohlcv_bar_times
 from app.services.charts.symbol_resolve import SLUG_TO_TICKER, guess_ticker
 from app.services.connectors.chart_cache import chart_cache_get, chart_cache_set
@@ -25,7 +28,7 @@ from app.services.connectors.chart_cache import chart_cache_get, chart_cache_set
 logger = logging.getLogger(__name__)
 
 PACK_TIMEFRAMES = frozenset({"1m", "5m", "1h", "4h", "1d"})
-PACK_REDIS_PREFIX = "pack:v2:"
+PACK_REDIS_PREFIX = "pack:v3:"
 PACK_REDIS_TTL = int(os.getenv("CHART_PACK_REDIS_TTL", "55"))
 
 
@@ -117,9 +120,10 @@ def build_chart_pack(
     if tf not in PACK_TIMEFRAMES:
         raise ValueError(f"Unsupported timeframe: {timeframe}")
 
-    raw_env = os.getenv("CHART_PACK_OHLC_LIMIT", "500")
-    eff_limit = limit if limit is not None else (int(raw_env) if raw_env.isdigit() else 500)
-    eff_limit = min(max(eff_limit, 50), 500)
+    raw_env = os.getenv("CHART_PACK_OHLC_LIMIT", "1000")
+    eff_limit = limit if limit is not None else (int(raw_env) if raw_env.isdigit() else 1000)
+    # Binance Spot klines allow up to 1000; more bars = longer MA200 segment on chart left.
+    eff_limit = min(max(eff_limit, 50), 1000)
 
     ticker, slug = resolve_ticker_slug(coin, db)
     ohlcv, source = _fetch_ohlcv_with_source(ticker, slug, tf, eff_limit)
@@ -158,6 +162,17 @@ def build_chart_pack(
             "signal": ind_computed["signal"],
             "markers": ind_computed["markers"],
         }
+        if tf in ("1h", "4h"):
+            try:
+                # Need ~200+ daily buckets **before** the oldest intraday bar (4h×1000 ≈ 166d visible).
+                daily_ohlcv, _ = _fetch_ohlcv_with_source(ticker, slug, "1d", 1000)
+                if daily_ohlcv:
+                    daily_ohlcv = align_ohlcv_bar_times(daily_ohlcv, "1d")
+                ma200_d = ma200_daily_close_for_lower_timeframes(ohlcv, daily_ohlcv or [])
+                if ma200_d:
+                    ind_block["ma200"] = ma200_d
+            except Exception:
+                logger.debug("daily MA200 overlay skipped for %s tf=%s", slug, tf)
     except Exception:
         logger.exception("Block70 indicators failed for %s tf=%s", slug, tf)
         ind_block = {
