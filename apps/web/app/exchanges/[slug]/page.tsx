@@ -1,18 +1,12 @@
 import { Metadata } from "next";
 import { notFound } from "next/navigation";
-import { getExchangeBySlug, getExchanges } from "@/lib/api";
+import { getExchangeBySlug } from "@/lib/api";
 import { ExchangeDetailClient } from "./client";
 
 type Props = { params: Promise<{ slug: string }> };
 
-export async function generateStaticParams() {
-  try {
-    const list = await getExchanges();
-    return list.slice(0, 50).map((e) => ({ slug: e.slug || e.id }));
-  } catch {
-    return [];
-  }
-}
+/** Avoid build-time API calls (Docker `next build` has no fast path to live API → SSG timeout). */
+export const dynamic = "force-dynamic";
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params;
