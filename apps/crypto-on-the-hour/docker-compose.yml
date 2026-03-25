@@ -1,5 +1,5 @@
 # Local infra for Crypto On the Hour (optional)
-# If 6379 or 5432 is already in use on the host, change the LEFT side only, e.g. "6380:6379" or "5433:5432".
+# Host ports avoid conflicts when 5432/6379 are already in use: Postgres 5433→5432, Redis 6380→6379.
 services:
   postgres:
     image: postgres:16-alpine
@@ -8,7 +8,7 @@ services:
       POSTGRES_PASSWORD: postgres
       POSTGRES_DB: crypto_on_the_hour
     ports:
-      - "5432:5432"
+      - "5433:5432"
     volumes:
       - coh_pg:/var/lib/postgresql/data
 
