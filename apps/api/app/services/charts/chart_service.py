@@ -80,14 +80,27 @@ def get_ohlcv(symbol: str, timeframe: str, limit: int = 1000) -> list[OHLCVRecor
     if cached:
         return align_ohlcv_bar_times(list(cached), tf)
 
-    # 0) Binance.com (global spot, USDT pairs)
     ticker = guess_ticker(sym_upper, sym_lower)
-    bn_rows = fetch_binance_com_klines(ticker, tf)
-    if bn_rows:
-        raw = bn_rows[-limit:] if len(bn_rows) > limit else bn_rows
-        data = align_ohlcv_bar_times(raw, tf)
-        _ohlcv_cache_set(cache_key, data, ttl)
-        return data
+    cg_id = _SYMBOL_TO_COINGECKO.get(sym_lower, sym_lower)
+    # Hyphenated / unknown tickers are usually CoinGecko ids — try CG before Binance
+    # to avoid wrong USDT pairs or empty chains for long-tail assets.
+    try_cg_first = ("-" in sym_lower) or (ticker == "")
+
+    if try_cg_first:
+        data = _fetch_coingecko_ohlcv(cg_id, tf, limit)
+        if data:
+            data = align_ohlcv_bar_times(data, tf)
+            _ohlcv_cache_set(cache_key, data, ttl)
+            return data
+
+    # 0) Binance.com (global spot, USDT pairs)
+    if ticker:
+        bn_rows = fetch_binance_com_klines(ticker, tf)
+        if bn_rows:
+            raw = bn_rows[-limit:] if len(bn_rows) > limit else bn_rows
+            data = align_ohlcv_bar_times(raw, tf)
+            _ohlcv_cache_set(cache_key, data, ttl)
+            return data
 
     # 1) Coinbase
     data = _fetch_coinbase_ohlcv(sym_upper, granularity_sec, limit)
@@ -104,7 +117,6 @@ def get_ohlcv(symbol: str, timeframe: str, limit: int = 1000) -> list[OHLCVRecor
         return data
 
     # 3) CoinGecko (close-only, synthesize OHLC)
-    cg_id = _SYMBOL_TO_COINGECKO.get(sym_lower, sym_lower)
     data = _fetch_coingecko_ohlcv(cg_id, tf, limit)
     if data:
         data = align_ohlcv_bar_times(data, tf)

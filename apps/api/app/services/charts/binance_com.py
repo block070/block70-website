@@ -41,12 +41,15 @@ def to_usdt_pair(ticker: str) -> str:
 
 def fetch_binance_com_klines(ticker: str, timeframe: str) -> list[dict[str, Any]] | None:
     """Return [{ time, open, high, low, close, volume }] time in seconds, or None."""
+    t = (ticker or "").strip().upper()
+    if not t or len(t) > 20:
+        return None
     tf = (timeframe or "1h").lower().strip()
     interval = TF_TO_INTERVAL.get(tf)
     if not interval:
         return None
     limit = min(TF_TO_LIMIT.get(tf, 1000), 1000)
-    sym = to_usdt_pair(ticker)
+    sym = to_usdt_pair(t)
     try:
         r = requests.get(
             BINANCE_COM_KLINES,

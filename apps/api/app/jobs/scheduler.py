@@ -617,7 +617,7 @@ def create_scheduler() -> BackgroundScheduler:
         replace_existing=True,
         max_instances=1,
     )
-    # market_data_refresh: price, 24h%, 7d% for top coins. MARKET_DATA_LIMIT caps work per tick.
+    # market_data_refresh: price, supplies, 24h/7d % for coins (MARKET_DATA_LIMIT empty = all).
     scheduler.add_job(
         _run_market_data_job,
         IntervalTrigger(minutes=max(1, int(os.getenv("MARKET_DATA_INTERVAL_MINUTES", "5")))),

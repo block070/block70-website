@@ -77,6 +77,14 @@ function coinToHeaderShape(
     logoUrl: coin.logo_url ?? undefined,
     categorySlug: coin.category_slug ?? null,
     categoryLabel: coin.category ?? null,
+    circulatingSupply:
+      typeof coin.circulating_supply === "number" && Number.isFinite(coin.circulating_supply)
+        ? coin.circulating_supply
+        : null,
+    totalSupply:
+      typeof coin.total_supply === "number" && Number.isFinite(coin.total_supply)
+        ? coin.total_supply
+        : null,
   };
 }
 
@@ -150,7 +158,11 @@ export default async function CoinDetailPage({ params }: { params: Params }) {
 
       <PriceChart coin={coin.slug} symbol={symbol} height={400} />
 
-      <CoinMarketExtrasPanel extras={data.market_extras} />
+      <CoinMarketExtrasPanel
+        extras={data.market_extras}
+        circulatingSupply={coin.circulating_supply}
+        totalSupply={coin.total_supply}
+      />
 
       <section className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
         <div className="min-w-0 space-y-4">

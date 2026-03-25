@@ -14,12 +14,12 @@ FETCH_DELAY_SECONDS = float(__import__("os").getenv("COINGECKO_FETCH_DELAY", "2.
 
 class MarketDataPipeline:
     """
-    Pipeline to refresh market data for all known coins.
+    Pipeline to refresh market data for all known coins (scheduler: `market_data_refresh`).
 
-    - For each Coin, fetch detail from CoinGecko
-    - Insert a MarketData row
-    - Update the Coin snapshot fields (price, market_cap, volume_24h, supplies)
-    - Throttles requests to respect CoinGecko rate limits
+    - For each Coin, fetch `/coins/{id}` from CoinGecko
+    - Insert a MarketData row (price, mcap, volume, 24h/7d %)
+    - Update Coin snapshot fields including **circulating_supply** and **total_supply**
+    - Throttles via COINGECKO_FETCH_DELAY; scope via MARKET_DATA_LIMIT (empty = all coins)
     """
 
     def __init__(

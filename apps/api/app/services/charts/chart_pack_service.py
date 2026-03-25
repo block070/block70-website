@@ -62,13 +62,14 @@ def _fetch_ohlcv_with_source(
     ticker: str, coin_slug: str, timeframe: str, limit: int
 ) -> tuple[list[dict[str, Any]], str]:
     tf = (timeframe or "1h").lower().strip()
-    bn = fetch_binance_com_klines(ticker, tf)
+    bn = fetch_binance_com_klines(ticker, tf) if ticker else None
     if bn:
         data = bn[-limit:] if len(bn) > limit else bn
         return data, "binance"
-    data = get_ohlcv(ticker, tf, limit)
-    if data:
-        return data, "fallback_exchanges"
+    if ticker:
+        data = get_ohlcv(ticker, tf, limit)
+        if data:
+            return data, "fallback_exchanges"
     # CoinGecko and other fallbacks key off coingecko-style slug
     slug = (coin_slug or "").strip().lower()
     if slug:

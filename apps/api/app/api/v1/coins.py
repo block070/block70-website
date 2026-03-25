@@ -160,6 +160,117 @@ def _merge_coingecko_header_gaps(exchange_row: dict, cg_row: dict | None) -> dic
     return out
 
 
+def _enrich_md_points_tail_from_cg_markets(
+    md_points: list[MarketDataPoint],
+    row: dict | None,
+) -> None:
+    """Fill missing price, mcap, volume, % from CoinGecko /coins/markets row."""
+    if not row or not md_points:
+        return
+    last = md_points[-1]
+    price = last.price
+    try:
+        if price is None or float(price) <= 0:
+            p = row.get("current_price")
+            if p is not None:
+                price = float(p)
+    except (TypeError, ValueError):
+        price = last.price
+    mcap = last.market_cap
+    if mcap is None:
+        v = row.get("market_cap")
+        if v is not None:
+            try:
+                mcap = float(v)
+            except (TypeError, ValueError):
+                mcap = None
+    vol = last.volume_24h
+    if vol is None:
+        v = row.get("total_volume")
+        if v is not None:
+            try:
+                vol = float(v)
+            except (TypeError, ValueError):
+                vol = None
+    p24 = last.price_change_24h
+    if p24 is None:
+        p24 = row.get("price_change_percentage_24h")
+    p7 = last.price_change_7d
+    if p7 is None:
+        p7 = row.get("price_change_percentage_7d_in_currency") or row.get(
+            "price_change_percentage_7d"
+        )
+    try:
+        px = float(price) if price is not None else float(last.price or 0)
+    except (TypeError, ValueError):
+        px = float(last.price or 0)
+    md_points[-1] = MarketDataPoint(
+        timestamp=last.timestamp,
+        price=px,
+        market_cap=mcap,
+        volume_24h=vol,
+        price_change_24h=p24,
+        price_change_7d=p7,
+    )
+
+
+def _merge_coin_info_from_cg_markets_row(ci: CoinInfo, row: dict | None) -> CoinInfo:
+    """Fill null hero fields from a /coins/markets row (cached per slug)."""
+    if not row:
+        return ci
+    patch: dict = {}
+    try:
+        if ci.price is None or float(ci.price or 0) <= 0:
+            v = row.get("current_price")
+            if v is not None and float(v) > 0:
+                patch["price"] = float(v)
+    except (TypeError, ValueError):
+        pass
+    if ci.market_cap is None:
+        v = row.get("market_cap")
+        if v is not None:
+            try:
+                patch["market_cap"] = float(v)
+            except (TypeError, ValueError):
+                pass
+    if ci.volume_24h is None:
+        v = row.get("total_volume")
+        if v is not None:
+            try:
+                patch["volume_24h"] = float(v)
+            except (TypeError, ValueError):
+                pass
+    if ci.market_cap_rank is None:
+        v = row.get("market_cap_rank")
+        if v is not None:
+            try:
+                patch["market_cap_rank"] = int(v)
+            except (TypeError, ValueError):
+                pass
+    if ci.circulating_supply is None:
+        v = row.get("circulating_supply")
+        if v is not None:
+            try:
+                patch["circulating_supply"] = float(v)
+            except (TypeError, ValueError):
+                pass
+    if ci.total_supply is None:
+        v = row.get("total_supply")
+        if v is not None:
+            try:
+                patch["total_supply"] = float(v)
+            except (TypeError, ValueError):
+                pass
+    img = row.get("image")
+    if isinstance(img, dict):
+        img = img.get("large") or img.get("small")
+    if isinstance(img, str) and img.strip() and not ci.logo_url:
+        patch["logo_url"] = img.strip()
+    if patch:
+        return ci.model_copy(update=patch)
+    return ci
+
+
 def _fetch_coingecko_price_changes(limit: int, max_pages: int = 2) -> dict[str, dict]:
     """
     Fetch price_change_24h and price_change_7d from CoinGecko /coins/markets.
@@ -529,6 +640,18 @@ def _enrich_coin_from_coingecko(coin: Coin, db: Session) -> tuple[Coin, list, Op
             coin.category = coin_data.get("category")
         if coin_data.get("category_slug") and hasattr(coin, "category_slug"):
             coin.category_slug = coin_data.get("category_slug")
+        cs = coin_data.get("circulating_supply")
+        if cs is not None:
+            try:
+                coin.circulating_supply = float(cs)
+            except (TypeError, ValueError):
+                pass
+        ts = coin_data.get("total_supply")
+        if ts is not None:
+            try:
+                coin.total_supply = float(ts)
+            except (TypeError, ValueError):
+                pass
 
         latest = MarketDataPoint(
             timestamp=datetime.now(timezone.utc),
@@ -965,6 +1088,32 @@ def get_coin_detail(
     ]
 
     coin_info = CoinInfo.model_validate(coin)
+    cg_fill: dict | None = None
+    try:
+        cg_fill = _fetch_coin_markets_row_cached(coin.slug)
+    except Exception:
+        cg_fill = None
+    if cg_fill:
+        _enrich_md_points_tail_from_cg_markets(md_points, cg_fill)
+        if not md_points:
+            try:
+                px = float(cg_fill.get("current_price") or 0)
+                if px > 0:
+                    md_points = [
+                        MarketDataPoint(
+                            timestamp=datetime.now(timezone.utc),
+                            price=px,
+                            market_cap=cg_fill.get("market_cap"),
+                            volume_24h=cg_fill.get("total_volume"),
+                            price_change_24h=cg_fill.get("price_change_percentage_24h"),
+                            price_change_7d=cg_fill.get("price_change_percentage_7d_in_currency")
+                            or cg_fill.get("price_change_percentage_7d"),
+                        )
+                    ]
+            except (TypeError, ValueError):
+                pass
+        coin_info = _merge_coin_info_from_cg_markets_row(coin_info, cg_fill)
+
     if md_points:
         try:
             latest = md_points[-1]
@@ -975,16 +1124,19 @@ def get_coin_detail(
                     patch["market_cap"] = float(latest.market_cap)
                 if latest.volume_24h is not None:
                     patch["volume_24h"] = float(latest.volume_24h)
-                if market_row:
-                    sym = market_row.get("symbol")
+                row_src = market_row or cg_fill
+                if row_src:
+                    sym = row_src.get("symbol")
                     if sym:
                         patch["symbol"] = str(sym).upper()
-                    rnk = market_row.get("market_cap_rank")
+                    rnk = row_src.get("market_cap_rank")
                     if rnk is not None:
                         patch["market_cap_rank"] = int(rnk)
-                    img = market_row.get("image")
-                    if img and not coin_info.logo_url:
-                        patch["logo_url"] = str(img)
+                    img = row_src.get("image")
+                    if isinstance(img, dict):
+                        img = img.get("large") or img.get("small")
+                    if isinstance(img, str) and img.strip() and not coin_info.logo_url:
+                        patch["logo_url"] = img.strip()
                 coin_info = coin_info.model_copy(update=patch)
         except (TypeError, ValueError):
             pass

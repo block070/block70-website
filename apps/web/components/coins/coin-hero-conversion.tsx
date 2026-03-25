@@ -106,7 +106,7 @@ export function CoinHeroConversion({
                 </span>
               </p>
             </div>
-            <div className="flex gap-6 text-sm">
+            <div className="flex flex-wrap gap-6 text-sm">
               <div>
                 <p className="text-slate-500">Market cap</p>
                 <p className="font-medium text-slate-100">{formatCompactUsd(coin.marketCapUsd)}</p>
@@ -115,6 +115,27 @@ export function CoinHeroConversion({
                 <p className="text-slate-500">24h volume</p>
                 <p className="font-medium text-slate-100">{formatCompactUsd(coin.volume24hUsd)}</p>
               </div>
+              {typeof coin.circulatingSupply === "number" &&
+              Number.isFinite(coin.circulatingSupply) ? (
+                <div>
+                  <p className="text-slate-500">Circulating supply</p>
+                  <p className="font-medium tabular-nums text-slate-100">
+                    {new Intl.NumberFormat(undefined, { maximumFractionDigits: 0 }).format(
+                      coin.circulatingSupply
+                    )}
+                  </p>
+                </div>
+              ) : null}
+              {typeof coin.totalSupply === "number" && Number.isFinite(coin.totalSupply) ? (
+                <div>
+                  <p className="text-slate-500">Total supply</p>
+                  <p className="font-medium tabular-nums text-slate-100">
+                    {new Intl.NumberFormat(undefined, { maximumFractionDigits: 0 }).format(
+                      coin.totalSupply
+                    )}
+                  </p>
+                </div>
+              ) : null}
             </div>
           </div>
 

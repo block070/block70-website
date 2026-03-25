@@ -307,18 +307,34 @@ def fetch_market_chart_for_ohlc(
     """
     Fetch price + volume from market_chart for OHLC synthesis.
     Returns (prices, volumes) or None. prices/volumes: [[timestamp_ms, value], ...]
+
+    Use enough `days` so CoinGecko returns hourly (≤90d) or daily points to
+    satisfy `limit` for 1h/4h/1d chart packs.
     """
-    tf_days = {"1m": 1, "5m": 1, "15m": 1, "1h": 7, "4h": 7, "1d": 30, "1w": 90}
-    days = tf_days.get((timeframe or "1h").lower(), 7)
+    tf = (timeframe or "1h").lower()
+    # CoinGecko: ~5m for 1d; hourly for 2–90d; daily beyond (see CG docs).
+    tf_days: dict[str, int] = {
+        "1m": 1,
+        "5m": 2,
+        "15m": 2,
+        "1h": 90,
+        "4h": 90,
+        "1d": 365,
+        "1w": 365,
+    }
+    days = int(tf_days.get(tf, 90))
     try:
         data = _get(
             f"/coins/{coin_id}/market_chart",
             params={"vs_currency": vs_currency, "days": days},
         )
-        prices = (data.get("prices") or [])[:limit]
-        vols = (data.get("total_volumes") or [])[:limit]
+        prices = data.get("prices") or []
+        vols = data.get("total_volumes") or []
         if not prices:
             return None
+        if len(prices) > limit:
+            prices = prices[-limit:]
+            vols = (vols[-limit:] if len(vols) > limit else vols) if vols else vols
         return (prices, vols)
     except Exception as e:
         logger.debug("CoinGecko market_chart for OHLC failed: %s", e)

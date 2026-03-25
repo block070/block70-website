@@ -40,6 +40,8 @@ export type Coin = {
   categorySlug?: string | null;
   /** Human-readable category label */
   categoryLabel?: string | null;
+  circulatingSupply?: number | null;
+  totalSupply?: number | null;
 };
 
 export type PricePoint = {

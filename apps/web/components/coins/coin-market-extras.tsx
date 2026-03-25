@@ -1,4 +1,5 @@
 import type { CoinMarketExtrasDto } from "@/lib/coins";
+import { clsx } from "clsx";
 
 function fmtUsd(n: number | null | undefined, compact = false): string {
   if (n == null || !Number.isFinite(n)) return "—";
@@ -40,18 +41,27 @@ function shortAddr(a: string): string {
 
 type Props = {
   extras: CoinMarketExtrasDto | null | undefined;
+  circulatingSupply?: number | null;
+  totalSupply?: number | null;
 };
 
-export function CoinMarketExtrasPanel({ extras }: Props) {
-  if (!extras) return null;
+export function CoinMarketExtrasPanel({
+  extras,
+  circulatingSupply,
+  totalSupply,
+}: Props) {
   const hasRow =
-    extras.ath_usd != null ||
-    extras.atl_usd != null ||
-    extras.max_supply != null ||
-    extras.fully_diluted_valuation_usd != null;
-  const platforms = extras.platforms ?? [];
+    !!extras &&
+    (extras.ath_usd != null ||
+      extras.atl_usd != null ||
+      extras.max_supply != null ||
+      extras.fully_diluted_valuation_usd != null);
+  const platforms = extras?.platforms ?? [];
   const hasContracts = platforms.length > 0;
-  if (!hasRow && !hasContracts) return null;
+  const hasCirc =
+    typeof circulatingSupply === "number" && Number.isFinite(circulatingSupply);
+  const hasTotal = typeof totalSupply === "number" && Number.isFinite(totalSupply);
+  if (!hasRow && !hasContracts && !hasCirc && !hasTotal) return null;
 
   return (
     <section className="rounded-xl border border-slate-800 bg-slate-900/60 p-4 text-xs">
@@ -59,11 +69,37 @@ export function CoinMarketExtrasPanel({ extras }: Props) {
         Market stats
       </p>
       <p className="mt-1 text-[10px] text-slate-500">
-        ATH, ATL, supply, and contracts (CoinGecko-sourced). Not investment advice.
+        Supply, ATH/ATL, and contracts (CoinGecko-sourced where available). Not investment advice.
       </p>
 
-      {hasRow ? (
+      {hasCirc || hasTotal ? (
         <dl className="mt-3 grid gap-2 sm:grid-cols-2">
+          {hasCirc ? (
+            <>
+              <dt className="text-slate-500">Circulating supply</dt>
+              <dd className="text-right tabular-nums text-slate-100">
+                {fmtSupply(circulatingSupply)}
+              </dd>
+            </>
+          ) : null}
+          {hasTotal ? (
+            <>
+              <dt className="text-slate-500">Total supply</dt>
+              <dd className="text-right tabular-nums text-slate-100">
+                {fmtSupply(totalSupply)}
+              </dd>
+            </>
+          ) : null}
+        </dl>
+      ) : null}
+
+      {hasRow && extras ? (
+        <dl
+          className={clsx(
+            "grid gap-2 sm:grid-cols-2",
+            hasCirc || hasTotal ? "mt-3 border-t border-slate-800/80 pt-3" : "mt-3"
+          )}
+        >
           {extras.ath_usd != null ? (
             <>
               <dt className="text-slate-500">All-time high</dt>
