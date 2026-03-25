@@ -3,7 +3,8 @@ import Link from "next/link";
 import { getCryptoHourPool } from "@/lib/server/crypto-hour-pool";
 import { listPublishedArticles } from "@/lib/server/published-articles";
 
-export const revalidate = 60;
+/** DB is only available at runtime (e.g. Docker host network); skip prerender during `next build`. */
+export const dynamic = "force-dynamic";
 
 export const metadata = {
   title: "Crypto On the Hour · Block70",

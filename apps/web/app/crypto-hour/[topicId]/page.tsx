@@ -5,7 +5,8 @@ import { ArticleMarkdown } from "@/components/crypto-hour/article-markdown";
 import { getCryptoHourPool } from "@/lib/server/crypto-hour-pool";
 import { getPublishedArticleByTopicId, isUuid } from "@/lib/server/published-articles";
 
-export const revalidate = 60;
+/** Same as /crypto-hour: avoid Postgres during `next build` inside Docker. */
+export const dynamic = "force-dynamic";
 
 type Params = { topicId: string };
 
