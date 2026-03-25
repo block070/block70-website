@@ -51,6 +51,8 @@ cd apps/crypto-on-the-hour
 cp .env.example .env
 ```
 
+For a **local publish smoke test**, use the same `WEBSITE_PUBLISH_SECRET` in **`apps/crypto-on-the-hour/.env`** and **`apps/web/.env.local`** — see defaults in **`.env.example`** and **`apps/web/crypto-hour-publish.env.sample`** (rotate before production).
+
 Edit `.env`:
 
 - `DATABASE_URL` — e.g. `postgres://postgres:postgres@127.0.0.1:5433/crypto_on_the_hour` (compose uses host **5433** → container 5432 when **5432** is busy)
