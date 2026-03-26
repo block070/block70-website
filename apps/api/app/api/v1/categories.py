@@ -5,7 +5,10 @@ Category directory from precomputed snapshots (avoids CoinGecko per-category fan
 from __future__ import annotations
 
 import json
+import logging
 import math
+import threading
+import time
 from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -13,6 +16,46 @@ from sqlalchemy.orm import Session
 
 from app.db import get_db
 from app.models.category_snapshot import CategoryAggregateSnapshot
+
+logger = logging.getLogger(__name__)
+
+_EMPTY_SNAPSHOT_LOCK = threading.Lock()
+_EMPTY_SNAPSHOT_LAST_RECOMPUTE_MONO = 0.0
+_EMPTY_RECOMPUTE_COOLDOWN_SEC = 45.0
+
+
+def _maybe_recompute_snapshots_if_empty(db: Session) -> None:
+    """
+    First visits often see no rows until the scheduler runs. Rebuild once from DB
+    (junction + market_data) so GET /api/v1/categories is never permanently empty.
+    """
+    global _EMPTY_SNAPSHOT_LAST_RECOMPUTE_MONO
+    with _EMPTY_SNAPSHOT_LOCK:
+        now = time.monotonic()
+        if now - _EMPTY_SNAPSHOT_LAST_RECOMPUTE_MONO < _EMPTY_RECOMPUTE_COOLDOWN_SEC:
+            return
+        _EMPTY_SNAPSHOT_LAST_RECOMPUTE_MONO = now
+        try:
+            from app.services.category_snapshot_service import recompute_category_snapshots
+
+            recompute_category_snapshots(db)
+        except Exception:
+            logger.exception("lazy category snapshot recompute failed")
+            try:
+                db.rollback()
+            except Exception:
+                pass
+
+
+def _ordered_snapshots(db: Session, order: str):
+    q = db.query(CategoryAggregateSnapshot)
+    if order == "market_cap_asc":
+        return q.order_by(CategoryAggregateSnapshot.market_cap.asc())
+    if order == "name_asc":
+        return q.order_by(CategoryAggregateSnapshot.name.asc())
+    if order == "name_desc":
+        return q.order_by(CategoryAggregateSnapshot.name.desc())
+    return q.order_by(CategoryAggregateSnapshot.market_cap.desc())
 
 router = APIRouter(prefix="/api/v1/categories", tags=["categories"])
 
@@ -113,17 +156,13 @@ def list_category_directory(
     limit: int = Query(100, ge=1, le=500),
     page: int = Query(1, ge=1, le=100),
 ) -> Dict[str, Any]:
-    q = db.query(CategoryAggregateSnapshot)
-    if order == "market_cap_asc":
-        q = q.order_by(CategoryAggregateSnapshot.market_cap.asc())
-    elif order == "name_asc":
-        q = q.order_by(CategoryAggregateSnapshot.name.asc())
-    elif order == "name_desc":
-        q = q.order_by(CategoryAggregateSnapshot.name.desc())
-    else:
-        q = q.order_by(CategoryAggregateSnapshot.market_cap.desc())
-
+    q = _ordered_snapshots(db, order)
     total = q.count()
+    if total == 0:
+        _maybe_recompute_snapshots_if_empty(db)
+        q = _ordered_snapshots(db, order)
+        total = q.count()
+
     offset = (page - 1) * limit
     rows = q.offset(offset).limit(limit).all()
     items = [_snapshot_to_item(r) for r in rows]

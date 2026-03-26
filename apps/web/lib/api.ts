@@ -334,6 +334,59 @@ export type CategoryDirectoryApiItem = {
   }[];
 };
 
+/** Map legacy market/categories row when snapshot directory is empty or unreachable (SSR-safe). */
+function marketCategoryToDirectoryItem(m: MarketCategory): CategoryDirectoryApiItem {
+  const mcap = Math.max(1, m.market_cap ?? 1);
+  const vol = m.volume_24h ?? 0;
+  const volToMcap = vol / mcap;
+  const topCoins = m.top_coins ?? [];
+  const avgCh =
+    typeof m.market_cap_change_24h === "number" && Number.isFinite(m.market_cap_change_24h)
+      ? m.market_cap_change_24h
+      : null;
+  const p = typeof avgCh === "number" && Number.isFinite(avgCh) ? avgCh : 0;
+  const sector =
+    typeof m.market_cap_change_24h === "number" && Number.isFinite(m.market_cap_change_24h)
+      ? m.market_cap_change_24h
+      : 0;
+  const liquidityHeat = volToMcap > 0.08 ? 1.2 : volToMcap > 0.03 ? 0.4 : -0.2;
+  const score = p * 0.45 + sector * 0.25 + liquidityHeat;
+  let trend: CategoryDirectoryApiItem["trend"] = "neutral";
+  if (score > 0.35) trend = "bullish";
+  else if (score < -0.35) trend = "bearish";
+
+  let capital_flow: CategoryDirectoryApiItem["capital_flow"] = "neutral";
+  const s = sector;
+  const a = p;
+  if (s > 0.25 && a >= -2) capital_flow = "in";
+  else if (s < -0.25 && a <= 2) capital_flow = "out";
+
+  const top3 = topCoins.slice(0, 3).map((t) => ({
+    slug: t.slug,
+    name: t.symbol || t.slug,
+    symbol: t.symbol,
+    change24hPct: 0,
+    block70Score: 50,
+  }));
+
+  return {
+    id: m.id,
+    name: m.name,
+    market_cap: m.market_cap,
+    market_cap_change_24h: m.market_cap_change_24h,
+    volume_24h: m.volume_24h,
+    top_coins: topCoins,
+    content: m.content ?? null,
+    avg_block70: 50,
+    avg_change_24h: avgCh,
+    coin_count: topCoins.length,
+    trend,
+    capital_flow,
+    vol_to_mcap: volToMcap,
+    top3,
+  };
+}
+
 export async function getCategoryDirectory(params?: {
   order?: string;
   limit?: number;
@@ -344,9 +397,20 @@ export async function getCategoryDirectory(params?: {
   if (params?.limit != null) search.set("limit", String(params.limit));
   if (params?.page != null && params.page > 1) search.set("page", String(params.page));
   const query = search.toString();
-  return fetchJson<{ items: CategoryDirectoryApiItem[]; total: number }>(
-    `/api/v1/categories${query ? `?${query}` : ""}`,
-  );
+  const path = `/api/v1/categories${query ? `?${query}` : ""}`;
+  try {
+    const data = await fetchJson<{ items: CategoryDirectoryApiItem[]; total: number }>(path);
+    if ((data.total ?? 0) > 0 || (data.items?.length ?? 0) > 0) {
+      return data;
+    }
+  } catch {
+    // Route missing, SSR wrong API host, or cold deploy — use market/categories + static fallback
+  }
+  const legacy = await getMarketCategories(params);
+  return {
+    items: legacy.items.map(marketCategoryToDirectoryItem),
+    total: legacy.total,
+  };
 }
 
 export async function getMarketCategories(params?: {
