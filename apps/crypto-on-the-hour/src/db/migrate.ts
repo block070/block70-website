@@ -11,6 +11,7 @@ async function main() {
     "002_seed_rss.sql",
     "003_topics_mentioned_assets.sql",
     "004_web_published_articles.sql",
+    "005_crypto_hour_x_posts.sql",
   ]) {
     const sqlPath = join(__dirname, "../../migrations", name);
     const sql = readFileSync(sqlPath, "utf8");

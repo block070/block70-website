@@ -96,6 +96,21 @@ Registers a **repeatable BullMQ job** on cron `0 * * * *` at **:00** in **`PIPEL
 
 **Existing `/crypto-on-the-hour` “Updated” labels:** optional one-off `scripts/stagger-web-published-updated-at.sql` makes each row’s `updated_at` a distinct Central top-of-hour (staggered backward by row).
 
+### X (Twitter) every ~30 minutes (Block70 web)
+
+Briefings live in **`web_published_articles`** (same DB as `DATABASE_URL` here). The **Next.js** app (`apps/web`) posts up to **two tweets per Chicago clock hour** when new articles exist in that hour’s bucket:
+
+- **Slot 0** — Chicago minutes **05–12** (first briefing, soon after the top of the hour)
+- **Slot 1** — Chicago minutes **35–42** (second briefing, ~half past)
+
+**Setup**
+
+1. Apply migration **`005_crypto_hour_x_posts.sql`** (`npm run db:migrate` in this package).
+2. On **Vercel** (or any host): set **`CRYPTO_HOUR_DATABASE_URL`**, **`CRON_SECRET`**, and X OAuth 1.0a **`X_*`** vars on the **web** project (see `apps/web/.env.example`).
+3. Commit **`apps/web/vercel.json`** (cron `*/5 * * * *`); each run no-ops unless the clock is inside one of the windows above. Vercel injects `Authorization: Bearer CRON_SECRET` when **`CRON_SECRET`** is configured in the project.
+
+Links use **`CRYPTO_HOUR_PUBLIC_SITE_URL`** or **`NEXT_PUBLIC_SITE_URL`** (default `https://block70.com`).
+
 ### 6. Production
 
 ```bash

@@ -56,6 +56,7 @@ export function nowChicagoParts(d = new Date()): {
   month: number;
   day: number;
   hour: number;
+  minute: number;
 } {
   const parts = new Intl.DateTimeFormat("en-US", {
     timeZone: TZ,
@@ -63,6 +64,7 @@ export function nowChicagoParts(d = new Date()): {
     month: "numeric",
     day: "numeric",
     hour: "numeric",
+    minute: "numeric",
     hour12: false,
   }).formatToParts(d);
   const pick = (t: Intl.DateTimeFormatPartTypes) =>
@@ -72,5 +74,6 @@ export function nowChicagoParts(d = new Date()): {
     month: pick("month"),
     day: pick("day"),
     hour: pick("hour"),
+    minute: pick("minute"),
   };
 }
