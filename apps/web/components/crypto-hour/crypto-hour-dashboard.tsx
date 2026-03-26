@@ -85,7 +85,7 @@ export function CryptoHourDashboard({
         : "Low";
 
   return (
-    <div className="min-h-screen bg-[#070a0f] text-slate-200">
+    <div className="min-h-screen bg-[#070a0f] text-slate-200" data-coh-ui="intel-v2">
       <div className="border-b border-slate-800/80 bg-slate-950/80 backdrop-blur-md">
         <div className="mx-auto flex max-w-[1600px] flex-wrap items-center justify-between gap-3 px-4 py-3">
           <div>
