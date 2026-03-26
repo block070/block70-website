@@ -123,3 +123,19 @@ export function previousChicagoHour(
     hour: pick("hour"),
   };
 }
+
+/** Same clock hour previous calendar day (Chicago). */
+export function pathYesterdayFromHourStart(hourStartIso: string): string {
+  const prev = addHours(new Date(hourStartIso), -24);
+  const p = new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/Chicago",
+    year: "numeric",
+    month: "numeric",
+    day: "numeric",
+    hour: "numeric",
+    hour12: false,
+  }).formatToParts(prev);
+  const pick = (t: Intl.DateTimeFormatPartTypes) =>
+    parseInt(p.find((x) => x.type === t)?.value ?? "0", 10);
+  return pathForChicagoHour(pick("year"), pick("month"), pick("day"), pick("hour"), 0);
+}

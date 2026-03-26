@@ -29,6 +29,7 @@ export default async function CryptoHourIndexPage() {
       intel={bundle.intel}
       articles={bundle.articles}
       nav={bundle.nav}
+      sentimentTrend={bundle.sentimentTrend}
       autoRefreshNote="Open this page after the top of the hour for the newest batch"
     />
   );

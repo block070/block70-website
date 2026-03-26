@@ -1,10 +1,10 @@
 import { addHours } from "date-fns";
 import type { Pool } from "pg";
 
-import type { HourIntelligencePayload } from "@/lib/crypto-hour-intelligence-types";
+import type { HourIntelligencePayload, SentimentTrendPoint } from "@/lib/crypto-hour-intelligence-types";
 import type { PublishedArticleDTO } from "@/lib/crypto-hour-dto";
 import { chicagoHourRangeUtc, nowChicagoParts } from "@/lib/server/crypto-hour-buckets";
-import { computeHourIntelligence } from "@/lib/server/crypto-hour-intelligence";
+import { batchSentiment, computeHourIntelligence } from "@/lib/server/crypto-hour-intelligence";
 import type { PublishedArticleRow } from "@/lib/server/published-articles";
 import { listPublishedArticlesInRange } from "@/lib/server/published-articles";
 
@@ -12,6 +12,8 @@ export type HourDashboardBundle = {
   intel: HourIntelligencePayload;
   articles: PublishedArticleDTO[];
   nav: { year: number; month: number; day: number; hour: number };
+  /** Left → right: oldest…newest of last 6 Chicago hours (current = last point). */
+  sentimentTrend: SentimentTrendPoint[];
 };
 
 export function toArticleDto(rows: PublishedArticleRow[]): PublishedArticleDTO[] {
@@ -53,10 +55,31 @@ export async function loadHourDashboard(
 
   const intel = computeHourIntelligence(start, end, articles, prevArticles, prevIntel);
 
+  const slotRanges = Array.from({ length: 6 }, (_, idx) => {
+    const j = 5 - idx;
+    return {
+      slotStart: addHours(start, -j),
+      slotEnd: addHours(start, -j + 1),
+    };
+  });
+  const slotRows = await Promise.all(
+    slotRanges.map((r) => listPublishedArticlesInRange(pool, r.slotStart, r.slotEnd, 200)),
+  );
+  const sentimentTrend: SentimentTrendPoint[] = slotRanges.map((r, idx) => ({
+    label: new Intl.DateTimeFormat("en-US", {
+      timeZone: "America/Chicago",
+      hour: "numeric",
+      hour12: false,
+    }).format(r.slotStart),
+    hourStartIso: r.slotStart.toISOString(),
+    sentiment: batchSentiment(slotRows[idx]!),
+  }));
+
   return {
     intel,
     articles: toArticleDto(articles),
     nav: { year, month, day, hour },
+    sentimentTrend,
   };
 }
 

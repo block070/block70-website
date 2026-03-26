@@ -206,6 +206,7 @@ export default async function CryptoOnTheHourCatchAll({ params }: { params: Para
         intel={bundle.intel}
         articles={bundle.articles}
         nav={bundle.nav}
+        sentimentTrend={bundle.sentimentTrend}
       />
     );
   }

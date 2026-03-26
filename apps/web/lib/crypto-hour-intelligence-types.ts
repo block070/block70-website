@@ -81,6 +81,13 @@ export type HourSummaries = {
   whale: string;
 };
 
+/** One point on the 6-hour sentiment sparkline (oldest → newest). */
+export type SentimentTrendPoint = {
+  label: string;
+  hourStartIso: string;
+  sentiment: number;
+};
+
 export type HourIntelligencePayload = {
   version: 1;
   zone: "America/Chicago";
