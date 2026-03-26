@@ -53,3 +53,10 @@ class Coin(Base):
         nullable=False,
     )
 
+    # When multi-category assignments from CoinGecko /coins/{id} were last applied to junction table
+    categories_synced_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+        index=True,
+    )
+

@@ -122,7 +122,7 @@ class DescriptionBackfillPipeline:
                 c = payload.get("coin") or {}
                 desc = (c.get("description") or "").strip()
                 cat = (c.get("category") or "").strip()
-                if not desc and not cat:
+                if not desc and not cat and not (payload.get("categories_raw") or []):
                     continue
                 coin = existing.get(slug)
                 if coin:
@@ -130,6 +130,17 @@ class DescriptionBackfillPipeline:
                         coin.description = desc
                     if cat:
                         coin.category = cat
+                    cs = (c.get("category_slug") or "").strip()
+                    if cs and hasattr(coin, "category_slug"):
+                        coin.category_slug = cs.lower()
+                    if payload.get("categories_raw"):
+                        from app.services.category_snapshot_service import (
+                            apply_coingecko_categories_to_coin,
+                        )
+
+                        apply_coingecko_categories_to_coin(
+                            db, coin, payload["categories_raw"], set_sync_timestamp=True
+                        )
                     coin.website = c.get("website") or coin.website
                     coin.whitepaper_url = (
                         c.get("whitepaper_url") or coin.whitepaper_url
@@ -152,6 +163,7 @@ class DescriptionBackfillPipeline:
                         discord=c.get("discord"),
                         telegram=c.get("telegram"),
                         category=c.get("category"),
+                        category_slug=(c.get("category_slug") or "").strip().lower() or None,
                         market_cap_rank=c.get("market_cap_rank"),
                         market_cap=c.get("market_cap"),
                         price=c.get("price"),
@@ -161,6 +173,15 @@ class DescriptionBackfillPipeline:
                     )
                     db.add(coin)
                     existing[slug] = coin
+                    db.flush()
+                    if payload.get("categories_raw"):
+                        from app.services.category_snapshot_service import (
+                            apply_coingecko_categories_to_coin,
+                        )
+
+                        apply_coingecko_categories_to_coin(
+                            db, coin, payload["categories_raw"], set_sync_timestamp=True
+                        )
                 fetched += 1
                 if self.progress_callback and (fetched % 5 == 0 or fetched == 1):
                     self.progress_callback(fetched, total_to_fetch, slug)

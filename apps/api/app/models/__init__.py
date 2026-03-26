@@ -27,6 +27,7 @@ from .user import User, UserRole, PlanType
 from .subscription import Subscription
 from .usage_metric import UsageMetric
 from .coin import Coin
+from .category_snapshot import CategoryAggregateSnapshot, CoinCryptoCategory, CryptoCategory
 from .market_data import MarketData
 from .news_article import NewsArticle, NewsCluster, NewsRawEvent, NewsEntity
 from .narrative import Narrative, CoinNarrative
@@ -115,6 +116,9 @@ __all__ = [
     "Subscription",
     "UsageMetric",
     "Coin",
+    "CryptoCategory",
+    "CoinCryptoCategory",
+    "CategoryAggregateSnapshot",
     "MarketData",
     "NewsArticle",
     "NewsCluster",

@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { CategoriesPageClient } from "@/components/categories/categories-page-client";
-import { enrichCategoriesBatch, scoreTrendingCategory } from "@/lib/categories-enrichment";
-import { getMarketCategories } from "@/lib/api";
+import { mapCategoryDirectoryToEnriched, scoreTrendingCategory } from "@/lib/categories-enrichment";
+import { getCategoryDirectory } from "@/lib/api";
 import { withTimeout } from "@/lib/with-timeout";
 
 export const revalidate = 60;
@@ -28,10 +28,10 @@ export default async function CategoriesPage({ searchParams }: PageProps) {
   const page = Math.max(1, parseInt(pageParam ?? "1", 10) || 1);
 
   const FETCH_TIMEOUT_MS = 45_000;
-  let result = { items: [] as Awaited<ReturnType<typeof getMarketCategories>>["items"], total: 0 };
+  let result = { items: [] as Awaited<ReturnType<typeof getCategoryDirectory>>["items"], total: 0 };
   try {
     result = await withTimeout(
-      getMarketCategories({ order: "market_cap_desc", limit, page }),
+      getCategoryDirectory({ order: "market_cap_desc", limit, page }),
       FETCH_TIMEOUT_MS,
       { items: [], total: 0 }
     );
@@ -44,7 +44,7 @@ export default async function CategoriesPage({ searchParams }: PageProps) {
   const clampedPage = Math.min(page, totalPages);
 
   const enrichedCategories =
-    rawCategories.length > 0 ? await enrichCategoriesBatch(rawCategories) : [];
+    rawCategories.length > 0 ? rawCategories.map(mapCategoryDirectoryToEnriched) : [];
 
   const trending = [...enrichedCategories]
     .sort((a, b) => scoreTrendingCategory(b) - scoreTrendingCategory(a))

@@ -128,7 +128,10 @@ def fetch_coin_details(coin_id: str, vs_currency: str = "usd") -> Dict[str, Any]
             "sparkline": "false",
         },
     )
-    return normalize_coin_detail(data, vs_currency=vs_currency)
+    out = normalize_coin_detail(data, vs_currency=vs_currency)
+    raw_cats = [c for c in (data.get("categories") or []) if c]
+    out["categories_raw"] = raw_cats
+    return out
 
 
 def _parse_coingecko_datetime(raw: Any) -> Optional[datetime]:

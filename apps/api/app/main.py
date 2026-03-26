@@ -40,6 +40,7 @@ from app.api.v1.billing import router as billing_router
 from app.api.v1.chains import router as chains_router
 from app.api.v1.charts import chart_pack_router, router as charts_router
 from app.api.v1.coins import router as coins_router
+from app.api.v1.categories import router as categories_router
 from app.api.v1.exchanges import router as exchanges_router
 from app.api.v1.live import router as live_router
 from app.api.v1.dashboard import router as dashboard_router
@@ -161,6 +162,7 @@ app.include_router(chains_router)
 app.include_router(charts_router)
 app.include_router(chart_pack_router)
 app.include_router(coins_router)
+app.include_router(categories_router)
 app.include_router(exchanges_router)
 app.include_router(live_router)
 app.include_router(dashboard_router)
@@ -196,6 +198,24 @@ def _start_scheduler() -> None:
     global _scheduler
     import logging
     import sys
+    import threading
+    import time
+
+    def _bootstrap_category_snapshots() -> None:
+        time.sleep(2.0)
+        try:
+            from app.db import SessionLocal
+            from app.services.category_snapshot_service import recompute_category_snapshots
+
+            _db = SessionLocal()
+            try:
+                recompute_category_snapshots(_db)
+            finally:
+                _db.close()
+        except Exception:
+            pass
+
+    threading.Thread(target=_bootstrap_category_snapshots, daemon=True).start()
 
     logger = logging.getLogger(__name__)
     try:

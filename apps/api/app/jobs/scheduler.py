@@ -394,6 +394,31 @@ def _run_chart_pack_short_job() -> None:
         pass
 
 
+def _run_category_snapshot_recompute_job() -> None:
+    """Rebuild category_aggregate_snapshots from DB junction + market_data (no CoinGecko)."""
+
+    def _job(db: Session) -> None:
+        from app.services.category_snapshot_service import recompute_category_snapshots
+
+        recompute_category_snapshots(db)
+
+    _with_db_session(_job)
+
+
+def _run_category_coingecko_refresh_job() -> None:
+    """
+    Refresh multi-category assignments from /coins/{id} for stale coins only
+    (COINGECKO_CATEGORIES_REFRESH_DAYS, default 30).
+    """
+
+    def _job(db: Session) -> None:
+        from app.services.category_snapshot_service import refresh_stale_coin_categories_from_coingecko
+
+        refresh_stale_coin_categories_from_coingecko(db, batch_size=None)
+
+    _with_db_session(_job)
+
+
 def _run_crypto_alerts_job() -> None:
     def _job(db: Session) -> None:
         from app.services.alerts.crypto_alert_runner import run_crypto_alerts
@@ -686,6 +711,27 @@ def create_scheduler() -> BackgroundScheduler:
         replace_existing=True,
         max_instances=1,
     )
+
+    _snap_min = max(5, int(os.getenv("CATEGORY_SNAPSHOT_INTERVAL_MINUTES", "12")))
+    scheduler.add_job(
+        _run_category_snapshot_recompute_job,
+        IntervalTrigger(minutes=_snap_min),
+        id="category_snapshot_recompute",
+        replace_existing=True,
+        max_instances=1,
+        coalesce=True,
+    )
+
+    _cg_cat_min = max(15, int(os.getenv("COINGECKO_CATEGORY_REFRESH_INTERVAL_MINUTES", "60")))
+    if _cg_cat_min > 0:
+        scheduler.add_job(
+            _run_category_coingecko_refresh_job,
+            IntervalTrigger(minutes=_cg_cat_min),
+            id="category_coingecko_refresh",
+            replace_existing=True,
+            max_instances=1,
+            coalesce=True,
+        )
 
     _scheduler_instance = scheduler
     return scheduler

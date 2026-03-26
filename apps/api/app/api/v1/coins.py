@@ -6,12 +6,14 @@ from datetime import datetime, timezone
 from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy import or_
+from sqlalchemy import exists, or_
 from sqlalchemy.orm import Session
 
 from app.db import get_db
 from app.models import Coin, CoinNarrative, MarketData, Narrative, NewsArticle
+from app.models.category_snapshot import CoinCryptoCategory
 from app.schemas.coin_api import (
+    CoinCategoryItem,
     CoinDetailResponse,
     CoinInfo,
     CoinListItem,
@@ -20,6 +22,11 @@ from app.schemas.coin_api import (
     MarketDataPoint,
     NarrativeRead,
     NewsArticleRead,
+)
+from app.services.category_snapshot_service import (
+    apply_coingecko_categories_to_coin,
+    categories_for_coin_ids,
+    coin_categories_stale,
 )
 from app.services.news.cache import TTLCache
 
@@ -307,6 +314,72 @@ def _merge_coin_info_from_cg_markets_row(ci: CoinInfo, row: dict | None) -> Coin
     return ci
 
 
+def _attach_categories_to_orm_list_items(
+    db: Session, items: List[CoinListItem], coins: List[Coin]
+) -> None:
+    if not items or not coins or len(items) != len(coins):
+        return
+    cmap = categories_for_coin_ids(db, [c.id for c in coins])
+    for i, coin in enumerate(coins):
+        tags = cmap.get(coin.id, [])
+        patched = items[i].coin.model_copy(
+            update={"categories": [CoinCategoryItem(**t) for t in tags]}
+        )
+        items[i] = items[i].model_copy(update={"coin": patched})
+
+
+def _list_items_from_orm_coins(db: Session, coins: List[Coin], cg_lookback_limit: int) -> List[CoinListItem]:
+    cg_changes = _fetch_coingecko_price_changes(cg_lookback_limit)
+    items: List[CoinListItem] = []
+    for coin in coins:
+        latest_md: Optional[MarketData] = (
+            db.query(MarketData)
+            .filter(MarketData.coin_id == coin.id)
+            .order_by(MarketData.timestamp.desc())
+            .first()
+        )
+
+        md_point: Optional[MarketDataPoint] = None
+        if latest_md:
+            pch24 = latest_md.price_change_24h
+            pch7 = latest_md.price_change_7d
+            if coin.slug in cg_changes:
+                cg = cg_changes[coin.slug]
+                if pch24 is None and cg.get("price_change_24h") is not None:
+                    pch24 = cg["price_change_24h"]
+                if pch7 is None and cg.get("price_change_7d") is not None:
+                    pch7 = cg["price_change_7d"]
+
+            md_point = MarketDataPoint(
+                timestamp=latest_md.timestamp,
+                price=latest_md.price,
+                market_cap=latest_md.market_cap,
+                volume_24h=latest_md.volume_24h,
+                price_change_24h=pch24,
+                price_change_7d=pch7,
+            )
+        elif coin.slug in cg_changes:
+            cg = cg_changes[coin.slug]
+            md_point = MarketDataPoint(
+                timestamp=datetime.now(timezone.utc),
+                price=coin.price or 0.0,
+                market_cap=coin.market_cap,
+                volume_24h=coin.volume_24h,
+                price_change_24h=cg.get("price_change_24h"),
+                price_change_7d=cg.get("price_change_7d"),
+            )
+
+        items.append(
+            CoinListItem(
+                coin=CoinInfo.model_validate(coin),
+                latest_market_data=md_point,
+            )
+        )
+
+    _attach_categories_to_orm_list_items(db, items, coins)
+    return items
+
+
 def _fetch_coingecko_price_changes(limit: int, max_pages: int = 2) -> dict[str, dict]:
     """
     Fetch price_change_24h and price_change_7d from CoinGecko /coins/markets.
@@ -501,8 +574,23 @@ def list_coins(
     if cached is not None:
         return cached
 
-    # When category_slug provided: CoinGecko /coins/markets?category=id first (discover pages)
+    # When category_slug provided: prefer DB junction (populated by snapshot job); else CoinGecko category markets
     if category_slug:
+        slug_low = category_slug.lower().strip()
+        if slug_low and db.query(exists().where(CoinCryptoCategory.category_slug == slug_low)).scalar():
+            offset = (page - 1) * limit if page > 1 else 0
+            coins = (
+                db.query(Coin)
+                .join(CoinCryptoCategory, CoinCryptoCategory.coin_id == Coin.id)
+                .filter(CoinCryptoCategory.category_slug == slug_low)
+                .order_by(Coin.market_cap.desc().nullslast())
+                .offset(offset)
+                .limit(limit)
+                .all()
+            )
+            items = _list_items_from_orm_coins(db, coins, limit)
+            _coins_list_cache.set(cache_key, items, COINS_LIST_CACHE_TTL)
+            return items
         try:
             from app.services.connectors.coingecko_connector import fetch_coins_markets_by_category
 
@@ -513,6 +601,13 @@ def list_coins(
                 page=page,
             )
             if cg_items:
+                slug_cat = slug_low
+                disp = (cat_filter or slug_cat.replace("-", " ").title()) if slug_low else None
+                cat_items = (
+                    [CoinCategoryItem(slug=slug_cat, name=disp or slug_cat, primary=True)]
+                    if slug_cat
+                    else []
+                )
                 out: List[CoinListItem] = []
                 for i, cg in enumerate(cg_items):
                     rank = (page - 1) * limit + i + 1
@@ -530,7 +625,9 @@ def list_coins(
                         twitter=None,
                         discord=None,
                         chain=None,
-                        category=None,
+                        category=disp,
+                        category_slug=slug_cat if slug_cat else None,
+                        categories=cat_items,
                         market_cap_rank=cg.get("market_cap_rank"),
                         market_cap=cg.get("market_cap"),
                         price=cg.get("price"),
@@ -592,54 +689,7 @@ def list_coins(
     offset = (page - 1) * limit if page > 1 else 0
     coins = q.offset(offset).limit(limit).all()
 
-    cg_changes = _fetch_coingecko_price_changes(limit)
-
-    items: List[CoinListItem] = []
-
-    for coin in coins:
-        latest_md: Optional[MarketData] = (
-            db.query(MarketData)
-            .filter(MarketData.coin_id == coin.id)
-            .order_by(MarketData.timestamp.desc())
-            .first()
-        )
-
-        md_point: Optional[MarketDataPoint] = None
-        if latest_md:
-            pch24 = latest_md.price_change_24h
-            pch7 = latest_md.price_change_7d
-            if coin.slug in cg_changes:
-                cg = cg_changes[coin.slug]
-                if pch24 is None and cg.get("price_change_24h") is not None:
-                    pch24 = cg["price_change_24h"]
-                if pch7 is None and cg.get("price_change_7d") is not None:
-                    pch7 = cg["price_change_7d"]
-
-            md_point = MarketDataPoint(
-                timestamp=latest_md.timestamp,
-                price=latest_md.price,
-                market_cap=latest_md.market_cap,
-                volume_24h=latest_md.volume_24h,
-                price_change_24h=pch24,
-                price_change_7d=pch7,
-            )
-        elif coin.slug in cg_changes:
-            cg = cg_changes[coin.slug]
-            md_point = MarketDataPoint(
-                timestamp=datetime.now(timezone.utc),
-                price=coin.price or 0.0,
-                market_cap=coin.market_cap,
-                volume_24h=coin.volume_24h,
-                price_change_24h=cg.get("price_change_24h"),
-                price_change_7d=cg.get("price_change_7d"),
-            )
-
-        items.append(
-            CoinListItem(
-                coin=CoinInfo.model_validate(coin),
-                latest_market_data=md_point,
-            )
-        )
+    items = _list_items_from_orm_coins(db, coins, limit)
 
     if items:
         _coins_list_cache.set(cache_key, items, COINS_LIST_CACHE_TTL)
@@ -654,6 +704,10 @@ def _enrich_coin_from_coingecko(coin: Coin, db: Session) -> tuple[Coin, list, Op
         payload = fetch_coin_details(coin.slug, vs_currency="usd")
         coin_data = payload.get("coin", {})
         md_data = payload.get("market_data", {})
+
+        raw_cats = payload.get("categories_raw") or []
+        if raw_cats and coin_categories_stale(coin):
+            apply_coingecko_categories_to_coin(db, coin, raw_cats, set_sync_timestamp=True)
 
         # Update coin metadata for this request (description, links)
         coin.description = coin_data.get("description") or coin.description
@@ -1131,7 +1185,10 @@ def get_coin_detail(
         for row in news_rows
     ]
 
-    coin_info = CoinInfo.model_validate(coin)
+    _cat_tags = categories_for_coin_ids(db, [coin.id]).get(coin.id, [])
+    coin_info = CoinInfo.model_validate(coin).model_copy(
+        update={"categories": [CoinCategoryItem(**t) for t in _cat_tags]}
+    )
     cg_fill: dict | None = None
     try:
         cg_fill = _fetch_coin_markets_row_cached(coin.slug)

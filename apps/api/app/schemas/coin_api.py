@@ -6,6 +6,12 @@ from typing import List, Optional
 from pydantic import BaseModel, ConfigDict, Field
 
 
+class CoinCategoryItem(BaseModel):
+    slug: str
+    name: str
+    primary: bool = False
+
+
 class MarketDataPoint(BaseModel):
     timestamp: datetime
     price: float
@@ -84,6 +90,7 @@ class CoinInfo(BaseModel):
     chain: Optional[str] = None
     category: Optional[str] = None
     category_slug: Optional[str] = None
+    categories: List[CoinCategoryItem] = Field(default_factory=list)
     market_cap_rank: Optional[int] = None
     market_cap: Optional[float] = None
     price: Optional[float] = None

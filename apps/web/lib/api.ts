@@ -310,6 +310,45 @@ const FALLBACK_CATEGORIES: MarketCategory[] = [
   { id: "ai-big-data", name: "AI & Big Data", market_cap: 35_000_000_000, volume_24h: 2_500_000_000, market_cap_change_24h: null, top_coins: [{ slug: "fetch-ai", symbol: "FET" }, { slug: "render-token", symbol: "RNDR" }, { slug: "ocean-protocol", symbol: "OCEAN" }] },
 ];
 
+/** Pre-enriched rows from GET /api/v1/categories (snapshot-backed; no per-category CG). */
+export type CategoryDirectoryApiItem = {
+  id: string;
+  name: string;
+  market_cap: number;
+  market_cap_change_24h?: number | null;
+  volume_24h: number;
+  top_coins?: { slug: string; symbol: string }[];
+  content?: string | null;
+  avg_block70: number;
+  avg_change_24h?: number | null;
+  coin_count: number;
+  trend: "bullish" | "neutral" | "bearish";
+  capital_flow: "in" | "out" | "neutral";
+  vol_to_mcap: number;
+  top3: {
+    slug: string;
+    name: string;
+    symbol: string;
+    change24hPct: number;
+    block70Score: number;
+  }[];
+};
+
+export async function getCategoryDirectory(params?: {
+  order?: string;
+  limit?: number;
+  page?: number;
+}): Promise<{ items: CategoryDirectoryApiItem[]; total: number }> {
+  const search = new URLSearchParams();
+  if (params?.order) search.set("order", params.order);
+  if (params?.limit != null) search.set("limit", String(params.limit));
+  if (params?.page != null && params.page > 1) search.set("page", String(params.page));
+  const query = search.toString();
+  return fetchJson<{ items: CategoryDirectoryApiItem[]; total: number }>(
+    `/api/v1/categories${query ? `?${query}` : ""}`,
+  );
+}
+
 export async function getMarketCategories(params?: {
   order?: string;
   limit?: number;

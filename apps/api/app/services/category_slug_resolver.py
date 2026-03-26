@@ -89,3 +89,46 @@ def ensure_slug(slug: Optional[str]) -> str:
     if slug and str(slug).strip():
         return str(slug).strip()
     return DEFAULT_FALLBACK_SLUG
+
+
+def slugify_display_label(label: str) -> str:
+    """Stable slug when CoinGecko categories list has no mapping (lowercase, hyphenated)."""
+    s = re.sub(r"[^a-z0-9]+", "-", _normalize_label(label).replace(" ", "-"))
+    s = re.sub(r"-+", "-", s).strip("-")
+    return s or "uncategorized"
+
+
+def resolve_all_category_tags(
+    categories: List[str],
+) -> List[Tuple[str, str]]:
+    """
+    Map CoinGecko `categories[]` strings to [(display_name, category_id_slug), ...].
+    Order preserved; duplicate slugs dropped (first wins).
+    """
+    if not categories:
+        return []
+    idx = _load_index()
+    exact = idx.get("exact") or {}
+    normalized = idx.get("normalized") or {}
+
+    seen: set[str] = set()
+    out: List[Tuple[str, str]] = []
+    for cat in categories:
+        if not cat or not str(cat).strip():
+            continue
+        raw = str(cat).strip()
+        low = raw.lower()
+        slug: Optional[str] = None
+        if low in exact:
+            slug = exact[low]
+        else:
+            n = _normalize_label(raw)
+            if n in normalized:
+                slug = normalized[n]
+            else:
+                slug = slugify_display_label(raw)
+        if not slug or slug in seen:
+            continue
+        seen.add(slug)
+        out.append((raw, slug))
+    return out

@@ -18,6 +18,7 @@ export type CoinInfoDto = {
   category: string | null;
   /** CoinGecko category id — use with /discover/[slug] */
   category_slug: string | null;
+  categories?: { slug: string; name: string; primary: boolean }[];
   market_cap_rank: number | null;
   market_cap: number | null;
   price: number | null;

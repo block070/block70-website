@@ -77,6 +77,36 @@ MIGRATIONS = [
       ('binance_us', 'cex', 'Binance.US', NULL, true),
       ('kraken', 'cex', 'Kraken', NULL, true)
     ON CONFLICT (provider_key) DO NOTHING""",
+    # Category directory: M2M + snapshot (limits CoinGecko; feeds GET /api/v1/categories)
+    "ALTER TABLE coins ADD COLUMN IF NOT EXISTS categories_synced_at TIMESTAMP WITH TIME ZONE",
+    "CREATE INDEX IF NOT EXISTS ix_coins_categories_synced_at ON coins (categories_synced_at)",
+    """CREATE TABLE IF NOT EXISTS crypto_categories (
+        slug VARCHAR(160) PRIMARY KEY,
+        name VARCHAR(255) NOT NULL,
+        updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
+    )""",
+    """CREATE TABLE IF NOT EXISTS coin_crypto_categories (
+        coin_id INTEGER NOT NULL REFERENCES coins(id) ON DELETE CASCADE,
+        category_slug VARCHAR(160) NOT NULL REFERENCES crypto_categories(slug) ON DELETE CASCADE,
+        rank_in_coin INTEGER NOT NULL DEFAULT 0,
+        source VARCHAR(32) NOT NULL DEFAULT 'legacy',
+        assigned_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+        PRIMARY KEY (coin_id, category_slug)
+    )""",
+    "CREATE INDEX IF NOT EXISTS ix_coin_crypto_categories_slug ON coin_crypto_categories (category_slug)",
+    "CREATE INDEX IF NOT EXISTS ix_coin_crypto_categories_coin ON coin_crypto_categories (coin_id)",
+    """CREATE TABLE IF NOT EXISTS category_aggregate_snapshots (
+        category_slug VARCHAR(160) PRIMARY KEY REFERENCES crypto_categories(slug) ON DELETE CASCADE,
+        name VARCHAR(255) NOT NULL,
+        computed_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+        market_cap DOUBLE PRECISION NOT NULL DEFAULT 0,
+        volume_24h DOUBLE PRECISION NOT NULL DEFAULT 0,
+        market_cap_change_24h DOUBLE PRECISION,
+        avg_block70 INTEGER NOT NULL DEFAULT 0,
+        avg_change_24h DOUBLE PRECISION,
+        coin_count INTEGER NOT NULL DEFAULT 0,
+        top_coins_json TEXT
+    )""",
 ]
 
 
