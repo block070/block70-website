@@ -16,6 +16,7 @@ from app.schemas.coin_api import (
     CoinInfo,
     CoinListItem,
     CoinMarketExtras,
+    CoinQuote,
     MarketDataPoint,
     NarrativeRead,
     NewsArticleRead,
@@ -50,6 +51,41 @@ COINGECKO_EXTRAS_CACHE_TTL = int(os.getenv("COINGECKO_EXTRAS_CACHE_TTL", "600"))
 # Minimum seconds between CoinGecko requests to stay under ~30/min.
 COINGECKO_MIN_INTERVAL = 2.5
 _last_coingecko_call: float = 0
+
+
+def _detail_with_quote(resp: CoinDetailResponse) -> CoinDetailResponse:
+    """Attach canonical quote for frontend hero/chart when a valid price exists."""
+    last = resp.market_data[-1] if resp.market_data else None
+    price = resp.coin.price
+    if price is None or (isinstance(price, (int, float)) and float(price) <= 0):
+        if last is not None and last.price is not None:
+            try:
+                price = float(last.price)
+            except (TypeError, ValueError):
+                price = None
+    if price is None or (isinstance(price, (int, float)) and float(price) <= 0):
+        return resp
+
+    mc = resp.coin.market_cap
+    if mc is None and last and last.market_cap is not None:
+        mc = last.market_cap
+    vol = resp.coin.volume_24h
+    if vol is None and last and last.volume_24h is not None:
+        vol = last.volume_24h
+    p24 = last.price_change_24h if last else None
+    p7 = last.price_change_7d if last else None
+
+    q = CoinQuote(
+        price_usd=float(price),
+        market_cap_usd=float(mc) if mc is not None else None,
+        volume_24h_usd=float(vol) if vol is not None else None,
+        change_24h_pct=float(p24) if p24 is not None else None,
+        change_7d_pct=float(p7) if p7 is not None else None,
+        as_of=datetime.now(timezone.utc),
+        source="block70_api",
+        method="coin_row_plus_latest_market_point",
+    )
+    return resp.model_copy(update={"quote": q})
 
 
 def _extras_non_empty(me: CoinMarketExtras) -> bool:
@@ -801,12 +837,14 @@ def _fetch_coin_from_markets(slug: str) -> Optional[CoinDetailResponse]:
                         price_change_24h=cg.get("price_change_24h"),
                         price_change_7d=cg.get("price_change_7d"),
                     )
-                    return CoinDetailResponse(
-                        coin=coin_info,
-                        market_data=[md_point],
-                        narratives=[],
-                        news=[],
-                        market_extras=None,
+                    return _detail_with_quote(
+                        CoinDetailResponse(
+                            coin=coin_info,
+                            market_data=[md_point],
+                            narratives=[],
+                            news=[],
+                            market_extras=None,
+                        )
                     )
         except Exception:
             break
@@ -848,12 +886,14 @@ def _make_stub_coin_response(slug: str) -> CoinDetailResponse:
         price_change_24h=None,
         price_change_7d=None,
     )
-    return CoinDetailResponse(
-        coin=coin_info,
-        market_data=[md_point],
-        narratives=[],
-        news=[],
-        market_extras=None,
+    return _detail_with_quote(
+        CoinDetailResponse(
+            coin=coin_info,
+            market_data=[md_point],
+            narratives=[],
+            news=[],
+            market_extras=None,
+        )
     )
 
 
@@ -923,12 +963,14 @@ def _fetch_coin_from_coingecko(slug: str) -> CoinDetailResponse:
         except Exception:
             market_extras = None
 
-    return CoinDetailResponse(
-        coin=coin_info,
-        market_data=[md_point],
-        narratives=[],
-        news=[],
-        market_extras=market_extras if (market_extras and _extras_non_empty(market_extras)) else None,
+    return _detail_with_quote(
+        CoinDetailResponse(
+            coin=coin_info,
+            market_data=[md_point],
+            narratives=[],
+            news=[],
+            market_extras=market_extras if (market_extras and _extras_non_empty(market_extras)) else None,
+        )
     )
 
 
@@ -971,10 +1013,12 @@ def get_coin_detail(
         for row in reversed(md_rows)
     ]
 
-    enriched_coin, enriched_md = _enrich_coin_from_coingecko(coin, db)
+    market_extras: Optional[CoinMarketExtras] = None
+    enriched_coin, enriched_md, extras_from_cg = _enrich_coin_from_coingecko(coin, db)
     if enriched_md:
         coin = enriched_coin
         md_points = enriched_md
+        market_extras = extras_from_cg
     elif not md_points:
         # No MarketData and enrichment failed; use markets (same source as /coins list)
         markets_response = _fetch_coin_from_markets(coin.slug)
@@ -1146,12 +1190,14 @@ def get_coin_detail(
         if extra_fallback:
             market_extras = extra_fallback
 
-    return CoinDetailResponse(
-        coin=coin_info,
-        market_data=md_points,
-        narratives=narratives,
-        news=news,
-        market_extras=market_extras if (market_extras and _extras_non_empty(market_extras)) else None,
+    return _detail_with_quote(
+        CoinDetailResponse(
+            coin=coin_info,
+            market_data=md_points,
+            narratives=narratives,
+            news=news,
+            market_extras=market_extras if (market_extras and _extras_non_empty(market_extras)) else None,
+        )
     )
 
 

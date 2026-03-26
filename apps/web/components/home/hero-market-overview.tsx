@@ -13,6 +13,10 @@ type HeroMarketOverviewProps = {
   volume24h?: number;
   btcDominance?: number;
   ethDominance?: number;
+  /** ISO timestamp from API `as_of` */
+  dataAsOf?: string;
+  /** e.g. coingecko */
+  dataSource?: string;
   topTrendingCoin?: { symbol: string; slug?: string; change24h: number; logoUrl?: string | null };
 };
 
@@ -21,6 +25,8 @@ export function HeroMarketOverview({
   volume24h,
   btcDominance,
   ethDominance,
+  dataAsOf,
+  dataSource,
   topTrendingCoin,
 }: HeroMarketOverviewProps) {
   return (
@@ -37,6 +43,23 @@ export function HeroMarketOverview({
         <h2 className="mt-4 text-xs font-semibold uppercase tracking-widest text-[var(--b70-text-muted)]">
           Global crypto market
         </h2>
+        {dataAsOf || dataSource ? (
+          <p className="mt-2 text-[10px] text-[var(--b70-text-muted)]">
+            {dataAsOf ? (
+              <>
+                Last updated:{" "}
+                <time dateTime={dataAsOf}>
+                  {new Date(dataAsOf).toLocaleString(undefined, {
+                    dateStyle: "short",
+                    timeStyle: "short",
+                  })}
+                </time>
+              </>
+            ) : null}
+            {dataAsOf && dataSource ? " · " : null}
+            {dataSource ? <>Data: {dataSource}</> : null}
+          </p>
+        ) : null}
         <div className="mt-4 grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
           <div>
             <p className="text-[10px] uppercase tracking-wide text-[var(--b70-text-muted)]">

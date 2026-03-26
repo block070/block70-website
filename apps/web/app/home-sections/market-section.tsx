@@ -1,5 +1,5 @@
 import dynamic from "next/dynamic";
-import { getMarketCoins } from "@/lib/api";
+import { getMarketCoins, getMarketSummary, type MarketCoin } from "@/lib/api";
 import { HeroMarketOverview } from "@/components/home/hero-market-overview";
 import { MarketStatsBar } from "@/components/home/market-stats-bar";
 import { GainersLosers } from "@/components/market/gainers-losers";
@@ -7,22 +7,35 @@ import { withTimeout } from "@/lib/with-timeout";
 
 const MarketHeatmap = dynamic(
   () => import("@/components/market/market-heatmap").then((m) => ({ default: m.MarketHeatmap })),
-  { ssr: true, loading: () => <div className="h-64 rounded-xl border border-[var(--b70-border)] bg-[var(--b70-card)] animate-pulse" /> }
+  {
+    ssr: true,
+    loading: () => (
+      <div className="h-64 rounded-xl border border-[var(--b70-border)] bg-[var(--b70-card)] animate-pulse" />
+    ),
+  },
 );
 
 const FETCH_TIMEOUT_MS = 6_000;
 
 export async function MarketSection() {
-  let marketCoins: Awaited<ReturnType<typeof getMarketCoins>> = [];
+  let marketCoins: MarketCoin[] = [];
   let marketError: string | null = null;
+  let dataAsOf: string | undefined;
+  let dataSource: string | undefined;
+  let summary: Awaited<ReturnType<typeof getMarketSummary>> | null = null;
 
   try {
-    marketCoins = await withTimeout(
-      getMarketCoins({ limit: 30, page: 1 }),
-      FETCH_TIMEOUT_MS
-    );
+    summary = await withTimeout(getMarketSummary(30), FETCH_TIMEOUT_MS);
+    marketCoins = summary.top ?? [];
+    dataAsOf = summary.as_of;
+    dataSource = summary.source;
   } catch (e) {
     marketError = e instanceof Error ? e.message : "Unknown error";
+    try {
+      marketCoins = await withTimeout(getMarketCoins({ limit: 30, page: 1 }), FETCH_TIMEOUT_MS);
+    } catch (e2) {
+      marketError = e2 instanceof Error ? e2.message : marketError;
+    }
   }
 
   const validMarket = marketCoins.filter(
@@ -32,14 +45,32 @@ export async function MarketSection() {
       typeof c.volume === "number" &&
       typeof c.change_24h === "number",
   );
-  const totalMarketCap = validMarket.reduce((sum, c) => sum + (c.market_cap ?? 0), 0);
-  const totalVolume24h = validMarket.reduce((sum, c) => sum + (c.volume ?? 0), 0);
-  const btc = validMarket.find((c) => (c.symbol || "").toUpperCase() === "BTC");
-  const eth = validMarket.find((c) => (c.symbol || "").toUpperCase() === "ETH");
-  const btcDominance =
-    totalMarketCap > 0 && btc?.market_cap ? (btc.market_cap / totalMarketCap) * 100 : undefined;
-  const ethDominance =
-    totalMarketCap > 0 && eth?.market_cap ? (eth.market_cap / totalMarketCap) * 100 : undefined;
+
+  let totalMarketCap: number | undefined;
+  let totalVolume24h: number | undefined;
+  let btcDominance: number | undefined;
+  let ethDominance: number | undefined;
+
+  const g = summary?.global;
+  if (g?.total_market_cap_usd != null) {
+    totalMarketCap = g.total_market_cap_usd;
+    totalVolume24h = g.total_volume_usd ?? undefined;
+    btcDominance = g.btc_dominance_pct ?? undefined;
+    ethDominance = g.eth_dominance_pct ?? undefined;
+  }
+
+  if (totalMarketCap == null) {
+    const sumCap = validMarket.reduce((sum, c) => sum + (c.market_cap ?? 0), 0);
+    const sumVol = validMarket.reduce((sum, c) => sum + (c.volume ?? 0), 0);
+    totalMarketCap = sumCap || undefined;
+    totalVolume24h = sumVol || undefined;
+    const btc = validMarket.find((c) => (c.symbol || "").toUpperCase() === "BTC");
+    const eth = validMarket.find((c) => (c.symbol || "").toUpperCase() === "ETH");
+    btcDominance =
+      sumCap > 0 && btc?.market_cap ? (btc.market_cap / sumCap) * 100 : undefined;
+    ethDominance =
+      sumCap > 0 && eth?.market_cap ? (eth.market_cap / sumCap) * 100 : undefined;
+  }
 
   const pricedMajors = validMarket.slice(0, 6).map((c) => ({
     symbol: c.symbol,
@@ -89,10 +120,12 @@ export async function MarketSection() {
     <>
       <section className="grid gap-4 lg:grid-cols-1">
         <HeroMarketOverview
-          totalMarketCap={totalMarketCap || undefined}
-          volume24h={totalVolume24h || undefined}
+          totalMarketCap={totalMarketCap}
+          volume24h={totalVolume24h}
           btcDominance={btcDominance}
           ethDominance={ethDominance}
+          dataAsOf={dataAsOf}
+          dataSource={dataSource}
           topTrendingCoin={
             gainers[0]
               ? {

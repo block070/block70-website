@@ -67,12 +67,25 @@ export type CoinMarketExtrasDto = {
   platforms?: PlatformContractDto[];
 };
 
+/** Canonical quote from API — prefer over mixing coin.price vs series tail. */
+export type CoinQuoteDto = {
+  price_usd: number;
+  market_cap_usd: number | null;
+  volume_24h_usd: number | null;
+  change_24h_pct: number | null;
+  change_7d_pct: number | null;
+  as_of: string;
+  source: string;
+  method: string;
+};
+
 export type CoinDetailDto = {
   coin: CoinInfoDto;
   market_data: MarketDataPointDto[];
   narratives: NarrativeDto[];
   news: NewsArticleDto[];
   market_extras?: CoinMarketExtrasDto | null;
+  quote?: CoinQuoteDto | null;
 };
 
 export async function getCoinBySlug(slug: string): Promise<CoinDetailDto> {

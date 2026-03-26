@@ -17,6 +17,9 @@ type Props = {
   investmentLabel: InvestmentLabel;
   /** From GET /api/v1/exchange-affiliate-links (SSR); merged with client context if needed */
   affiliateTemplates?: Record<string, string>;
+  /** API `quote.as_of` / `quote.source` when present */
+  quoteAsOf?: string | null;
+  quoteSource?: string | null;
 };
 
 function labelStyles(label: InvestmentLabel) {
@@ -38,6 +41,8 @@ export function CoinHeroConversion({
   block70Score,
   investmentLabel,
   affiliateTemplates: affiliateFromServer,
+  quoteAsOf,
+  quoteSource,
 }: Props) {
   const affiliateFromClient = useExchangeAffiliateTemplates();
   const merged = mergeAffiliateMaps(affiliateFromServer, affiliateFromClient);
@@ -105,6 +110,18 @@ export function CoinHeroConversion({
                   {formatChangePct(coin.change7dPct)}
                 </span>
               </p>
+              {quoteAsOf ? (
+                <p className="mt-2 text-[10px] text-slate-500">
+                  Last updated:{" "}
+                  <time dateTime={quoteAsOf}>
+                    {new Date(quoteAsOf).toLocaleString(undefined, {
+                      dateStyle: "short",
+                      timeStyle: "short",
+                    })}
+                  </time>
+                  {quoteSource ? ` · ${quoteSource}` : ""}
+                </p>
+              ) : null}
             </div>
             <div className="flex flex-wrap gap-6 text-sm">
               <div>

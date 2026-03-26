@@ -26,6 +26,29 @@ def _get(path: str, params: Optional[Dict[str, Any]] = None) -> Any:
     return resp.json()
 
 
+def fetch_global_market() -> Dict[str, Any]:
+    """
+    CoinGecko GET /global — aggregate crypto market cap, volume, BTC/ETH dominance.
+    Used for homepage / market summary (single source for global totals).
+    """
+    data = _get("/global")
+    inner = data.get("data") or {}
+    mcap = inner.get("total_market_cap") or {}
+    vol = inner.get("total_volume") or {}
+    pct = inner.get("market_cap_percentage") or {}
+    total_mcap = mcap.get("usd")
+    total_vol = vol.get("usd")
+    btc_dom = pct.get("btc")
+    eth_dom = pct.get("eth")
+    out: Dict[str, Any] = {
+        "total_market_cap_usd": float(total_mcap) if total_mcap is not None else None,
+        "total_volume_usd": float(total_vol) if total_vol is not None else None,
+        "btc_dominance_pct": float(btc_dom) if btc_dom is not None else None,
+        "eth_dominance_pct": float(eth_dom) if eth_dom is not None else None,
+    }
+    return out
+
+
 def fetch_coin_markets_row_by_id(coin_gecko_id: str) -> Optional[Dict[str, Any]]:
     """
     One-row snapshot from /coins/markets?ids=... — fast path for live price,

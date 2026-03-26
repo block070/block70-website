@@ -36,6 +36,7 @@ import {
   getCoinsList,
   getStubCoinDetail,
   pickLatestMarketPoint,
+  type CoinDetailDto,
   type CoinInfoDto,
   type MarketDataPointDto,
 } from "@/lib/coins";
@@ -48,12 +49,17 @@ import { withTimeout } from "@/lib/with-timeout";
 function coinToHeaderShape(
   coin: CoinInfoDto,
   latestMd?: MarketDataPointDto | null,
-  series?: MarketDataPointDto[]
+  series?: MarketDataPointDto[],
+  quote?: CoinDetailDto["quote"],
 ): Coin {
   const md =
     latestMd ??
     (series?.length ? pickLatestMarketPoint(series) : undefined) ??
     undefined;
+  const priceFromQuote =
+    quote && typeof quote.price_usd === "number" && Number.isFinite(quote.price_usd)
+      ? quote.price_usd
+      : undefined;
   const priceFromCoin =
     typeof coin.price === "number" && Number.isFinite(coin.price) && coin.price > 0
       ? coin.price
@@ -62,16 +68,18 @@ function coinToHeaderShape(
     md && typeof md.price === "number" && Number.isFinite(md.price) && md.price > 0
       ? md.price
       : undefined;
+  const mcapFromQuote = quote?.market_cap_usd;
+  const volFromQuote = quote?.volume_24h_usd;
   return {
     id: String(coin.id),
     slug: coin.slug,
     symbol: coin.symbol,
     name: coin.name,
-    priceUsd: priceFromCoin ?? priceFromMd ?? 0,
-    marketCapUsd: (coin.market_cap ?? md?.market_cap) ?? 0,
-    volume24hUsd: (coin.volume_24h ?? md?.volume_24h) ?? 0,
-    change24hPct: md?.price_change_24h ?? Number.NaN,
-    change7dPct: md?.price_change_7d ?? Number.NaN,
+    priceUsd: priceFromQuote ?? priceFromCoin ?? priceFromMd ?? 0,
+    marketCapUsd: (mcapFromQuote ?? coin.market_cap ?? md?.market_cap) ?? 0,
+    volume24hUsd: (volFromQuote ?? coin.volume_24h ?? md?.volume_24h) ?? 0,
+    change24hPct: quote?.change_24h_pct ?? md?.price_change_24h ?? Number.NaN,
+    change7dPct: quote?.change_7d_pct ?? md?.price_change_7d ?? Number.NaN,
     rank: coin.market_cap_rank ?? 0,
     categoryIds: coin.category ? [coin.category] : [],
     chainIds: coin.chain ? [coin.chain] : [],
@@ -124,9 +132,9 @@ export default async function CoinDetailPage({ params }: { params: Params }) {
   }
   if (!data) data = getStubCoinDetail(slug);
 
-  const { coin, market_data: series, narratives, news: fallbackNews } = data;
+  const { coin, market_data: series, narratives, news: fallbackNews, quote } = data;
 
-  const coinForHeader: Coin = coinToHeaderShape(coin, series[0], series);
+  const coinForHeader: Coin = coinToHeaderShape(coin, series[0], series, quote);
   const symbol = coin.symbol.toUpperCase();
   const block70Score = computeBlock70Score(coinForHeader);
   const investmentLabel = investmentLabelFromScore(block70Score);
@@ -154,6 +162,8 @@ export default async function CoinDetailPage({ params }: { params: Params }) {
         coin={coinForHeader}
         block70Score={block70Score}
         investmentLabel={investmentLabel}
+        quoteAsOf={quote?.as_of}
+        quoteSource={quote?.source}
         affiliateTemplates={affiliateTemplates}
       />
 

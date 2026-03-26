@@ -249,6 +249,27 @@ export async function getMarketCoins(params?: {
   return fetchJson<MarketCoin[]>(`/api/v1/market/coins${query ? `?${query}` : ""}`);
 }
 
+/** GET /api/v1/market/summary — global totals + optional top slice (single source for home/coins stats). */
+export type MarketGlobalSummary = {
+  total_market_cap_usd: number | null;
+  total_volume_usd: number | null;
+  btc_dominance_pct: number | null;
+  eth_dominance_pct: number | null;
+};
+
+export type MarketSummaryResponse = {
+  schema_version: number;
+  as_of: string;
+  source: string;
+  global: MarketGlobalSummary;
+  top: MarketCoin[];
+};
+
+export async function getMarketSummary(top = 30): Promise<MarketSummaryResponse> {
+  const search = new URLSearchParams({ top: String(top) });
+  return fetchJson<MarketSummaryResponse>(`/api/v1/market/summary?${search}`);
+}
+
 export type TrendingMarketCoin = {
   name: string;
   symbol: string;

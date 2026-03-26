@@ -24,12 +24,31 @@ from app.services.charts.indicators import (
 from app.services.charts.ohlcv_align import align_ohlcv_bar_times
 from app.services.charts.symbol_resolve import SLUG_TO_TICKER, guess_ticker
 from app.services.connectors.chart_cache import chart_cache_get, chart_cache_set
+from app.services.connectors.coingecko_connector import fetch_coin_markets_row_by_id
 
 logger = logging.getLogger(__name__)
 
 PACK_TIMEFRAMES = frozenset({"1m", "5m", "1h", "4h", "1d"})
 PACK_REDIS_PREFIX = "pack:v3:"
 PACK_REDIS_TTL = int(os.getenv("CHART_PACK_REDIS_TTL", "55"))
+
+
+def _align_last_ohlc_to_spot(ohlcv: list[dict[str, Any]], spot: float) -> bool:
+    """Match last candle close to CoinGecko spot so chart matches coin header."""
+    if not ohlcv or not spot or spot <= 0 or spot != spot:
+        return False
+    last = ohlcv[-1]
+    try:
+        last["close"] = float(spot)
+        lo = float(last.get("low") or spot)
+        hi = float(last.get("high") or spot)
+        if spot < lo:
+            last["low"] = spot
+        if spot > hi:
+            last["high"] = spot
+    except (TypeError, ValueError):
+        return False
+    return True
 
 
 def resolve_ticker_slug(coin: str, db: Session | None) -> tuple[str, str]:
@@ -130,6 +149,16 @@ def build_chart_pack(
     ohlcv, source = _fetch_ohlcv_with_source(ticker, slug, tf, eff_limit)
     if ohlcv:
         ohlcv = align_ohlcv_bar_times(ohlcv, tf)
+        aligned_quote = False
+        try:
+            cg_row = fetch_coin_markets_row_by_id(slug)
+            if cg_row and cg_row.get("current_price") is not None:
+                px = float(cg_row["current_price"])
+                aligned_quote = _align_last_ohlc_to_spot(ohlcv, px)
+        except Exception:
+            aligned_quote = False
+    else:
+        aligned_quote = False
     if not ohlcv:
         empty = {
             "ohlc": [],
@@ -145,7 +174,13 @@ def build_chart_pack(
                 "volume_trend": None,
                 "momentum": None,
             },
-            "meta": {"slug": slug, "timeframe": tf, "ticker": ticker, "source": source},
+            "meta": {
+                "slug": slug,
+                "timeframe": tf,
+                "ticker": ticker,
+                "source": source,
+                "aligned_to_quote": False,
+            },
         }
         return empty
 
@@ -192,7 +227,13 @@ def build_chart_pack(
         "ohlc": ohlcv,
         "volume": [{"time": int(b["time"]), "value": float(b.get("volume") or 0)} for b in ohlcv],
         "indicators": ind_block,
-        "meta": {"slug": slug, "timeframe": tf, "ticker": ticker, "source": source},
+        "meta": {
+            "slug": slug,
+            "timeframe": tf,
+            "ticker": ticker,
+            "source": source,
+            "aligned_to_quote": aligned_quote,
+        },
     }
     if write_redis:
         chart_cache_set(PACK_REDIS_PREFIX + f"{slug}:{tf}", payload, PACK_REDIS_TTL)

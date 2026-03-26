@@ -53,6 +53,19 @@ class CoinMarketExtras(BaseModel):
     platforms: List[PlatformContract] = Field(default_factory=list)
 
 
+class CoinQuote(BaseModel):
+    """Canonical spot row for coin detail — aligns hero, tables, and chart overlay."""
+
+    price_usd: float
+    market_cap_usd: Optional[float] = None
+    volume_24h_usd: Optional[float] = None
+    change_24h_pct: Optional[float] = None
+    change_7d_pct: Optional[float] = None
+    as_of: datetime
+    source: str = "block70_api"
+    method: str = "coin_row_plus_latest_market_point"
+
+
 class CoinInfo(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -85,6 +98,7 @@ class CoinDetailResponse(BaseModel):
     narratives: List[NarrativeRead]
     news: List[NewsArticleRead]
     market_extras: Optional[CoinMarketExtras] = None
+    quote: Optional[CoinQuote] = None
 
 
 class CoinListItem(BaseModel):

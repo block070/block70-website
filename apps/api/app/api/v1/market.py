@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import os
 import time
+from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -14,6 +16,7 @@ from app.services.connectors.coingecko_connector import (
     fetch_all_coins,
     fetch_coins_by_category,
     fetch_coins_categories,
+    fetch_global_market,
     fetch_trending_coins,
 )
 
@@ -21,6 +24,62 @@ from app.services.connectors.coingecko_connector import (
 router = APIRouter(prefix="/api/v1/market", tags=["market"])
 
 _CATEGORIES_CACHE_TTL = 300  # 5 minutes
+
+
+def _coins_cache_ttl() -> int:
+    try:
+        return max(10, min(60, int(os.getenv("MARKET_COINS_CACHE_TTL", "25"))))
+    except ValueError:
+        return 25
+
+
+@router.get("/summary")
+def get_market_summary(
+    db: Session = Depends(get_db),
+    top: int = Query(
+        30,
+        ge=0,
+        le=100,
+        description="Top N coins (market cap desc); 0 = global only",
+    ),
+) -> Dict[str, Any]:
+    """
+    Single call for homepage: global totals from CoinGecko /global + optional top slice
+    (same shape as GET /market/coins). Do not sum top-N for total cap — use global.*
+    """
+    cache_key = {"top": top}
+    cached = market_cache_get("summary", 120, **cache_key)
+    if cached is not None:
+        return cached
+
+    g: Dict[str, Any] = {}
+    try:
+        g = fetch_global_market()
+    except Exception:
+        g = {}
+
+    top_rows: List[Dict[str, Any]] = []
+    if top > 0:
+        try:
+            items = fetch_all_coins(vs_currency="usd", per_page=top, page=1)
+            top_rows = [_serialize_market_item(item, light=False) for item in items]
+        except Exception:
+            top_rows = _load_market_fallback_from_db(db, limit=top, page=1, light=False)
+
+    payload: Dict[str, Any] = {
+        "schema_version": 1,
+        "as_of": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+        "source": "coingecko",
+        "global": {
+            "total_market_cap_usd": g.get("total_market_cap_usd"),
+            "total_volume_usd": g.get("total_volume_usd"),
+            "btc_dominance_pct": g.get("btc_dominance_pct"),
+            "eth_dominance_pct": g.get("eth_dominance_pct"),
+        },
+        "top": top_rows,
+    }
+    market_cache_set("summary", 120, payload, **cache_key)
+    return payload
 
 # Fallback for common CoinGecko slugs when not in DB or when symbol is slug-like
 SLUG_TO_SYMBOL: Dict[str, str] = {
@@ -147,7 +206,8 @@ def get_market_coins(
     - price_change_percentage=24h,7d
     """
     cache_key_params = {"limit": limit, "page": page, "light": light}
-    cached = market_cache_get("coins", 30, **cache_key_params)
+    _ttl = _coins_cache_ttl()
+    cached = market_cache_get("coins", _ttl, **cache_key_params)
     if cached is not None:
         return cached
 
@@ -155,14 +215,14 @@ def get_market_coins(
     if page > _COINGECKO_MAX_PAGE:
         fallback_rows = _load_market_fallback_from_db(db, limit=limit, page=page, light=light)
         if fallback_rows:
-            market_cache_set("coins", 30, fallback_rows, **cache_key_params)
+            market_cache_set("coins", _ttl, fallback_rows, **cache_key_params)
             return fallback_rows
 
     try:
         items = fetch_all_coins(vs_currency="usd", per_page=limit, page=page)
         if items:  # Only cache/return if we got data
             result = [_serialize_market_item(item, light=light) for item in items]
-            market_cache_set("coins", 30, result, **cache_key_params)
+            market_cache_set("coins", _ttl, result, **cache_key_params)
             return result
     except Exception:
         pass
@@ -170,7 +230,7 @@ def get_market_coins(
     # Fallback to DB when CoinGecko fails or returns empty
     fallback_rows = _load_market_fallback_from_db(db, limit=limit, page=page, light=light)
     if fallback_rows:
-        market_cache_set("coins", 30, fallback_rows, **cache_key_params)
+        market_cache_set("coins", _ttl, fallback_rows, **cache_key_params)
         return fallback_rows
     raise HTTPException(
         status_code=502,

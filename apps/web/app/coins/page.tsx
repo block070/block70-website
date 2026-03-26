@@ -2,7 +2,7 @@ import Link from "next/link";
 import { CoinsMarketScanner } from "@/components/market/coins-market-scanner";
 import { CoinsPagination } from "@/components/market/coins-pagination";
 import { MarketStats } from "@/components/market/market-stats";
-import { getMarketCoins, type MarketCoin } from "@/lib/api";
+import { getMarketCoins, getMarketSummary, type MarketCoin } from "@/lib/api";
 import { COINS } from "@/lib/crypto-mock";
 import { getCoinsList, TOTAL_COINS_PAGINATED } from "@/lib/coins";
 import { withTimeout } from "@/lib/with-timeout";
@@ -81,6 +81,13 @@ export default async function CoinsPage({ searchParams }: PageProps) {
   );
 
   const FETCH_TIMEOUT_MS = 10_000;
+  let marketSummary: Awaited<ReturnType<typeof getMarketSummary>> | null = null;
+  try {
+    marketSummary = await withTimeout(getMarketSummary(0), FETCH_TIMEOUT_MS);
+  } catch {
+    marketSummary = null;
+  }
+
   let coins: Coin[] = COINS;
   let isFallback = false;
   try {
@@ -128,7 +135,7 @@ export default async function CoinsPage({ searchParams }: PageProps) {
           .
         </div>
       )}
-      <MarketStats />
+      <MarketStats summary={marketSummary} />
       <section className="space-y-3">
         <CoinsMarketScanner initialCoins={coins} />
         <CoinsPagination
