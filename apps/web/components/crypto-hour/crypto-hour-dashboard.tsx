@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   Line,
   LineChart,
@@ -117,6 +117,41 @@ function matchesKeyword(a: PublishedArticleDTO, term: string | null): boolean {
   if (!term) return true;
   const t = `${a.title}\n${a.body_markdown}`.toLowerCase();
   return t.includes(term.toLowerCase());
+}
+
+/** Recharts ResponsiveContainer reads `window`; must not run during SSR or Node can crash → connection reset. */
+function SentimentTrendChart({ chartData }: { chartData: { t: string; s: number }[] }) {
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+  if (!mounted) {
+    return <div className="h-28 w-full rounded-lg bg-slate-800/40" aria-hidden />;
+  }
+  return (
+    <ResponsiveContainer width="100%" height="100%">
+      <LineChart data={chartData} margin={{ top: 4, right: 8, left: -20, bottom: 0 }}>
+        <XAxis dataKey="t" tick={{ fill: "#64748b", fontSize: 10 }} axisLine={false} tickLine={false} />
+        <YAxis domain={[-100, 100]} tick={{ fill: "#64748b", fontSize: 10 }} width={32} />
+        <ReferenceLine y={0} stroke="#334155" strokeDasharray="3 3" />
+        <Tooltip
+          contentStyle={{
+            background: "#0f172a",
+            border: "1px solid #334155",
+            borderRadius: 8,
+            fontSize: 11,
+          }}
+          formatter={(v) => [`${Number(v).toFixed(0)}`, "Sentiment"]}
+        />
+        <Line
+          type="monotone"
+          dataKey="s"
+          stroke="#34d399"
+          strokeWidth={2}
+          dot={{ r: 3, fill: "#10b981" }}
+          activeDot={{ r: 5 }}
+        />
+      </LineChart>
+    </ResponsiveContainer>
+  );
 }
 
 export function CryptoHourDashboard({
@@ -354,30 +389,7 @@ export function CryptoHourDashboard({
               Lexicon-based index · compares last 6 hours below
             </p>
             <div className="mt-4 h-28 w-full">
-              <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={chartData} margin={{ top: 4, right: 8, left: -20, bottom: 0 }}>
-                  <XAxis dataKey="t" tick={{ fill: "#64748b", fontSize: 10 }} axisLine={false} tickLine={false} />
-                  <YAxis domain={[-100, 100]} tick={{ fill: "#64748b", fontSize: 10 }} width={32} />
-                  <ReferenceLine y={0} stroke="#334155" strokeDasharray="3 3" />
-                  <Tooltip
-                    contentStyle={{
-                      background: "#0f172a",
-                      border: "1px solid #334155",
-                      borderRadius: 8,
-                      fontSize: 11,
-                    }}
-                    formatter={(v) => [`${Number(v).toFixed(0)}`, "Sentiment"]}
-                  />
-                  <Line
-                    type="monotone"
-                    dataKey="s"
-                    stroke="#34d399"
-                    strokeWidth={2}
-                    dot={{ r: 3, fill: "#10b981" }}
-                    activeDot={{ r: 5 }}
-                  />
-                </LineChart>
-              </ResponsiveContainer>
+              <SentimentTrendChart chartData={chartData} />
             </div>
           </div>
 

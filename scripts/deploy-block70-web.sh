@@ -23,6 +23,9 @@ docker compose build web --no-cache
 echo "==> Recreate container"
 docker compose up -d web --force-recreate
 
+echo "==> Wait for Next.js (cold start)"
+sleep 20
+
 PORT="${WEB_PORT:-3000}"
 if grep -q '^WEB_PORT=' .env 2>/dev/null; then
   PORT="$(grep '^WEB_PORT=' .env | cut -d= -f2 | tr -d '\r')"
