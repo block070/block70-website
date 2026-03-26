@@ -1,5 +1,10 @@
 import type { Pool } from "pg";
 
+import {
+  CRYPTO_ON_THE_HOUR_BASE as COH_BASE,
+  cryptoHourArticlePath as articlePath,
+} from "@/lib/crypto-hour-url";
+
 export type PublishedArticleRow = {
   topic_id: string;
   topic_slug: string;
@@ -16,12 +21,12 @@ export function isUuid(s: string): boolean {
   return UUID_RE.test(s);
 }
 
-/** Public base path for published pipeline articles. */
-export const CRYPTO_ON_THE_HOUR_BASE = "/crypto-on-the-hour";
+/** Re-export for legacy imports — prefer `@/lib/crypto-hour-url`. */
+export const CRYPTO_ON_THE_HOUR_BASE = COH_BASE;
 
 /** URL for one article (`/crypto-on-the-hour/:slug`). */
 export function cryptoHourArticlePath(topicSlug: string): string {
-  return `${CRYPTO_ON_THE_HOUR_BASE}/${encodeURIComponent(topicSlug)}`;
+  return articlePath(topicSlug);
 }
 
 function coerceMeta(v: unknown): Record<string, unknown> {
@@ -54,6 +59,24 @@ export async function listPublishedArticles(
      ORDER BY updated_at DESC
      LIMIT $1`,
     [limit]
+  );
+  return r.rows.map(normalizeRow);
+}
+
+/** Articles whose `updated_at` falls in [start, end) (typically UTC from Chicago hour bounds). */
+export async function listPublishedArticlesInRange(
+  pool: Pool,
+  start: Date,
+  end: Date,
+  limit = 200,
+): Promise<PublishedArticleRow[]> {
+  const r = await pool.query<PublishedArticleRow>(
+    `SELECT topic_id, topic_slug, title, body_markdown, meta, updated_at
+     FROM web_published_articles
+     WHERE updated_at >= $1 AND updated_at < $2
+     ORDER BY updated_at DESC
+     LIMIT $3`,
+    [start.toISOString(), end.toISOString(), limit]
   );
   return r.rows.map(normalizeRow);
 }

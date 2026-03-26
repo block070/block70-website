@@ -1,0 +1,91 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://block70.com/schemas/hour-intelligence-v1.json",
+  "title": "HourIntelligencePayload",
+  "type": "object",
+  "required": [
+    "version",
+    "zone",
+    "hourStartIso",
+    "hourEndIso",
+    "keywords",
+    "entities",
+    "hourSentiment",
+    "categories",
+    "marketImpact",
+    "summaries",
+    "articleCount",
+    "articleIds"
+  ],
+  "properties": {
+    "version": { "const": 1 },
+    "zone": { "const": "America/Chicago" },
+    "hourStartIso": { "type": "string", "format": "date-time" },
+    "hourEndIso": { "type": "string", "format": "date-time" },
+    "keywords": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["term", "count", "sentiment", "categoryHint"],
+        "properties": {
+          "term": { "type": "string" },
+          "count": { "type": "number" },
+          "sentiment": { "type": "number" },
+          "categoryHint": { "type": "string" }
+        }
+      }
+    },
+    "entities": {
+      "type": "object",
+      "required": ["coins", "organizations", "people"],
+      "properties": {
+        "coins": { "type": "array", "items": { "type": "string" } },
+        "organizations": { "type": "array", "items": { "type": "string" } },
+        "people": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "hourSentiment": { "type": "number", "minimum": -100, "maximum": 100 },
+    "categories": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "weight"],
+        "properties": {
+          "id": { "type": "string" },
+          "weight": { "type": "number" }
+        }
+      }
+    },
+    "marketImpact": {
+      "type": "object",
+      "required": ["score", "label", "components"],
+      "properties": {
+        "score": { "type": "integer", "minimum": 0, "maximum": 100 },
+        "label": { "enum": ["low", "medium", "high"] },
+        "components": { "type": "object" }
+      }
+    },
+    "whatChanged": {
+      "type": ["object", "null"],
+      "properties": {
+        "newKeywords": { "type": "array", "items": { "type": "string" } },
+        "droppedKeywords": { "type": "array", "items": { "type": "string" } },
+        "sentimentDelta": { "type": "number" },
+        "newEntities": { "type": "array", "items": { "type": "string" } },
+        "categoryShifts": { "type": "array" }
+      }
+    },
+    "summaries": {
+      "type": "object",
+      "required": ["quick", "deep", "trader", "whale"],
+      "properties": {
+        "quick": { "type": "array", "items": { "type": "string" } },
+        "deep": { "type": "string" },
+        "trader": { "type": "string" },
+        "whale": { "type": "string" }
+      }
+    },
+    "articleCount": { "type": "integer", "minimum": 0 },
+    "articleIds": { "type": "array", "items": { "type": "string" } }
+  }
+}
