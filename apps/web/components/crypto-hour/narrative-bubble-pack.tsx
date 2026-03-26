@@ -8,15 +8,34 @@ import type { IntelKeyword } from "@/lib/crypto-hour-intelligence-types";
 import type { PublishedArticleDTO } from "@/lib/crypto-hour-dto";
 
 const VIEW_W = 1000;
-const VIEW_H = 520;
+const VIEW_H = 560;
+/** Aligned with `computeHourIntelligence` / dashboard sentiment bands. */
+const SENT_BULL = 8;
+const SENT_BEAR = -8;
 
 export type NarrativeMapMode = "words" | "coins" | "projects";
 
 function sentimentFill(s: number, active: boolean): string {
   const op = active ? 1 : 0.82;
-  if (s > 8) return `rgba(34,197,94,${op})`;
-  if (s < -8) return `rgba(239,68,68,${op})`;
+  if (s > SENT_BULL) return `rgba(34,197,94,${op})`;
+  if (s < SENT_BEAR) return `rgba(239,68,68,${op})`;
   return `rgba(148,163,184,${op})`;
+}
+
+function fitBubbleLabel(term: string, r: number): { text: string; fontSize: number } | null {
+  if (r < 12) return null;
+  const maxW = 2 * r * 0.84;
+  const hi = Math.min(15, r / 2.4);
+  for (let fs = hi; fs >= 7; fs -= 0.75) {
+    const charW = fs * 0.52;
+    const maxChars = Math.max(3, Math.floor(maxW / charW));
+    const truncated =
+      term.length <= maxChars ? term : `${term.slice(0, Math.max(2, maxChars - 1))}…`;
+    if (truncated.length * charW <= maxW * 1.03) {
+      return { text: truncated, fontSize: fs };
+    }
+  }
+  return term.length > 4 ? { text: `${term.slice(0, 3)}…`, fontSize: 7 } : { text: term, fontSize: 7 };
 }
 
 type PackLeaf = {
@@ -69,6 +88,7 @@ export function NarrativeBubblePack({
   mode,
   activeTerm,
   onPick,
+  viewGranularity,
 }: {
   keywords: IntelKeyword[];
   entities: HourEntities;
@@ -76,6 +96,7 @@ export function NarrativeBubblePack({
   mode: NarrativeMapMode;
   activeTerm: string | null;
   onPick: (term: string | null) => void;
+  viewGranularity: "day" | "hour";
 }) {
   const [hover, setHover] = useState<string | null>(null);
 
@@ -86,7 +107,7 @@ export function NarrativeBubblePack({
   }, [mode, keywords, entities.coins, entities.organizations, articles]);
 
   const leaves = useMemo(() => {
-    const top = sourceKeywords.slice(0, 22);
+    const top = sourceKeywords.slice(0, 20);
     if (!top.length) return [] as PackLeaf[];
     const rootData = {
       name: "root",
@@ -103,9 +124,9 @@ export function NarrativeBubblePack({
       .sort((a, b) => (b.value ?? 0) - (a.value ?? 0));
     const layout = d3pack<{ name: string; value?: number }>()
       .size([VIEW_W - 8, VIEW_H - 8])
-      .padding(3);
+      .padding(4);
     const packed = layout(root as never);
-    const raw = packed.leaves().map((leaf) => {
+    return packed.leaves().map((leaf) => {
       const d = leaf.data as unknown as { term: string; count: number; sentiment: number };
       return {
         term: d.term,
@@ -116,12 +137,6 @@ export function NarrativeBubblePack({
         y: leaf.y + 4,
       };
     });
-    const byR = [...raw].sort((a, b) => b.r - a.r);
-    const prominent = new Set(byR.slice(0, 5).map((l) => l.term));
-    return raw.map((l) => ({
-      ...l,
-      r: prominent.has(l.term) ? Math.max(l.r, 36) : l.r,
-    }));
   }, [sourceKeywords]);
 
   const modeLabel =
@@ -152,10 +167,7 @@ export function NarrativeBubblePack({
       >
         {leaves.map((l) => {
           const isOn = activeTerm === l.term || hover === l.term;
-          const big =
-            l.r >= 36 ||
-            sourceKeywords.findIndex((k) => k.term === l.term) < 5;
-          const fontPx = big ? Math.max(12, Math.min(20, l.r / 2.4)) : Math.min(11, l.r / 2.2);
+          const label = fitBubbleLabel(l.term, l.r);
           return (
             <g
               key={`${mode}-${l.term}`}
@@ -172,20 +184,44 @@ export function NarrativeBubblePack({
                 strokeWidth={isOn ? 2.5 : 1}
                 className="transition-all duration-300"
               />
-              {l.r > 12 ? (
+              {label ? (
                 <text
                   textAnchor="middle"
                   dy="0.35em"
-                  className="pointer-events-none select-none fill-slate-950 font-semibold"
-                  style={{ fontSize: fontPx }}
+                  fill="rgba(255,255,255,0.96)"
+                  className="pointer-events-none select-none font-semibold"
+                  style={{
+                    fontSize: label.fontSize,
+                    paintOrder: "stroke fill",
+                    stroke: "rgba(0,0,0,0.4)",
+                    strokeWidth: 2,
+                    strokeLinejoin: "round",
+                  }}
                 >
-                  {l.term.length > 14 ? `${l.term.slice(0, 12)}…` : l.term}
+                  {label.text}
                 </text>
               ) : null}
             </g>
           );
         })}
       </svg>
+      {mode === "words" ? (
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 border-t border-slate-800/60 px-3 py-2 text-[10px] text-slate-400">
+          <span className="font-medium uppercase tracking-wide text-slate-500">Key</span>
+          <span className="inline-flex items-center gap-1.5">
+            <span className="h-2.5 w-2.5 shrink-0 rounded-full bg-emerald-500/95" aria-hidden />
+            Green · bullish context (score over +{SENT_BULL})
+          </span>
+          <span className="inline-flex items-center gap-1.5">
+            <span className="h-2.5 w-2.5 shrink-0 rounded-full bg-red-500/95" aria-hidden />
+            Red · bearish context (under {SENT_BEAR})
+          </span>
+          <span className="inline-flex items-center gap-1.5">
+            <span className="h-2.5 w-2.5 shrink-0 rounded-full bg-slate-400/95" aria-hidden />
+            Grey · neutral
+          </span>
+        </div>
+      ) : null}
       {(hover || activeTerm) && (
         <div className="pointer-events-none absolute bottom-3 left-3 right-3 rounded-lg border border-slate-600/50 bg-slate-950/95 px-3 py-2 text-[11px] text-slate-200 shadow-xl backdrop-blur-md transition-opacity duration-200">
           {(() => {

@@ -1,6 +1,6 @@
 import { addHours } from "date-fns";
 
-import { chicagoHourRangeUtc } from "@/lib/server/crypto-hour-buckets";
+import { chicagoHourRangeUtc, previousChicagoCalendarDay } from "@/lib/server/crypto-hour-buckets";
 
 const YEAR_RE = /^(20[2-3]\d)$/;
 const MONTH_RE = /^(0?[1-9]|1[0-2])$/;
@@ -69,6 +69,12 @@ export function pathForChicagoHour(
 
 export function pathForDay(year: number, month: number, day: number): string {
   return `/crypto-on-the-hour/${year}/${month}/${day}`;
+}
+
+/** Previous calendar day in America/Chicago (for day-over-day navigation). */
+export function pathPreviousCalendarDay(year: number, month: number, day: number): string {
+  const p = previousChicagoCalendarDay(year, month, day);
+  return pathForDay(p.year, p.month, p.day);
 }
 
 export function pathForMonth(year: number, month: number): string {

@@ -1,6 +1,6 @@
 import { CryptoHourDashboard } from "@/components/crypto-hour/crypto-hour-dashboard";
 import { nowChicagoParts } from "@/lib/server/crypto-hour-buckets";
-import { loadHourDashboard } from "@/lib/server/crypto-hour-dashboard-data";
+import { loadDayDashboard } from "@/lib/server/crypto-hour-dashboard-data";
 import { getCryptoHourPool } from "@/lib/server/crypto-hour-pool";
 
 export const dynamic = "force-dynamic";
@@ -21,8 +21,8 @@ export default async function CryptoHourIndexPage() {
     );
   }
 
-  const { year, month, day, hour } = nowChicagoParts();
-  const bundle = await loadHourDashboard(pool, year, month, day, hour);
+  const { year, month, day } = nowChicagoParts();
+  const bundle = await loadDayDashboard(pool, year, month, day);
 
   return (
     <CryptoHourDashboard
@@ -30,7 +30,8 @@ export default async function CryptoHourIndexPage() {
       articles={bundle.articles}
       nav={bundle.nav}
       sentimentTrend={bundle.sentimentTrend}
-      autoRefreshNote="Open this page after the top of the hour for the newest batch"
+      viewGranularity={bundle.viewGranularity}
+      autoRefreshNote="Narrative map shows the full day (CT); pick an hour below to zoom in"
     />
   );
 }

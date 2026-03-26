@@ -22,6 +22,7 @@ import {
   pathForDay,
   pathForMonth,
   pathForYear,
+  pathPreviousCalendarDay,
   pathYesterdayFromHourStart,
   previousChicagoHour,
 } from "@/lib/crypto-hour-routes";
@@ -159,12 +160,14 @@ export function CryptoHourDashboard({
   articles,
   nav,
   sentimentTrend,
+  viewGranularity,
   autoRefreshNote,
 }: {
   intel: HourIntelligencePayload;
   articles: PublishedArticleDTO[];
   nav: DashboardNav;
   sentimentTrend: SentimentTrendPoint[];
+  viewGranularity: "day" | "hour";
   autoRefreshNote?: string;
 }) {
   const [kwFilter, setKwFilter] = useState<string | null>(null);
@@ -202,6 +205,8 @@ export function CryptoHourDashboard({
     0,
   );
   const yesterdayPath = pathYesterdayFromHourStart(intel.hourStartIso);
+  const dayPath = pathForDay(nav.year, nav.month, nav.day);
+  const previousDayPath = pathPreviousCalendarDay(nav.year, nav.month, nav.day);
 
   const tone = sentimentLabel(intel.hourSentiment);
   const delta =
@@ -258,7 +263,8 @@ export function CryptoHourDashboard({
                 })}
                 {autoRefreshNote ? ` · ${autoRefreshNote}` : ""}
                 {" · "}
-                {intel.articleCount} articles in window
+                {intel.articleCount} articles
+                {viewGranularity === "day" ? " today (CT)" : " in this hour"}
               </p>
             </div>
             <div className="flex flex-wrap items-center gap-2">
@@ -269,7 +275,7 @@ export function CryptoHourDashboard({
                 Today
               </Link>
               <Link
-                href={yesterdayPath}
+                href={viewGranularity === "day" ? previousDayPath : yesterdayPath}
                 className="rounded-lg border border-slate-600 bg-slate-900/60 px-3 py-1.5 text-[11px] text-slate-300 transition hover:border-slate-500"
               >
                 Yesterday
@@ -293,8 +299,20 @@ export function CryptoHourDashboard({
           {/* Horizontal hour timeline */}
           <div className="scrollbar-thin overflow-x-auto pb-1">
             <div className="flex min-w-max gap-1">
+              <Link
+                href={dayPath}
+                className={`min-w-[3.25rem] rounded-md border px-2 py-1 text-center text-[10px] font-medium transition-all duration-200 ${
+                  viewGranularity === "day"
+                    ? "border-amber-500/70 bg-amber-500/15 text-amber-200 shadow-[0_0_12px_rgba(245,158,11,0.15)]"
+                    : "border-slate-700/80 bg-slate-900/40 text-slate-400 hover:border-slate-500 hover:text-slate-200"
+                }`}
+              >
+                Day
+              </Link>
               {slots.map((s) => {
-                const active = s.path === pathForChicagoHour(nav.year, nav.month, nav.day, nav.hour, 0);
+                const active =
+                  viewGranularity === "hour" &&
+                  s.path === pathForChicagoHour(nav.year, nav.month, nav.day, nav.hour, 0);
                 return (
                   <Link
                     key={s.path}
@@ -336,6 +354,7 @@ export function CryptoHourDashboard({
             mode={mapMode}
             activeTerm={kwFilter}
             onPick={setKwFilter}
+            viewGranularity={viewGranularity}
           />
         </section>
 
@@ -343,7 +362,7 @@ export function CryptoHourDashboard({
         <section className="grid gap-4 md:grid-cols-2 animate-in fade-in duration-500">
           <div className="rounded-xl border border-slate-700/50 bg-gradient-to-br from-slate-950/90 to-slate-900/30 p-5 shadow-xl">
             <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-500">
-              Hour sentiment
+              {viewGranularity === "day" ? "Day sentiment" : "Hour sentiment"}
             </p>
             <div className="mt-3 flex flex-wrap items-end gap-3">
               <span
@@ -367,7 +386,8 @@ export function CryptoHourDashboard({
                 }`}
               >
                 {delta > 0 ? "▲" : delta < 0 ? "▼" : "—"}{" "}
-                {delta !== 0 ? `${delta > 0 ? "+" : ""}${delta.toFixed(1)}` : "0"} vs prior hour
+                {delta !== 0 ? `${delta > 0 ? "+" : ""}${delta.toFixed(1)}` : "0"}{" "}
+                {viewGranularity === "day" ? "vs prior day" : "vs prior hour"}
               </span>
             </div>
             <div className="mt-4 h-3 w-full overflow-hidden rounded-full bg-slate-800">
@@ -386,7 +406,10 @@ export function CryptoHourDashboard({
               </div>
             </div>
             <p className="mt-2 text-[10px] text-slate-500">
-              Lexicon-based index · compares last 6 hours below
+              Lexicon-based index ·{" "}
+              {viewGranularity === "day"
+                ? "six segments of this Chicago day (left→right)"
+                : "compares last 6 hours below"}
             </p>
             <div className="mt-4 h-28 w-full">
               <SentimentTrendChart chartData={chartData} />
@@ -413,7 +436,7 @@ export function CryptoHourDashboard({
             </div>
             <ul className="mt-4 space-y-2 text-[11px] text-slate-400">
               <li className="flex justify-between border-b border-slate-800/50 pb-1">
-                <span>Articles in hour</span>
+                <span>{viewGranularity === "day" ? "Articles today" : "Articles in hour"}</span>
                 <span className="tabular-nums text-slate-200">{intel.articleCount}</span>
               </li>
               <li className="flex justify-between border-b border-slate-800/50 pb-1">
@@ -446,7 +469,7 @@ export function CryptoHourDashboard({
         {intel.whatChanged ? (
           <section className="rounded-xl border border-amber-500/25 bg-amber-950/10 p-5 shadow-lg">
             <h2 className="text-xs font-bold uppercase tracking-widest text-amber-200/90">
-              What changed vs previous hour
+              What changed vs previous {viewGranularity === "day" ? "day" : "hour"}
             </h2>
             <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
               <div>
@@ -616,6 +639,10 @@ export function CryptoHourDashboard({
             {" · "}
             <Link href={prevHourPath} className="text-slate-500 hover:text-slate-400">
               Previous hour
+            </Link>
+            {" · "}
+            <Link href={previousDayPath} className="text-slate-500 hover:text-slate-400">
+              Previous day
             </Link>
           </p>
         </section>

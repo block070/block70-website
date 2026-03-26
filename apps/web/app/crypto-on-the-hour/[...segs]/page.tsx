@@ -7,7 +7,7 @@ import { CryptoHourDashboard } from "@/components/crypto-hour/crypto-hour-dashbo
 import { formatCryptoHourOnTheHour } from "@/lib/crypto-hour-dates";
 import { coinHrefFromSymbol } from "@/lib/coin-symbol-slugs";
 import { pathForChicagoHour, pathForDay, pathForMonth, parseCohSegments } from "@/lib/crypto-hour-routes";
-import { defaultHourForChicagoDay, loadHourDashboard } from "@/lib/server/crypto-hour-dashboard-data";
+import { loadDayDashboard, loadHourDashboard } from "@/lib/server/crypto-hour-dashboard-data";
 import { getCryptoHourPool } from "@/lib/server/crypto-hour-pool";
 import {
   cryptoHourArticlePath,
@@ -91,6 +91,13 @@ export async function generateMetadata({ params }: { params: Params }) {
     return {
       title: `Intel · ${parsed.year}-${parsed.month}-${parsed.day} ${parsed.hour}:${String(parsed.minute).padStart(2, "0")} CT · Block70`,
       description: "Hourly crypto intelligence dashboard.",
+    };
+  }
+
+  if (parsed.kind === "day") {
+    return {
+      title: `Intel · ${parsed.year}-${parsed.month}-${parsed.day} (day) CT · Block70`,
+      description: "Daily crypto narrative map and briefings (US Central).",
     };
   }
 
@@ -185,9 +192,25 @@ export default async function CryptoOnTheHourCatchAll({ params }: { params: Para
   }
 
   if (parsed.kind === "day") {
+    const pool = getCryptoHourPool();
+    if (!pool) {
+      return (
+        <div className="mx-auto max-w-3xl px-4 py-8 text-sm text-amber-200/90">
+          Set <code className="text-xs">CRYPTO_HOUR_DATABASE_URL</code> to load the intelligence hub.
+        </div>
+      );
+    }
     const { year, month, day } = parsed;
-    const h = defaultHourForChicagoDay(year, month, day);
-    redirect(pathForChicagoHour(year, month, day, h, 0));
+    const bundle = await loadDayDashboard(pool, year, month, day);
+    return (
+      <CryptoHourDashboard
+        intel={bundle.intel}
+        articles={bundle.articles}
+        nav={bundle.nav}
+        sentimentTrend={bundle.sentimentTrend}
+        viewGranularity={bundle.viewGranularity}
+      />
+    );
   }
 
   if (parsed.kind === "hour") {
@@ -207,6 +230,7 @@ export default async function CryptoOnTheHourCatchAll({ params }: { params: Para
         articles={bundle.articles}
         nav={bundle.nav}
         sentimentTrend={bundle.sentimentTrend}
+        viewGranularity={bundle.viewGranularity}
       />
     );
   }

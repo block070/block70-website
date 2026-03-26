@@ -276,18 +276,24 @@ function buildSummaries(
   hourSent: number,
   cats: { id: TopicCategoryId; weight: number }[],
   entities: HourEntities,
+  timeScope: "hour" | "day",
 ): HourSummaries {
   const titles = articles.map((a) => a.title).filter(Boolean);
   const topk = keywords.slice(0, 5).map((k) => k.term);
   const cat = cats[0]?.id ?? "general";
+  const windowPhrase =
+    timeScope === "day" ? "today (US Central)" : "this hour’s window";
+  const leanPhrase = timeScope === "day" ? "Today leans" : "This hour centers";
   const quick = [
     topk.length
       ? `Trending terms: ${topk.join(", ")}.`
-      : "Limited keyword signal this hour—watch the next batch.",
-    `${articles.length} briefing${articles.length === 1 ? "" : "s"} in this hour’s window.`,
+      : timeScope === "day"
+        ? "Limited keyword signal today—try drilling into a specific hour."
+        : "Limited keyword signal this hour—watch the next batch.",
+    `${articles.length} briefing${articles.length === 1 ? "" : "s"} in ${windowPhrase}.`,
     `Tone skew: ${hourSent > 8 ? "constructive" : hourSent < -8 ? "defensive" : "balanced"} (${hourSent.toFixed(0)} sentiment).`,
   ];
-  const deep = `This hour centers on ${cat.replace(/_/g, " ")}-leaning headlines. ${titles.slice(0, 3).join(" · ") || "Stories are still forming."} Key tickers and brands in focus include ${entities.coins.slice(0, 6).join(", ") || "no major symbols extracted yet"} and ${entities.organizations.slice(0, 4).join(", ") || "no firm names extracted yet"}. Read individual briefs for citations and nuance.`;
+  const deep = `${leanPhrase} on ${cat.replace(/_/g, " ")}-leaning headlines. ${titles.slice(0, 3).join(" · ") || "Stories are still forming."} Key tickers and brands in focus include ${entities.coins.slice(0, 6).join(", ") || "no major symbols extracted yet"} and ${entities.organizations.slice(0, 4).join(", ") || "no firm names extracted yet"}. Read individual briefs for citations and nuance.`;
   const trader = `Flow read: ${hourSent > 5 ? "Risk-on headlines dominate—watch funding and perps for confirmation." : hourSent < -5 ? "Headline risk elevated—reduce size into illiquid names until tape stabilizes." : "Mixed tape narrative—trade levels, not stories."} Watch ${entities.coins.slice(0, 3).join(", ") || "majors"} for beta.`;
   const whale = `On-chain correlation is not wired yet—treat whale activity as a future signal. Showing narrative clusters only: ${topk.slice(0, 4).join(", ") || "n/a"}.`;
   return { quick, deep, trader, whale };
@@ -333,6 +339,7 @@ export function computeHourIntelligence(
   articles: PublishedArticleRow[],
   prevHourArticles: PublishedArticleRow[] | null,
   prevIntel: { avgSentiment: number; keywords: IntelKeyword[]; entities: HourEntities } | null,
+  timeScope: "hour" | "day" = "hour",
 ): HourIntelligencePayload {
   const fullText = articles.map((a) => `${a.title}\n${a.body_markdown}`).join("\n");
   const tokens = tokenize(fullText);
@@ -383,7 +390,7 @@ export function computeHourIntelligence(
     prevIntel?.entities ?? null,
   );
 
-  const summaries = buildSummaries(articles, keywords, hourSentiment, categories, entities);
+  const summaries = buildSummaries(articles, keywords, hourSentiment, categories, entities, timeScope);
 
   return {
     version: 1,

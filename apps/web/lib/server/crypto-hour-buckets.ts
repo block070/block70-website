@@ -29,6 +29,27 @@ export function chicagoDayEndUtc(year: number, month: number, day: number): Date
   return fromZonedTime(wall, TZ);
 }
 
+/** Previous calendar date in America/Chicago (e.g. for day-over-day intelligence). */
+export function previousChicagoCalendarDay(
+  year: number,
+  month: number,
+  day: number,
+): { year: number; month: number; day: number } {
+  const { start } = chicagoHourRangeUtc(year, month, day, 0);
+  const prev = addHours(start, -1);
+  const p = new Intl.DateTimeFormat("en-US", {
+    timeZone: TZ,
+    year: "numeric",
+    month: "numeric",
+    day: "numeric",
+    hour: "numeric",
+    hour12: false,
+  }).formatToParts(prev);
+  const pick = (t: Intl.DateTimeFormatPartTypes) =>
+    parseInt(p.find((x) => x.type === t)?.value ?? "0", 10);
+  return { year: pick("year"), month: pick("month"), day: pick("day") };
+}
+
 /** Current instant → Chicago wall parts. */
 export function nowChicagoParts(d = new Date()): {
   year: number;
