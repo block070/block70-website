@@ -236,6 +236,9 @@ function buildWhyReasons(result: AISearchResult): { sources: string[]; indicator
   if (result.related_radar?.length) sources.push("Radar: volume & unusual activity");
   if (result.related_opportunities?.length) sources.push("Opportunity scanner");
   if (result.related_insights?.length) sources.push("AI insights index");
+  if (result.related_narratives?.length) sources.push("Narrative momentum index");
+  if (result.related_capital_flows?.length) sources.push("Capital flow ledger");
+  if (result.related_wallet_activity?.length) sources.push("Smart wallet leaderboard clips");
   sources.push("Coin market data & Block70 composite scores");
 
   const indicators = [
@@ -363,4 +366,31 @@ export const FOLLOW_UP_SUGGESTIONS = [
   "Which one is safest?",
   "Which has the highest ROI?",
   "What are the risks?",
+  "Drill into risk factors",
+  "Show me the top signal tickers",
+  "How does this compare to last week?",
 ] as const;
+
+export type SourceSummary = {
+  newsHref: string;
+  marketHref: string;
+  walletsHref: string;
+  hasRadar: boolean;
+  narrativeCount: number;
+  signalCount: number;
+  flowCount: number;
+  walletClipCount: number;
+};
+
+export function buildSourceSummary(result: AISearchResult): SourceSummary {
+  return {
+    newsHref: "/news",
+    marketHref: "/market",
+    walletsHref: "/wallets/top",
+    hasRadar: (result.related_radar?.length ?? 0) > 0,
+    narrativeCount: result.related_narratives?.length ?? 0,
+    signalCount: result.related_signals?.length ?? 0,
+    flowCount: result.related_capital_flows?.length ?? 0,
+    walletClipCount: result.related_wallet_activity?.length ?? 0,
+  };
+}

@@ -109,6 +109,9 @@ def ai_search(
             "related_opportunities": [],
             "related_insights": [],
             "related_radar": [],
+            "related_narratives": [],
+            "related_capital_flows": [],
+            "related_wallet_activity": [],
             "query_id": None,
         }
 
@@ -125,6 +128,9 @@ def ai_search(
             "related_opportunities": meta.get("related_opportunities", []),
             "related_insights": meta.get("related_insights", []),
             "related_radar": meta.get("related_radar", []),
+            "related_narratives": meta.get("related_narratives", []),
+            "related_capital_flows": meta.get("related_capital_flows", []),
+            "related_wallet_activity": meta.get("related_wallet_activity", []),
             "query_id": None,
             "cached": True,
         }
@@ -149,6 +155,9 @@ def ai_search(
         "related_opportunities": data.opportunities[:10],
         "related_insights": [{"id": i["id"], "title": i["title"], "summary": i.get("summary")} for i in data.ai_insights[:10]],
         "related_radar": data.radar_events[:10],
+        "related_narratives": data.narratives[:8],
+        "related_capital_flows": data.capital_flows[:8],
+        "related_wallet_activity": data.wallet_activity[:6],
     }
 
     record_query(db, last_user_q or query_text)
@@ -178,6 +187,9 @@ def ai_search(
         "related_opportunities": data.opportunities[:10],
         "related_insights": response_metadata["related_insights"],
         "related_radar": data.radar_events[:10],
+        "related_narratives": response_metadata["related_narratives"],
+        "related_capital_flows": response_metadata["related_capital_flows"],
+        "related_wallet_activity": response_metadata["related_wallet_activity"],
         "query_id": query_id,
     }
 

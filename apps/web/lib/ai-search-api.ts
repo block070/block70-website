@@ -10,6 +10,26 @@ export type AISearchChatTurn = {
   content: string;
 };
 
+export type AISearchNarrative = {
+  name: string;
+  description?: string | null;
+  trend_score: number;
+};
+
+export type AISearchCapitalFlow = {
+  source_asset: string;
+  destination_asset: string;
+  amount: number;
+  chain: string;
+  timestamp?: string | null;
+};
+
+export type AISearchWalletClip = {
+  wallet_address: string;
+  win_rate: number;
+  total_profit_usd?: number | null;
+};
+
 export type AISearchResult = {
   answer: string;
   confidence_score: number;
@@ -41,6 +61,9 @@ export type AISearchResult = {
     severity_score?: number;
     description?: string;
   }>;
+  related_narratives?: AISearchNarrative[];
+  related_capital_flows?: AISearchCapitalFlow[];
+  related_wallet_activity?: AISearchWalletClip[];
   query_id: number | null;
   cached?: boolean;
 };

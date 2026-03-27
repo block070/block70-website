@@ -1,12 +1,14 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useId, useRef, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { clsx } from "clsx";
-import type { AISearchMode, AISearchResult, AISearchChatTurn } from "@/lib/ai-search-api";
-import { postAISearch } from "@/lib/ai-search-api";
+import { Activity, BookOpen, Coins, Layers, LineChart, Newspaper, Wallet } from "lucide-react";
+import type { AISearchMode, AISearchResult, AISearchChatTurn, AISearchCapitalFlow, AISearchWalletClip } from "@/lib/ai-search-api";
+import { getAISearchPopular, postAISearch } from "@/lib/ai-search-api";
 import {
   bestActionBadgeClass,
+  buildSourceSummary,
   buildStructuredAnswer,
   enrichRelatedTokens,
   enrichSearchHitsToRows,
@@ -24,13 +26,40 @@ import { useExchangeAffiliateTemplates } from "@/contexts/exchange-affiliate-con
 import { getExchangeBuyUrls } from "@/lib/exchange-buy-urls";
 import { formatChangePct, formatCompactUsd } from "@/lib/format";
 
-const SUGGESTED_PROMPTS = [
+const CURATED_PROMPTS = [
+  "What is trending in crypto?",
+  "What coins are whales buying?",
+  "What narratives are growing?",
   "What crypto should I buy right now?",
   "Top trending coins today",
   "Best DePIN projects",
   "Is Bitcoin a good investment?",
   "Low cap coins with high potential",
 ] as const;
+
+function mergeSuggested(
+  curated: readonly string[],
+  popular: { query_normalized: string }[],
+): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const p of curated) {
+    const t = p.trim();
+    const k = t.toLowerCase();
+    if (!t || seen.has(k)) continue;
+    seen.add(k);
+    out.push(t);
+  }
+  for (const row of popular) {
+    const t = (row.query_normalized || "").trim();
+    const k = t.toLowerCase();
+    if (!t || seen.has(k)) continue;
+    seen.add(k);
+    out.push(t);
+    if (out.length >= 12) break;
+  }
+  return out.slice(0, 12);
+}
 
 const MODES: { id: AISearchMode; label: string }[] = [
   { id: "general", label: "General" },
@@ -65,7 +94,25 @@ export function AISearchChat() {
   const [mode, setMode] = useState<AISearchMode>("general");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [popularQueries, setPopularQueries] = useState<{ query_normalized: string; hit_count: number }[]>(
+    [],
+  );
   const bottomRef = useRef<HTMLDivElement>(null);
+
+  const suggestedMerged = useMemo(
+    () => mergeSuggested(CURATED_PROMPTS, popularQueries),
+    [popularQueries],
+  );
+
+  useEffect(() => {
+    let cancelled = false;
+    void getAISearchPopular(24).then((rows) => {
+      if (!cancelled) setPopularQueries(rows);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     try {
@@ -201,16 +248,19 @@ export function AISearchChat() {
 
   return (
     <div className="flex min-h-[calc(100vh-7rem)] flex-col">
-      <header className="mx-auto w-full max-w-3xl space-y-2 text-center">
+      <header className="mx-auto w-full max-w-5xl space-y-2 text-center">
+        <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[var(--b70-crypto-blue)]">
+          Intelligence
+        </p>
         <h1 className="text-2xl font-semibold tracking-tight text-[var(--b70-text)] md:text-3xl">
-          AI Crypto Assistant
+          Crypto intelligence assistant
         </h1>
         <p className="text-sm text-[var(--b70-text-muted)]">
-          Ask anything. Get signals, insights, and opportunities.
+          Narratives, market tape, signals, and whale context—synthesized from Block70. Not financial advice.
         </p>
       </header>
 
-      <div className="mx-auto mt-6 flex w-full max-w-3xl flex-wrap justify-center gap-2">
+      <div className="mx-auto mt-6 flex w-full max-w-5xl flex-wrap justify-center gap-2">
         {MODES.map((m) => (
           <button
             key={m.id}
@@ -228,18 +278,18 @@ export function AISearchChat() {
         ))}
       </div>
 
-      <section className="mx-auto mt-6 w-full max-w-3xl">
+      <section className="mx-auto mt-6 w-full max-w-5xl">
         <p className="mb-2 text-center text-[10px] font-semibold uppercase tracking-wider text-[var(--b70-text-muted)]">
-          Suggested prompts
+          Suggested questions
         </p>
         <div className="flex flex-wrap justify-center gap-2">
-          {SUGGESTED_PROMPTS.map((p) => (
+          {suggestedMerged.map((p) => (
             <button
               key={p}
               type="button"
               disabled={loading}
               onClick={() => applyPromptAndSend(p)}
-              className="rounded-full border border-indigo-500/25 bg-indigo-950/35 px-3 py-2 text-left text-xs text-indigo-100/95 transition hover:border-indigo-400/45 hover:bg-indigo-900/35 disabled:opacity-40"
+              className="rounded-full border border-[var(--b70-border)] bg-[var(--b70-card)] px-3 py-2 text-left text-xs text-[var(--b70-text)] transition hover:border-[var(--b70-crypto-blue)]/45 hover:bg-[var(--b70-bg)] disabled:opacity-40"
             >
               {p}
             </button>
@@ -250,7 +300,7 @@ export function AISearchChat() {
       <form
         id={formId}
         onSubmit={onSubmit}
-        className="mx-auto mt-8 w-full max-w-2xl px-1"
+        className="mx-auto mt-8 w-full max-w-3xl px-1"
       >
         <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
           <label className="sr-only" htmlFor="ai-assistant-input">
@@ -275,7 +325,7 @@ export function AISearchChat() {
         </div>
       </form>
 
-      <div className="mx-auto mt-10 w-full max-w-3xl flex-1 space-y-8 pb-8">
+      <div className="mx-auto mt-10 w-full max-w-5xl flex-1 space-y-10 pb-8">
         {error ? (
           <div className="rounded-xl border border-rose-800/50 bg-rose-950/30 p-4 text-sm text-rose-100">
             {error}
@@ -285,23 +335,24 @@ export function AISearchChat() {
         {messages.map((msg) =>
           msg.role === "user" ? (
             <div key={msg.id} className="flex justify-end">
-              <div className="max-w-lg rounded-2xl rounded-br-sm bg-indigo-600/90 px-4 py-2.5 text-sm text-white">
+              <div className="max-w-2xl rounded-2xl rounded-br-sm border border-[var(--b70-crypto-blue)]/35 bg-[var(--b70-crypto-blue)]/15 px-4 py-2.5 text-sm text-[var(--b70-text)]">
                 {msg.content}
               </div>
             </div>
           ) : (
-            <AssistantResult
+            <div
               key={msg.id}
-              msg={msg}
-              onFollowUp={(t) => void runSend(t)}
-            />
+              className="rounded-2xl border border-[var(--b70-border)]/80 bg-[var(--b70-card)]/40 p-4 md:p-6"
+            >
+              <AssistantResult msg={msg} onFollowUp={(t) => void runSend(t)} />
+            </div>
           )
         )}
         <div ref={bottomRef} />
       </div>
 
-      <p className="mx-auto mt-auto max-w-3xl pb-4 text-center text-[11px] text-[var(--b70-text-muted)]">
-        <Link href="/ai-search/history" className="text-indigo-400 hover:underline">
+      <p className="mx-auto mt-auto max-w-5xl pb-4 text-center text-[11px] text-[var(--b70-text-muted)]">
+        <Link href="/ai-search/history" className="text-[var(--b70-crypto-blue)] hover:underline">
           History
         </Link>
         {" · "}
@@ -320,11 +371,213 @@ export function AISearchChat() {
           Clear
         </button>
         {" · "}
-        <Link href="/signals" className="text-indigo-400 hover:underline">
+        <Link href="/signals" className="text-[var(--b70-crypto-blue)] hover:underline">
           Signals
         </Link>
       </p>
     </div>
+  );
+}
+
+function SourcesStrip({ result }: { result: AISearchResult }) {
+  const s = buildSourceSummary(result);
+  return (
+    <section className="rounded-2xl border border-[var(--b70-border)] bg-[var(--b70-bg)]/50 p-4">
+      <h2 className="mb-1 flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-[var(--b70-text-muted)]">
+        <Newspaper className="h-3.5 w-3.5" aria-hidden />
+        Sources
+      </h2>
+      <p className="text-[11px] text-[var(--b70-text-muted)]">
+        Grounded in Block70 data. Open desks for full context; headline digests live on News.
+      </p>
+      <div className="mt-3 flex flex-wrap gap-2">
+        <Link
+          href={s.newsHref}
+          className="rounded-lg border border-[var(--b70-border)] bg-[var(--b70-card)] px-3 py-1.5 text-xs font-medium text-[var(--b70-text)] hover:border-[var(--b70-crypto-blue)]/50"
+        >
+          News desk
+        </Link>
+        <Link
+          href={s.marketHref}
+          className="rounded-lg border border-[var(--b70-border)] bg-[var(--b70-card)] px-3 py-1.5 text-xs font-medium text-[var(--b70-text)] hover:border-[var(--b70-crypto-blue)]/50"
+        >
+          Market data
+        </Link>
+        <Link
+          href={s.walletsHref}
+          className="rounded-lg border border-[var(--b70-border)] bg-[var(--b70-card)] px-3 py-1.5 text-xs font-medium text-[var(--b70-text)] hover:border-[var(--b70-crypto-blue)]/50"
+        >
+          Whale and smart wallets
+        </Link>
+        {(s.hasRadar || s.flowCount > 0 || s.walletClipCount > 0 || s.signalCount > 0 || s.narrativeCount > 0) ? (
+          <span className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-1.5 text-[11px] text-amber-800 dark:text-amber-200">
+            This answer: {s.signalCount} signals
+            {s.narrativeCount ? ` · ${s.narrativeCount} narratives` : ""}
+            {s.flowCount ? ` · ${s.flowCount} flows` : ""}
+            {s.walletClipCount ? ` · ${s.walletClipCount} wallets` : ""}
+            {s.hasRadar ? " · radar events" : ""}
+          </span>
+        ) : null}
+      </div>
+    </section>
+  );
+}
+
+function NarrativesPanel({
+  narratives,
+}: {
+  narratives: NonNullable<AISearchResult["related_narratives"]>;
+}) {
+  return (
+    <section className="rounded-2xl border border-[var(--b70-border)] bg-[var(--b70-card)] p-4">
+      <h2 className="mb-3 flex items-center gap-2 text-sm font-semibold text-[var(--b70-text)]">
+        <Layers className="h-4 w-4 text-[var(--b70-crypto-blue)]" aria-hidden />
+        Narratives
+      </h2>
+      {narratives.length === 0 ? (
+        <p className="text-xs text-[var(--b70-text-muted)]">
+          No narrative rows in this snapshot. Try{" "}
+          <Link href="/narratives" className="text-[var(--b70-crypto-blue)] hover:underline">
+            Narratives
+          </Link>{" "}
+          for the full directory.
+        </p>
+      ) : (
+        <ul className="space-y-3">
+          {narratives.map((n, i) => (
+            <li
+              key={`${n.name}-${i}`}
+              className="rounded-lg border border-[var(--b70-border)] bg-[var(--b70-bg)]/60 p-3 text-xs"
+            >
+              <div className="flex items-center justify-between gap-2">
+                <span className="font-semibold text-[var(--b70-text)]">{n.name}</span>
+                <span className="font-[family-name:var(--font-jetbrains)] text-[var(--b70-crypto-orange)]">
+                  {Number(n.trend_score).toFixed(0)}
+                </span>
+              </div>
+              {n.description ? (
+                <p className="mt-1 line-clamp-3 text-[var(--b70-text-muted)]">{n.description}</p>
+              ) : null}
+            </li>
+          ))}
+        </ul>
+      )}
+      <Link
+        href="/narratives"
+        className="mt-3 inline-block text-[11px] font-medium text-[var(--b70-crypto-blue)] hover:underline"
+      >
+        Open narratives hub
+      </Link>
+    </section>
+  );
+}
+
+function SignalsPanel({
+  signals,
+}: {
+  signals: NonNullable<AISearchResult["related_signals"]>;
+}) {
+  return (
+    <section className="rounded-2xl border border-[var(--b70-border)] bg-[var(--b70-card)] p-4">
+      <h2 className="mb-3 flex items-center gap-2 text-sm font-semibold text-[var(--b70-text)]">
+        <Activity className="h-4 w-4 text-emerald-500" aria-hidden />
+        Signals
+      </h2>
+      {!signals?.length ? (
+        <p className="text-xs text-[var(--b70-text-muted)]">
+          No signal rows matched this query. Browse the{" "}
+          <Link href="/signals" className="text-[var(--b70-crypto-blue)] hover:underline">
+            live feed
+          </Link>
+          .
+        </p>
+      ) : (
+        <ul className="space-y-2">
+          {signals.slice(0, 12).map((s, idx) => (
+            <li key={`${s.id}-${idx}`} className="rounded-lg border border-[var(--b70-border)] px-3 py-2 text-xs">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <span className="font-medium text-[var(--b70-text)]">{s.title ?? "Signal"}</span>
+                <span className="text-[10px] uppercase text-[var(--b70-text-muted)]">{s.signal_type}</span>
+              </div>
+              <div className="mt-1">
+                {s.token_symbol ? (
+                  <Link
+                    href={`/signals/${encodeURIComponent(s.token_symbol)}`}
+                    className="text-[var(--b70-crypto-blue)] hover:underline"
+                  >
+                    {s.token_symbol}
+                  </Link>
+                ) : (
+                  <Link href="/signals" className="text-[var(--b70-crypto-blue)] hover:underline">
+                    All signals
+                  </Link>
+                )}
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
+  );
+}
+
+function FlowWalletPanel({
+  flows,
+  wallets,
+}: {
+  flows: AISearchCapitalFlow[];
+  wallets: AISearchWalletClip[];
+}) {
+  return (
+    <section className="rounded-2xl border border-[var(--b70-border)] bg-[var(--b70-card)] p-4">
+      <h2 className="mb-3 flex items-center gap-2 text-sm font-semibold text-[var(--b70-text)]">
+        <Wallet className="h-4 w-4 text-[var(--b70-crypto-blue)]" aria-hidden />
+        Capital flow and whales
+      </h2>
+      <div className="grid gap-4 md:grid-cols-2">
+        {flows.length > 0 ? (
+          <div>
+            <p className="mb-2 text-[10px] font-semibold uppercase text-[var(--b70-text-muted)]">Flows</p>
+            <ul className="space-y-1.5 text-xs">
+              {flows.map((f, i) => (
+                <li key={`${f.source_asset}-${f.destination_asset}-${i}`} className="text-[var(--b70-text-muted)]">
+                  <span className="font-medium text-[var(--b70-text)]">
+                    {f.source_asset} to {f.destination_asset}
+                  </span>
+                  {" · "}
+                  {formatCompactUsd(f.amount)} on {f.chain}
+                </li>
+              ))}
+            </ul>
+          </div>
+        ) : null}
+        {wallets.length > 0 ? (
+          <div>
+            <p className="mb-2 text-[10px] font-semibold uppercase text-[var(--b70-text-muted)]">
+              Smart wallets (clip)
+            </p>
+            <ul className="space-y-1.5 text-xs">
+              {wallets.map((w) => (
+                <li key={w.wallet_address} className="text-[var(--b70-text-muted)]">
+                  <span className="font-mono text-[var(--b70-text)]">
+                    {w.wallet_address.slice(0, 10)}…
+                  </span>
+                  {" · "}win{" "}
+                  {(w.win_rate <= 1 ? w.win_rate * 100 : w.win_rate).toFixed(0)}%
+                  {w.total_profit_usd != null ? ` · PnL ${formatCompactUsd(w.total_profit_usd)}` : ""}
+                </li>
+              ))}
+            </ul>
+            <Link
+              href="/wallets/top"
+              className="mt-2 inline-block text-[11px] text-[var(--b70-crypto-blue)] hover:underline"
+            >
+              Full leaderboard
+            </Link>
+          </div>
+        ) : null}
+      </div>
+    </section>
   );
 }
 
@@ -351,6 +604,10 @@ function AssistantResult({
       .slice(1, 3)
       .join(" ");
 
+  const narratives = msg.result?.related_narratives ?? [];
+  const flows = msg.result?.related_capital_flows ?? [];
+  const wallets = msg.result?.related_wallet_activity ?? [];
+
   return (
     <div className="space-y-5">
       {msg.loading && !msg.instantCards?.length ? <ResultSkeleton /> : null}
@@ -358,7 +615,8 @@ function AssistantResult({
       {opportunityCards && opportunityCards.length > 0 ? (
         <section className="rounded-2xl border border-emerald-500/25 bg-emerald-950/15 p-4">
           <h2 className="mb-1 flex items-center gap-2 text-sm font-semibold text-emerald-200/95">
-            <span aria-hidden>🚀</span> Top opportunities
+            <Coins className="h-4 w-4 shrink-0 opacity-90" aria-hidden />
+            Coins and opportunities
           </h2>
           <p className="mb-3 text-[11px] text-emerald-200/70">
             {msg.done
@@ -384,9 +642,10 @@ function AssistantResult({
       {(msg.streamSummary || (msg.done && msg.structured)) && (
         <section className="rounded-2xl border border-[var(--b70-border)] bg-[var(--b70-card)] p-5">
           <h2 className="mb-3 flex items-center gap-2 text-sm font-semibold text-[var(--b70-text)]">
-            <span aria-hidden>📊</span> Summary (TLDR)
+            <LineChart className="h-4 w-4 shrink-0 text-[var(--b70-crypto-blue)]" aria-hidden />
+            Smart answer
           </h2>
-          <div className="mx-auto max-w-xl text-sm leading-relaxed">
+          <div className="mx-auto max-w-3xl text-sm leading-relaxed">
             {msg.done && msg.structured ? (
               <>
                 <p className="font-semibold text-[var(--b70-text)]">{msg.structured.boldTakeaway}</p>
@@ -401,11 +660,25 @@ function AssistantResult({
         </section>
       )}
 
+      {msg.done && msg.result ? <SourcesStrip result={msg.result} /> : null}
+
+      {msg.done && msg.result ? (
+        <div className="grid gap-4 lg:grid-cols-2">
+          <NarrativesPanel narratives={narratives} />
+          <SignalsPanel signals={msg.result.related_signals ?? []} />
+        </div>
+      ) : null}
+
+      {msg.done && (flows.length > 0 || wallets.length > 0) ? (
+        <FlowWalletPanel flows={flows} wallets={wallets} />
+      ) : null}
+
       {msg.done && msg.structured && msg.result ? (
         <>
           <section className="rounded-2xl border border-[var(--b70-border)] bg-[var(--b70-card)] p-5">
             <h2 className="mb-3 flex items-center gap-2 text-sm font-semibold text-[var(--b70-text)]">
-              <span aria-hidden>💡</span> Key insights
+              <BookOpen className="h-4 w-4 shrink-0 text-[var(--b70-crypto-blue)]" aria-hidden />
+              Key insights
             </h2>
             <ul className="mx-auto max-w-xl list-inside list-disc space-y-2 text-sm text-[var(--b70-text-muted)]">
               {(msg.structured.insights.length
@@ -418,7 +691,10 @@ function AssistantResult({
           </section>
 
           <section className="rounded-2xl border border-indigo-500/20 bg-indigo-950/20 p-5">
-            <h2 className="mb-3 text-sm font-semibold text-indigo-100/90">Data snapshot</h2>
+            <h2 className="mb-3 flex items-center gap-2 text-sm font-semibold text-indigo-100/90">
+              <LineChart className="h-4 w-4 opacity-80" aria-hidden />
+              Data snapshot
+            </h2>
             <div className="mx-auto grid max-w-xl gap-3 text-sm sm:grid-cols-3">
               <SnapshotItem label="Market trend" value={msg.structured.dataSnapshot.marketTrend} />
               <SnapshotItem label="Volume trend" value={msg.structured.dataSnapshot.volumeTrend} />
@@ -565,7 +841,7 @@ function ResultSkeleton() {
   return (
     <div className="space-y-4 rounded-2xl border border-[var(--b70-border)] bg-[var(--b70-card)]/40 p-5">
       <div className="flex items-center gap-2">
-        <span className="text-lg">🚀</span>
+        <Coins className="h-5 w-5 text-[var(--b70-text-muted)] opacity-50" aria-hidden />
         <div className="h-5 w-40 animate-pulse rounded bg-slate-600/50" />
       </div>
       <div className="grid gap-3 sm:grid-cols-3">
