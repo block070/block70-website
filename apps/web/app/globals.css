@@ -102,3 +102,69 @@ body {
 .scrollbar-hide::-webkit-scrollbar {
   display: none;
 }
+
+/* ---------------------------------------------------------------------------
+   Home intelligence dashboard — subtle motion (Bloomberg-style pulse)
+   --------------------------------------------------------------------------- */
+@keyframes b70-live-dot {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.45;
+    transform: scale(0.85);
+  }
+}
+.b70-live-dot {
+  animation: b70-live-dot 1.8s ease-in-out infinite;
+}
+
+@keyframes b70-shimmer-bg {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+.b70-shimmer {
+  background: linear-gradient(
+    100deg,
+    transparent 0%,
+    rgba(42, 127, 255, 0.06) 45%,
+    transparent 90%
+  );
+  background-size: 200% 100%;
+  animation: b70-shimmer-bg 5s linear infinite;
+}
+.dark .b70-shimmer {
+  background: linear-gradient(
+    100deg,
+    transparent 0%,
+    rgba(42, 127, 255, 0.09) 45%,
+    transparent 90%
+  );
+  background-size: 200% 100%;
+}
+
+@keyframes b70-skeleton-pulse {
+  0%,
+  100% {
+    opacity: 0.55;
+  }
+  50% {
+    opacity: 0.9;
+  }
+}
+.b70-dash-skeleton {
+  animation: b70-skeleton-pulse 1.4s ease-in-out infinite;
+  background: linear-gradient(
+    90deg,
+    var(--b70-border),
+    var(--b70-card-elevated),
+    var(--b70-border)
+  );
+  background-size: 200% 100%;
+}
