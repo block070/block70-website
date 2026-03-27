@@ -10,7 +10,7 @@ import { BlockBalance } from "@/components/rewards/block-balance";
 const TOP_LINKS = [
   { href: "/", label: "Market" },
   { href: "/ai-search", label: "AI Search" },
-  { href: "/copilot", label: "Copilot" },
+  { href: "/copilot", label: "AI Assistant" },
   { href: "/signals", label: "Signals" },
   { href: "/airdrops", label: "Airdrops" },
   { href: "/wallets", label: "Wallets" },

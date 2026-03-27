@@ -4,13 +4,64 @@ AI Copilot: detect opportunities from signals, capital flows, smart wallet activ
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import List
 
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.models import Signal, CapitalFlow, SmartWallet, MarketOpportunity, RadarEvent
+
+
+def _trade_risk_and_notes(source: str, confidence: float, token_symbol: str) -> tuple[str, str, str]:
+    """
+    Qualitative risk label and monitoring prompts (not investment advice).
+    """
+    sym = (token_symbol or "UNKNOWN").upper()
+    if source == "radar":
+        risk = "high"
+        entry = (
+            f"Event-driven context on {sym}: confirm direction, liquidity, and "
+            "clustering with your rules before sizing."
+        )
+        exit = (
+            "Use a time stop and a clear invalidation if the radar thesis does not "
+            "follow through within your horizon."
+        )
+    elif source == "signal":
+        risk = "high" if confidence >= 0.7 else "medium"
+        entry = (
+            f"Map entries for {sym} to your signal playbook; delay if confidence "
+            "sits on the fence without confirmation."
+        )
+        exit = (
+            "Scale out on rule-based exits; reduce risk if follow-up signals weaken "
+            "or diverge from the thesis."
+        )
+    elif source == "capital_flow":
+        risk = "medium"
+        entry = (
+            f"Treat flow into {sym} as context—pair with price structure and "
+            "cross-asset confirmation before acting."
+        )
+        exit = (
+            "Reassess if flow momentum stalls, reverses, or stops confirming the narrative."
+        )
+    elif source == "market_opportunity":
+        risk = "low" if confidence < 0.55 else "medium"
+        entry = (
+            f"Use the opportunity screen for {sym} as a filter; validate with your "
+            "standard entry checklist."
+        )
+        exit = (
+            "Take profits or cut on predefined invalidation of the opportunity thesis."
+        )
+    else:
+        risk = "medium"
+        entry = f"Monitor {sym} against your playbook before committing size."
+        exit = "Keep exposure bounded versus portfolio and volatility limits."
+
+    return risk, entry, exit
 
 
 @dataclass
@@ -21,6 +72,14 @@ class DetectedOpportunity:
     title: str
     summary: str
     confidence: float
+    risk_level: str = field(init=False)
+    entry_note: str = field(init=False)
+    exit_note: str = field(init=False)
+
+    def __post_init__(self) -> None:
+        self.risk_level, self.entry_note, self.exit_note = _trade_risk_and_notes(
+            self.source, self.confidence, self.token_symbol
+        )
 
 
 class OpportunityAnalyzer:

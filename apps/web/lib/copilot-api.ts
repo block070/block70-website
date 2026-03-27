@@ -40,6 +40,9 @@ export type CopilotOpportunityDto = {
   title: string;
   summary: string;
   confidence: number;
+  risk_level?: string;
+  entry_note?: string;
+  exit_note?: string;
 };
 
 async function fetchWithAuth<T>(path: string, init?: RequestInit): Promise<T> {

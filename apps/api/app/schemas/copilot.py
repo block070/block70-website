@@ -34,3 +34,6 @@ class OpportunityItem(BaseModel):
     title: str
     summary: str
     confidence: float
+    risk_level: str = "medium"
+    entry_note: str = ""
+    exit_note: str = ""

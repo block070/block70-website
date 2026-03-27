@@ -105,6 +105,9 @@ def get_opportunities(
             "title": o.title,
             "summary": o.summary,
             "confidence": o.confidence,
+            "risk_level": o.risk_level,
+            "entry_note": o.entry_note,
+            "exit_note": o.exit_note,
         }
         for o in opportunities
     ]

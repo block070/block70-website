@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { getToken } from "@/lib/auth";
+import { getCurrentUser, getToken } from "@/lib/auth";
 import {
   getCopilotInsights,
   getCopilotPortfolio,
@@ -12,12 +12,27 @@ import {
   type CopilotPortfolioDto,
   type CopilotOpportunityDto,
 } from "@/lib/copilot-api";
-import { CopilotAlert } from "@/components/copilot/copilot-alert";
+import { listTokenWatchesForUser, type TokenWatchDto } from "@/lib/token-watch-api";
+import { CopilotDailyBriefing } from "@/components/copilot/copilot-daily-briefing";
+import { CopilotTradeIdeaCard } from "@/components/copilot/copilot-trade-idea-card";
+import { CopilotPersonalizationPanel } from "@/components/copilot/copilot-personalization-panel";
+import { CopilotAlertsStrip } from "@/components/copilot/copilot-alerts-strip";
+import { LayoutTemplate, MessageSquare, Newspaper, RefreshCw, Rss } from "lucide-react";
+
+function isWhaleInsight(i: CopilotInsightDto): boolean {
+  const blob = `${i.title} ${i.summary ?? ""}`.toLowerCase();
+  return (
+    i.insight_type === "portfolio_alert" &&
+    (blob.includes("whale") || blob.includes("smart money"))
+  );
+}
 
 export default function CopilotPage() {
   const [insights, setInsights] = useState<CopilotInsightDto[]>([]);
   const [portfolio, setPortfolio] = useState<CopilotPortfolioDto | null>(null);
   const [opportunities, setOpportunities] = useState<CopilotOpportunityDto[]>([]);
+  const [watches, setWatches] = useState<TokenWatchDto[]>([]);
+  const [watchesError, setWatchesError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -31,37 +46,78 @@ export default function CopilotPage() {
     }
     let cancelled = false;
     setError(null);
+    setWatchesError(null);
     (async () => {
       try {
-        const [ins, port, opp] = await Promise.all([
-          getCopilotInsights({ limit: 30 }),
+        const user = await getCurrentUser();
+        const [ins, port, opp, watch] = await Promise.all([
+          getCopilotInsights({ limit: 40 }),
           getCopilotPortfolio(),
-          getCopilotOpportunities({ limit: 15 }),
+          getCopilotOpportunities({ limit: 20 }),
+          listTokenWatchesForUser(user.id).catch(() => {
+            if (!cancelled) setWatchesError("Could not load token watches.");
+            return [] as TokenWatchDto[];
+          }),
         ]);
         if (!cancelled) {
           setInsights(ins);
           setPortfolio(port);
           setOpportunities(opp);
+          setWatches(watch);
         }
       } catch (e) {
-        if (!cancelled) setError(e instanceof Error ? e.message : "Failed to load Copilot data");
+        if (!cancelled) setError(e instanceof Error ? e.message : "Failed to load assistant data");
       } finally {
         if (!cancelled) setLoading(false);
       }
     })();
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, [isAuth]);
+
+  const marketAlerts = useMemo(
+    () => insights.filter((i) => i.insight_type === "market_alert"),
+    [insights],
+  );
+  const narrativeAlerts = useMemo(
+    () => insights.filter((i) => i.insight_type === "narrative_alert"),
+    [insights],
+  );
+  const opportunityAlerts = useMemo(
+    () => insights.filter((i) => i.insight_type === "opportunity_alert"),
+    [insights],
+  );
+  const whaleAlerts = useMemo(() => insights.filter(isWhaleInsight), [insights]);
+
+  const tradeIdeaInsights = useMemo(() => {
+    const symbols = new Set(opportunities.map((o) => o.token_symbol.toUpperCase()));
+    return opportunityAlerts.filter((i) => {
+      const t = i.related_tokens?.[0]?.toUpperCase();
+      return t && !symbols.has(t);
+    });
+  }, [opportunities, opportunityAlerts]);
 
   async function handleGenerate() {
     if (!isAuth) return;
     setGenerating(true);
     setError(null);
+    setWatchesError(null);
     try {
+      const user = await getCurrentUser();
       const generated = await generateCopilotInsights({ max_insights: 25, min_confidence: 0.35 });
       setInsights((prev) => [...generated, ...prev]);
-      const [port, opp] = await Promise.all([getCopilotPortfolio(), getCopilotOpportunities({ limit: 15 })]);
+      const [port, opp, watch] = await Promise.all([
+        getCopilotPortfolio(),
+        getCopilotOpportunities({ limit: 20 }),
+        listTokenWatchesForUser(user.id).catch(() => {
+          setWatchesError("Could not load token watches.");
+          return [] as TokenWatchDto[];
+        }),
+      ]);
       setPortfolio(port);
       setOpportunities(opp);
+      setWatches(watch);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to generate insights");
     } finally {
@@ -69,27 +125,29 @@ export default function CopilotPage() {
     }
   }
 
-  const portfolioAlerts = insights.filter((i) => i.insight_type === "portfolio_alert");
-  const marketAlerts = insights.filter((i) => i.insight_type === "market_alert");
-  const opportunityAlerts = insights.filter((i) => i.insight_type === "opportunity_alert");
-  const narrativeAlerts = insights.filter((i) => i.insight_type === "narrative_alert");
-
   if (!isAuth) {
     return (
-      <div className="mx-auto max-w-4xl space-y-6 p-4">
+      <div className="mx-auto max-w-3xl space-y-6 px-4 py-8">
         <section>
-          <h1 className="text-2xl font-semibold tracking-tight text-[var(--b70-text)]">
-            AI Copilot
+          <div className="flex items-center gap-2 text-xs font-medium text-crypto-blue">
+            <LayoutTemplate className="h-3.5 w-3.5" aria-hidden />
+            AI assistant
+          </div>
+          <h1 className="mt-1 text-2xl font-semibold tracking-tight text-[var(--b70-text)]">
+            Crypto desk
           </h1>
-          <p className="mt-1 text-sm text-[var(--b70-text-muted)]">
-            Get personalized insights on your portfolio, market alerts, and opportunities. Log in to use the Copilot.
+          <p className="mt-2 text-sm text-[var(--b70-text-muted)]">
+            Daily briefing, trade ideas with risk framing, portfolio context, and alerts. Sign in to
+            run your personalized assistant.
           </p>
         </section>
-        <div className="rounded-xl border border-[var(--b70-border)] bg-[var(--b70-card)] p-6 text-center">
-          <p className="text-sm text-[var(--b70-text-muted)]">Sign in to see your AI Copilot dashboard.</p>
+        <div className="rounded-2xl border border-[var(--b70-border)] bg-[var(--b70-card)] p-8 text-center shadow-b70-card">
+          <p className="text-sm text-[var(--b70-text-muted)]">
+            Log in to connect your book, watches, and AI-generated insight stream.
+          </p>
           <Link
             href="/login"
-            className="mt-4 inline-block rounded-lg bg-crypto-blue px-4 py-2 text-sm font-medium text-white hover:opacity-90"
+            className="mt-5 inline-block rounded-lg bg-crypto-blue px-4 py-2 text-sm font-medium text-white hover:opacity-90"
           >
             Log in
           </Link>
@@ -99,36 +157,51 @@ export default function CopilotPage() {
   }
 
   return (
-    <div className="mx-auto max-w-4xl space-y-8 p-4">
-      <section className="flex flex-wrap items-center justify-between gap-4">
+    <div className="mx-auto w-full max-w-6xl space-y-10 px-4 py-8">
+      <section className="flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-start sm:justify-between">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight text-[var(--b70-text)]">
-            AI Copilot
+          <div className="flex items-center gap-2 text-xs font-medium text-crypto-blue">
+            <LayoutTemplate className="h-3.5 w-3.5" aria-hidden />
+            AI crypto assistant
+          </div>
+          <h1 className="mt-1 text-2xl font-semibold tracking-tight text-[var(--b70-text)] sm:text-3xl">
+            Desk
           </h1>
-          <p className="mt-1 text-sm text-[var(--b70-text-muted)]">
-            Portfolio insights, market alerts, opportunities, and narratives.
+          <p className="mt-2 max-w-xl text-sm text-[var(--b70-text-muted)]">
+            Hedge-fund-style read: briefing, ideas with entry and exit framing, your book, and live
+            alerts. Not financial advice.
           </p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <Link
             href="/copilot/feed"
-            className="rounded-lg border border-[var(--b70-border)] px-3 py-2 text-xs font-medium text-[var(--b70-text)] hover:bg-[var(--b70-border)]"
+            className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--b70-border)] px-3 py-2 text-xs font-medium text-[var(--b70-text)] hover:bg-[var(--b70-border)]"
           >
+            <Rss className="h-3.5 w-3.5" aria-hidden />
             Feed
           </Link>
           <Link
             href="/copilot/chat"
-            className="rounded-lg border border-[var(--b70-border)] px-3 py-2 text-xs font-medium text-[var(--b70-text)] hover:bg-[var(--b70-border)]"
+            className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--b70-border)] px-3 py-2 text-xs font-medium text-[var(--b70-text)] hover:bg-[var(--b70-border)]"
           >
+            <MessageSquare className="h-3.5 w-3.5" aria-hidden />
             Chat
+          </Link>
+          <Link
+            href="/ai-search"
+            className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--b70-border)] px-3 py-2 text-xs font-medium text-[var(--b70-text)] hover:bg-[var(--b70-border)]"
+          >
+            <Newspaper className="h-3.5 w-3.5" aria-hidden />
+            Intelligence
           </Link>
           <button
             type="button"
             onClick={handleGenerate}
             disabled={generating}
-            className="rounded-lg bg-crypto-blue px-3 py-2 text-xs font-medium text-white hover:opacity-90 disabled:opacity-50"
+            className="inline-flex items-center gap-1.5 rounded-lg bg-crypto-blue px-3 py-2 text-xs font-medium text-white hover:opacity-90 disabled:opacity-50"
           >
-            {generating ? "Generating…" : "Generate insights"}
+            <RefreshCw className={`h-3.5 w-3.5 ${generating ? "animate-spin" : ""}`} aria-hidden />
+            {generating ? "Refreshing…" : "Refresh desk"}
           </button>
         </div>
       </section>
@@ -140,89 +213,47 @@ export default function CopilotPage() {
       ) : null}
 
       {loading ? (
-        <p className="text-sm text-[var(--b70-text-muted)]">Loading Copilot data…</p>
+        <p className="text-sm text-[var(--b70-text-muted)]">Loading desk…</p>
       ) : (
         <>
-          <section>
-            <h2 className="mb-3 text-lg font-semibold text-[var(--b70-text)]">Portfolio insights</h2>
-            {portfolio && (portfolio.risk_concentrations.length > 0 || portfolio.whale_overlaps.length > 0) ? (
-              <ul className="space-y-2 text-sm">
-                {portfolio.risk_concentrations.map((r) => (
-                  <li key={r.token_symbol} className="rounded-lg border border-[var(--b70-border)] bg-[var(--b70-card)] px-3 py-2">
-                    <span className="font-medium">{r.token_symbol}</span>: {r.allocation_pct.toFixed(1)}% allocation — {r.risk_level} risk
-                  </li>
-                ))}
-                {portfolio.whale_overlaps.map((w, i) => (
-                  <li key={`${w.token_symbol}-${i}`} className="rounded-lg border border-[var(--b70-border)] bg-[var(--b70-card)] px-3 py-2">
-                    <span className="font-medium">{w.token_symbol}</span>: {w.description}
-                  </li>
-                ))}
-              </ul>
-            ) : portfolio?.portfolio_tokens.length ? (
-              <p className="text-xs text-[var(--b70-text-muted)]">No concentration or whale overlap alerts. Portfolio has {portfolio.portfolio_tokens.length} token(s).</p>
+          <CopilotDailyBriefing
+            portfolio={portfolio}
+            marketAlerts={marketAlerts}
+            narrativeAlerts={narrativeAlerts}
+            opportunities={opportunities}
+          />
+
+          <section className="space-y-4">
+            <div>
+              <h2 className="text-lg font-semibold text-[var(--b70-text)]">Trade ideas</h2>
+              <p className="mt-1 text-sm text-[var(--b70-text-muted)]">
+                Ranked opportunities with confidence, risk label, and qualitative entry and exit
+                prompts.
+              </p>
+            </div>
+            {opportunities.length === 0 && tradeIdeaInsights.length === 0 ? (
+              <p className="text-sm text-[var(--b70-text-muted)]">
+                No ideas in the queue—click Refresh desk after data and signals are available.
+              </p>
             ) : (
-              <p className="text-xs text-[var(--b70-text-muted)]">Add wallets to your portfolio to get personalized alerts.</p>
+              <div className="grid gap-4 md:grid-cols-2">
+                {opportunities.slice(0, 8).map((o, idx) => (
+                  <CopilotTradeIdeaCard key={`${o.token_symbol}-${o.source}-${idx}`} variant="opportunity" item={o} />
+                ))}
+                {tradeIdeaInsights.slice(0, 4).map((i) => (
+                  <CopilotTradeIdeaCard key={i.id} variant="insight" item={i} />
+                ))}
+              </div>
             )}
           </section>
 
-          <section>
-            <h2 className="mb-3 text-lg font-semibold text-[var(--b70-text)]">Portfolio alerts</h2>
-            {portfolioAlerts.length ? (
-              <div className="grid gap-3 sm:grid-cols-2">
-                {portfolioAlerts.slice(0, 6).map((i) => (
-                  <CopilotAlert key={i.id} insight={i} />
-                ))}
-              </div>
-            ) : (
-              <p className="text-xs text-[var(--b70-text-muted)]">No portfolio alerts. Click “Generate insights” to refresh.</p>
-            )}
-          </section>
+          <CopilotPersonalizationPanel
+            portfolio={portfolio}
+            watches={watches}
+            watchesError={watchesError}
+          />
 
-          <section>
-            <h2 className="mb-3 text-lg font-semibold text-[var(--b70-text)]">Market alerts</h2>
-            {marketAlerts.length ? (
-              <div className="grid gap-3 sm:grid-cols-2">
-                {marketAlerts.slice(0, 4).map((i) => (
-                  <CopilotAlert key={i.id} insight={i} />
-                ))}
-              </div>
-            ) : (
-              <p className="text-xs text-[var(--b70-text-muted)]">No market alerts right now.</p>
-            )}
-          </section>
-
-          <section>
-            <h2 className="mb-3 text-lg font-semibold text-[var(--b70-text)]">Opportunities</h2>
-            {(opportunityAlerts.length > 0 || opportunities.length > 0) ? (
-              <div className="grid gap-3 sm:grid-cols-2">
-                {opportunityAlerts.slice(0, 4).map((i) => (
-                  <CopilotAlert key={i.id} insight={i} />
-                ))}
-                {opportunityAlerts.length < 4 && opportunities.slice(0, 4 - opportunityAlerts.length).map((o, i) => (
-                  <div key={`opp-${i}`} className="rounded-xl border border-[var(--b70-border)] bg-[var(--b70-card)] p-4">
-                    <h3 className="text-sm font-semibold text-[var(--b70-text)]">{o.title}</h3>
-                    <p className="mt-1 text-xs text-[var(--b70-text-muted)]">{o.summary}</p>
-                    <span className="mt-2 inline-block rounded-full bg-[var(--b70-border)]/50 px-2 py-0.5 text-xs">{(o.confidence * 100).toFixed(0)}%</span>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <p className="text-xs text-[var(--b70-text-muted)]">No opportunities detected. Generate insights or check back later.</p>
-            )}
-          </section>
-
-          <section>
-            <h2 className="mb-3 text-lg font-semibold text-[var(--b70-text)]">Narratives</h2>
-            {narrativeAlerts.length ? (
-              <div className="grid gap-3 sm:grid-cols-2">
-                {narrativeAlerts.slice(0, 4).map((i) => (
-                  <CopilotAlert key={i.id} insight={i} />
-                ))}
-              </div>
-            ) : (
-              <p className="text-xs text-[var(--b70-text-muted)]">No narrative alerts. Generate insights to see narrative momentum.</p>
-            )}
-          </section>
+          <CopilotAlertsStrip narrativeAlerts={narrativeAlerts} whaleAlerts={whaleAlerts} />
         </>
       )}
     </div>
