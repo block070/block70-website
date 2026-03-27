@@ -9,6 +9,7 @@ const SECTIONS: { title: string; items: NavItem[] }[] = [
   {
     title: "Market",
     items: [
+      { href: "/market", label: "Macro" },
       { href: "/coins", label: "Coins" },
       { href: "/trending", label: "Trending" },
       { href: "/categories", label: "Categories" },
