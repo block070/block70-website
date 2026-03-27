@@ -203,6 +203,11 @@ export type NewsArticleSummary = {
   homepage_score?: number | null;
   coin_scores?: Record<string, number>;
   published_at?: string | null;
+  /** From FastAPI news schema; often 0 from RSS unless enriched. */
+  sentiment?: number;
+  engagement?: Record<string, unknown>;
+  quality_status?: string;
+  dedupe_cluster_id?: number | null;
 };
 
 function sanitizeNewsItems(items: NewsArticleSummary[]): NewsArticleSummary[] {

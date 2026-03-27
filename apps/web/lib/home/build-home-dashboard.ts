@@ -16,6 +16,7 @@ import {
   type MarketCoin,
   type NewsArticleSummary,
 } from "@/lib/api";
+import { aiSummaryForNews, narrativeImpactFromNews } from "@/lib/news/enrich";
 import { withTimeout } from "@/lib/with-timeout";
 import type { Opportunity, SignalDto, WalletLeaderboardEntry } from "@/lib/types";
 
@@ -357,21 +358,6 @@ function fallbackCategories(): CategoryDirectoryApiItem[] {
       ],
     },
   ];
-}
-
-function narrativeImpactFromNews(item: NewsArticleSummary): number {
-  const base = item.title.length + (item.summary?.length ?? 0);
-  const tagBoost = (item.tags?.length ?? 0) * 7;
-  const n = 48 + (base % 37) + tagBoost;
-  return Math.max(38, Math.min(94, n));
-}
-
-function aiSummaryForNews(item: NewsArticleSummary): string {
-  if (item.summary && item.summary.length > 20) {
-    const s = item.summary.replace(/\s+/g, " ").trim();
-    return s.length > 200 ? `${s.slice(0, 197)}…` : s;
-  }
-  return `Headline watch: ${item.title.slice(0, 120)}${item.title.length > 120 ? "…" : ""}`;
 }
 
 function categoryToNarrativeRow(c: CategoryDirectoryApiItem): NarrativeEngineRow {
