@@ -10,7 +10,9 @@
     "worker": "tsx watch src/workers/index.ts",
     "start:worker": "node dist/workers/index.js",
     "db:migrate": "npx tsx src/db/migrate.ts",
-    "db:migrate:dist": "node dist/db/migrate.js"
+    "db:migrate:dist": "node dist/db/migrate.js",
+    "linkedin:oauth": "npx tsx scripts/linkedin-oauth-token.ts",
+    "linkedin:list-orgs": "npx tsx scripts/linkedin-list-org-urns.ts"
   },
   "engines": {
     "node": ">=20"

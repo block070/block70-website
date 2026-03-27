@@ -1,8 +1,11 @@
+import Link from "next/link";
 import {
   LegalPageLayout,
   LegalSection,
   LegalParagraph,
 } from "@/components/legal/legal-page-layout";
+
+const LEGAL_EMAIL = "legal@block70.com";
 
 export const metadata = {
   title: "Privacy Policy · Block70",
@@ -13,7 +16,7 @@ export default function PrivacyPage() {
   return (
     <LegalPageLayout
       title="Privacy Policy"
-      lastUpdated="2025-01-01"
+      lastUpdated="2026-03-24"
     >
       <LegalSection title="Data collection">
         <LegalParagraph>
@@ -31,6 +34,19 @@ export default function PrivacyPage() {
           referral codes and source. <strong className="text-slate-200">API
           usage</strong> (requests, endpoints, API keys) is logged for rate
           limiting, security, and support.
+        </LegalParagraph>
+        <LegalParagraph>
+          If you choose{" "}
+          <strong className="text-slate-200">Sign in with LinkedIn</strong>{" "}
+          (OpenID Connect), we receive information from LinkedIn to
+          authenticate you and maintain your account, such as your LinkedIn
+          subject identifier and the profile details LinkedIn provides under
+          your consent (for example name, email, and profile picture), as shown
+          on LinkedIn’s authorization screen. If you use features that{" "}
+          <strong className="text-slate-200">share content to your LinkedIn</strong>{" "}
+          member presence, we process the text, media, and related metadata you
+          send through our services, and OAuth tokens needed to act on your
+          behalf until you disconnect or they expire.
         </LegalParagraph>
       </LegalSection>
 
@@ -53,6 +69,60 @@ export default function PrivacyPage() {
         </LegalParagraph>
       </LegalSection>
 
+      <LegalSection title="LinkedIn integration">
+        <LegalParagraph>
+          Block70 uses a LinkedIn Developer application that may access
+          LinkedIn APIs in these ways: (1){" "}
+          <strong className="text-slate-200">
+            Publishing to our official company presence
+          </strong>{" "}
+          on LinkedIn when authorized by our administrators; we may store{" "}
+          <strong className="text-slate-200">
+            OAuth tokens and related credentials
+          </strong>{" "}
+          and the{" "}
+          <strong className="text-slate-200">
+            LinkedIn organization identifier
+          </strong>{" "}
+          needed to post on behalf of our page. (2){" "}
+          <strong className="text-slate-200">Sign in with LinkedIn</strong> using
+          OpenID Connect (for example the{" "}
+          <strong className="text-slate-200">openid</strong> scope and user
+          info endpoint) when you choose that sign-in option, to verify your
+          identity and link or create your Block70 account. (3){" "}
+          <strong className="text-slate-200">Share on LinkedIn</strong>{" "}
+          capabilities—for example creating or updating posts, uploads, or
+          reactions on <strong className="text-slate-200">your</strong> LinkedIn
+          member presence when you connect your account and explicitly use those
+          features (including scopes such as{" "}
+          <strong className="text-slate-200">w_member_social</strong>
+          where applicable). We use member LinkedIn data only to provide these
+          features you initiate, not for unrelated third-party marketing.
+        </LegalParagraph>
+        <LegalParagraph>
+          Credentials and LinkedIn-related data are stored on our secure
+          infrastructure for as long as needed to operate each integration and
+          as described under Data storage above. LinkedIn also processes
+          information under its own policies; see{" "}
+          <a
+            href="https://www.linkedin.com/legal/privacy-policy"
+            className="font-medium text-emerald-400 hover:underline"
+            rel="noopener noreferrer"
+          >
+            LinkedIn’s Privacy Policy
+          </a>{" "}
+          and{" "}
+          <a
+            href="https://www.linkedin.com/legal/l/api-terms-of-use"
+            className="font-medium text-emerald-400 hover:underline"
+            rel="noopener noreferrer"
+          >
+            API Terms of Use
+          </a>
+          .
+        </LegalParagraph>
+      </LegalSection>
+
       <LegalSection title="Cookies">
         <LegalParagraph>
           We use cookies for authentication (keeping you logged in), analytics
@@ -71,16 +141,36 @@ export default function PrivacyPage() {
           forgotten”); restrict or object to certain processing; data
           portability; and withdraw consent where processing is based on
           consent. You may also have the right to lodge a complaint with a
-          supervisory authority. To exercise these rights, contact us at the
-          email below. We will respond within the time required by applicable
-          law (e.g., one month under GDPR).
+          supervisory authority. To exercise these rights, contact us at{" "}
+          <a
+            href={`mailto:${LEGAL_EMAIL}`}
+            className="font-medium text-emerald-400 hover:underline"
+          >
+            {LEGAL_EMAIL}
+          </a>
+          . Further contact options are on our{" "}
+          <Link
+            href="/contact"
+            className="font-medium text-emerald-400 hover:underline"
+          >
+            Contact
+          </Link>{" "}
+          page. We will respond within the time required by applicable law
+          (e.g., one month under GDPR).
         </LegalParagraph>
       </LegalSection>
 
       <LegalSection title="Data deletion">
         <LegalParagraph>
           You may request deletion of your account and associated personal data
-          by contacting us. We will delete or anonymize your data in accordance
+          by contacting us at{" "}
+          <a
+            href={`mailto:${LEGAL_EMAIL}`}
+            className="font-medium text-emerald-400 hover:underline"
+          >
+            {LEGAL_EMAIL}
+          </a>
+          . We will delete or anonymize your data in accordance
           with our retention policy and applicable law, except where we must
           retain data for legal, security, or legitimate business purposes.
         </LegalParagraph>

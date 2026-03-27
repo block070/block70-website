@@ -53,6 +53,13 @@ cp .env.example .env
 
 For a **local publish smoke test**, use the same `WEBSITE_PUBLISH_SECRET` in **`apps/crypto-on-the-hour/.env`** and **`apps/web/.env.local`** — see defaults in **`.env.example`** and **`apps/web/crypto-hour-publish.env.sample`** (rotate before production).
 
+### LinkedIn Company Page posting
+
+Full steps (portal, products, OAuth, org URN, worker verify): **[`docs/LINKEDIN_COMPANY_PAGE_SETUP.md`](docs/LINKEDIN_COMPANY_PAGE_SETUP.md)**.
+
+- `npm run linkedin:oauth` — 3-legged OAuth helper → `LINKEDIN_ACCESS_TOKEN`
+- `npm run linkedin:list-orgs` — print `LINKEDIN_ORG_URN` candidates (requires token)
+
 Edit `.env`:
 
 - `DATABASE_URL` — e.g. `postgres://postgres:postgres@127.0.0.1:5433/crypto_on_the_hour` (compose uses host **5433** → container 5432 when **5432** is busy)
