@@ -40,6 +40,8 @@ export type Coin = {
   categorySlug?: string | null;
   /** Human-readable category label */
   categoryLabel?: string | null;
+  /** Extra category names from API list rows (scanner tag inference) */
+  scannerCategoryLabels?: string[];
   circulatingSupply?: number | null;
   totalSupply?: number | null;
 };

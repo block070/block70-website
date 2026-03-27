@@ -1,4 +1,5 @@
 import type { Coin } from "@/lib/crypto-mock";
+import { buildTags } from "@/lib/coin-scanner-tags";
 
 export type TrendLabel = "Bull" | "Neutral" | "Bear";
 
@@ -71,6 +72,131 @@ export function enrichCoin(c: Coin): ScannerCoin {
 
 export function enrichCoins(coins: Coin[]): ScannerCoin[] {
   return coins.map(enrichCoin);
+}
+
+export type CoinTagBundle = ReturnType<typeof buildTags>;
+
+/**
+ * Smart-money style score (0–100): blends composite momentum/liquidity (B70),
+ * turnover (vol/mcap), and signal-tag density from `buildTags` (pass `tags` to avoid double work).
+ */
+export function computeSmartMoneyScore(c: Coin, tags?: CoinTagBundle): number {
+  const base = computeBlock70Score(c);
+  const mcap = Math.max(1, c.marketCapUsd ?? 1);
+  const vol = Math.max(0, c.volume24hUsd ?? 0);
+  const volToMcap = vol / mcap;
+  const flow = Math.min(28, Math.log10(volToMcap + 1e-4) * 11);
+  const { signalTags } = tags ?? buildTags(c);
+  const tagBoost = Math.min(18, signalTags.length * 5);
+  const raw = base * 0.6 + flow * 0.28 + tagBoost * 0.12;
+  return Math.round(Math.min(100, Math.max(0, raw)));
+}
+
+export type TraderScannerRow = ScannerCoin & {
+  narrativeTags: string[];
+  categoryTags: string[];
+  signalTags: string[];
+  smartMoneyScore: number;
+  volToMcap: number;
+  /** Bucket from composite B70 score (liquidity + momentum model). */
+  sentimentLabel: TrendLabel;
+};
+
+export function toTraderRow(c: Coin): TraderScannerRow {
+  const base = enrichCoin(c);
+  const tagBundle = buildTags(c);
+  const { narrativeTags, categoryTags, signalTags } = tagBundle;
+  const mcap = Math.max(1, c.marketCapUsd ?? 1);
+  const vol = c.volume24hUsd ?? 0;
+  const volToMcap = vol / mcap;
+  const smartMoneyScore = computeSmartMoneyScore(c, tagBundle);
+  const sentimentLabel = trendFromScore(base.block70Score);
+  return {
+    ...base,
+    narrativeTags,
+    categoryTags,
+    signalTags,
+    smartMoneyScore,
+    volToMcap,
+    sentimentLabel,
+  };
+}
+
+export type TraderSortMode =
+  | "default"
+  | "trending"
+  | "volume_spike"
+  | "whale_accumulation";
+
+export function applyTraderSort(
+  rows: TraderScannerRow[],
+  mode: TraderSortMode
+): TraderScannerRow[] {
+  const out = [...rows];
+  if (mode === "trending") {
+    out.sort((a, b) => (b.volume24hUsd ?? 0) - (a.volume24hUsd ?? 0));
+  } else if (mode === "volume_spike") {
+    out.sort((a, b) => b.volToMcap - a.volToMcap);
+  } else if (mode === "whale_accumulation") {
+    out.sort((a, b) => {
+      const sb = (b.smartMoneyScore ?? 0) * (1 + Math.max(0, b.change24hPct ?? 0) / 50);
+      const sa = (a.smartMoneyScore ?? 0) * (1 + Math.max(0, a.change24hPct ?? 0) / 50);
+      return sb - sa;
+    });
+  } else {
+    out.sort((a, b) => a.rank - b.rank);
+  }
+  return out;
+}
+
+export type CategoryPreset = "all" | "ai" | "defi" | "l1";
+
+export function matchesCategoryPreset(
+  preset: CategoryPreset,
+  row: TraderScannerRow
+): boolean {
+  if (preset === "all") return true;
+  const blob = [...row.categoryTags, ...row.narrativeTags].join(" ").toLowerCase();
+  if (preset === "ai") return blob.includes("ai") || blob.includes("big data");
+  if (preset === "defi") return blob.includes("defi");
+  if (preset === "l1") return blob.includes("l1") || blob.includes("layer 1");
+  return true;
+}
+
+export type McapBucket = "all" | "large" | "mid" | "small";
+
+export function matchesMcapBucket(bucket: McapBucket, row: TraderScannerRow): boolean {
+  const m = row.marketCapUsd ?? 0;
+  if (bucket === "all") return true;
+  if (bucket === "large") return m >= 10e9;
+  if (bucket === "mid") return m >= 1e9 && m < 10e9;
+  if (bucket === "small") return m > 0 && m < 1e9;
+  return true;
+}
+
+export type MomentumSentimentFilter = "all" | "bull" | "neutral" | "bear";
+
+export function matchesMomentumFilter(
+  mode: MomentumSentimentFilter,
+  row: TraderScannerRow
+): boolean {
+  if (mode === "all") return true;
+  if (mode === "bull") return row.trendLabel === "Bull";
+  if (mode === "bear") return row.trendLabel === "Bear";
+  if (mode === "neutral") return row.trendLabel === "Neutral";
+  return true;
+}
+
+/** Sentiment uses the B70 composite score bucket (not raw 24h/7d momentum). */
+export function matchesSentimentFilter(
+  mode: MomentumSentimentFilter,
+  row: TraderScannerRow
+): boolean {
+  if (mode === "all") return true;
+  if (mode === "bull") return row.sentimentLabel === "Bull";
+  if (mode === "bear") return row.sentimentLabel === "Bear";
+  if (mode === "neutral") return row.sentimentLabel === "Neutral";
+  return true;
 }
 
 export type FilterPreset = "gainers" | "losers" | "score" | "trending";
