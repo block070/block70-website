@@ -39,8 +39,13 @@ export const config = {
   /** Initial backoff delay (ms); BullMQ uses exponential backoff */
   workerJobBackoffMs: parseInt(opt("WORKER_JOB_BACKOFF_MS", "30000"), 10),
   /**
-   * IANA timezone for hourly cron (`0 * * * *`). BullMQ runs at **local** :00 in this zone
+   * IANA timezone for the pipeline cron. BullMQ evaluates the pattern in this zone
    * (America/Chicago ≈ US Central, CST/CDT). Match `timedatectl` on the host or override via env.
    */
   pipelineCronTz: opt("PIPELINE_CRON_TZ", "America/Chicago"),
+  /**
+   * Cron expression for the full pipeline (RSS → generate → publish including LinkedIn).
+   * Default hourly at :00. For every 30 minutes use PIPELINE_CRON_PATTERN with a 30-minute step on the minute field (see `.env.example`).
+   */
+  pipelineCronPattern: opt("PIPELINE_CRON_PATTERN", "0 * * * *"),
 };

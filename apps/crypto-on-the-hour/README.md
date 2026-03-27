@@ -99,7 +99,7 @@ npm run dev
 npm run worker
 ```
 
-Registers a **repeatable BullMQ job** on cron `0 * * * *` at **:00** in **`PIPELINE_CRON_TZ`** (default **`America/Chicago`**, US Central). Requires the **worker** process (`npm run start:worker`). To verify the next fire time, see Redis/BullMQ `getRepeatableJobs` or watch worker logs when the hour rolls in Central time.
+Registers a **repeatable BullMQ job** using **`PIPELINE_CRON_PATTERN`** (default `0 * * * *`, top of each hour) in **`PIPELINE_CRON_TZ`** (default **`America/Chicago`**). For **LinkedIn (and the full pipeline) every 30 minutes**, set **`PIPELINE_CRON_PATTERN=*/30 * * * *`** and restart the worker (on restart, previous repeatables for this job are removed so the pattern change does not stack). Requires **`npm run start:worker`** and Redis. Verify with BullMQ `getRepeatableJobs` or worker logs.
 
 **Existing `/crypto-on-the-hour` “Updated” labels:** optional one-off `scripts/stagger-web-published-updated-at.sql` makes each row’s `updated_at` a distinct Central top-of-hour (staggered backward by row).
 
