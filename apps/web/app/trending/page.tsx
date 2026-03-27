@@ -3,26 +3,44 @@ import { Suspense } from "react";
 
 import { TrendingPageClient } from "@/components/trending/trending-page-client";
 import { ChainContextBanner } from "@/components/trending/chain-context-banner";
-import { getTrendingPagePayload } from "@/lib/trending-page-data";
+import {
+  getTrendingPagePayload,
+  type TrendingHoursWindow,
+} from "@/lib/trending-page-data";
 
 export const revalidate = 60;
 
-export const metadata = {
-  title: "Trending · Block70 Crypto Data",
-  description:
-    "Scan trending cryptocurrencies with Trending Score, Block70 quick signals, smart-money bias, and momentum — filter by category and drill into full analysis.",
+type PageProps = {
+  searchParams: Promise<{ hours?: string }>;
 };
 
-export default async function TrendingPage() {
-  const { rows, opportunities, updatedAt, isFallback } = await getTrendingPagePayload();
+function parseHours(raw: string | undefined): TrendingHoursWindow {
+  if (raw === "1" || raw === "6" || raw === "24") return Number(raw) as TrendingHoursWindow;
+  return 24;
+}
+
+export const metadata = {
+  title: "Trending attention · Block70",
+  description:
+    "Attention and momentum engine: ranked coins with signal-window overlay, narratives, sector rotation, and bubble map. Tape + Block70 signals — not search/social volume yet. Not financial advice.",
+};
+
+export default async function TrendingPage({ searchParams }: PageProps) {
+  const { hours: hoursParam } = await searchParams;
+  const hours = parseHours(hoursParam);
+  const { rows, opportunities, updatedAt, isFallback, narratives, categories } =
+    await getTrendingPagePayload(hours);
 
   return (
     <div className="space-y-6">
       <header className="space-y-2">
-        <h1 className="text-2xl font-semibold tracking-tight">Trending</h1>
-        <p className="text-sm text-slate-400">
-          Fast-scan what&apos;s moving: Trending Score blends volume vs peers, momentum, and
-          CoinGecko buzz; Block70 Score powers quick signals. Rows refresh every 60 seconds.
+        <h1 className="text-2xl font-semibold tracking-tight text-[var(--b70-text)]">
+          Trending attention
+        </h1>
+        <p className="text-sm text-[var(--b70-text-muted)]">
+          Where attention, volume, and narratives are moving—ranked by a composite Attention Score
+          (tape, momentum, CoinGecko buzz, and signal heat in your chosen window). Rank changes and
+          “New” badges update as you stay on the page. Not financial advice.
         </p>
       </header>
 
@@ -39,11 +57,14 @@ export default async function TrendingPage() {
           initialRows={rows}
           initialOpportunities={opportunities}
           initialUpdatedAt={updatedAt}
+          initialNarratives={narratives}
+          initialCategories={categories}
+          initialHours={hours}
           isFallback={isFallback}
         />
       )}
 
-      <p className="text-xs text-slate-400">
+      <p className="text-xs text-[var(--b70-text-muted)]">
         <Link href="/coins" className="text-crypto-blue hover:underline">
           Browse all coins
         </Link>

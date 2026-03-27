@@ -3,15 +3,22 @@ import {
   type CoinListItemDto,
 } from "@/lib/coins";
 import {
+  getCategoryDirectory,
   getMarketCoins,
+  getNarrativesList,
+  getSignalsTrending,
   getTrendingMarketCoins,
+  type CategoryDirectoryApiItem,
   type MarketCoin,
+  type MarketNarrativeDto,
   type TrendingMarketCoin,
 } from "@/lib/api";
 import type { Coin } from "@/lib/crypto-mock";
 import { TRENDING_COINS } from "@/lib/crypto-mock";
 import {
+  applyAttentionOverlay,
   enrichTrendingRows,
+  signalHeatBySymbol,
   type EnrichedTrendingRow,
   type TrendTab,
 } from "@/lib/trending-metrics";
@@ -118,36 +125,59 @@ export type TrendingOpportunity = {
   logoUrl?: string | null;
   change24hPct: number;
   trendingScore: number;
+  attentionScore: number;
   block70Score: number;
   blendScore: number;
 };
+
+export type TrendingHoursWindow = 1 | 6 | 24;
 
 export type TrendingPagePayload = {
   rows: EnrichedTrendingRow[];
   opportunities: TrendingOpportunity[];
   updatedAt: string;
   isFallback: boolean;
+  hours: TrendingHoursWindow;
+  narratives: MarketNarrativeDto[];
+  categories: CategoryDirectoryApiItem[];
 };
 
-function opportunityBlend(r: EnrichedTrendingRow): number {
-  return r.trendingScore * 0.45 + r.block70Score * 0.55;
+function normalizeTrendingHours(raw?: number): TrendingHoursWindow {
+  if (raw === 1 || raw === 6 || raw === 24) return raw;
+  return 24;
 }
 
-export async function getTrendingPagePayload(): Promise<TrendingPagePayload> {
+function opportunityBlend(r: EnrichedTrendingRow): number {
+  return r.attentionScore * 0.45 + r.block70Score * 0.55;
+}
+
+export async function getTrendingPagePayload(
+  hoursParam?: number,
+): Promise<TrendingPagePayload> {
+  const hours = normalizeTrendingHours(hoursParam);
   const updatedAt = new Date().toISOString();
 
   try {
     let coins: Coin[];
     let coingeckoScores: (number | null)[];
 
-    const [trending, marketSettled] = await Promise.all([
-      withTimeout(getTrendingMarketCoins(40), FETCH_TIMEOUT_MS),
-      Promise.allSettled(
-        Array.from({ length: MARKET_PAGES }, (_, p) =>
-          withTimeout(getMarketCoins({ limit: 100, page: p + 1 }), FETCH_TIMEOUT_MS)
-        )
-      ),
-    ]);
+    const [trending, marketSettled, signalTrending, narrativesRes, categoriesRes] =
+      await Promise.all([
+        withTimeout(getTrendingMarketCoins(40), FETCH_TIMEOUT_MS),
+        Promise.allSettled(
+          Array.from({ length: MARKET_PAGES }, (_, p) =>
+            withTimeout(getMarketCoins({ limit: 100, page: p + 1 }), FETCH_TIMEOUT_MS),
+          ),
+        ),
+        withTimeout(getSignalsTrending({ hours, limit: 80 }), FETCH_TIMEOUT_MS).catch(() => []),
+        withTimeout(getNarrativesList({ limit: 40 }), FETCH_TIMEOUT_MS).catch(() => []),
+        withTimeout(getCategoryDirectory({ limit: 24, order: "market_cap" }), FETCH_TIMEOUT_MS).catch(
+          () => ({ items: [], total: 0 }),
+        ),
+      ]);
+
+    const narratives: MarketNarrativeDto[] = Array.isArray(narrativesRes) ? narrativesRes : [];
+    const categories: CategoryDirectoryApiItem[] = categoriesRes.items ?? [];
 
     const flatMarket: MarketCoin[] = marketSettled.flatMap((r) =>
       r.status === "fulfilled" ? r.value : []
@@ -173,10 +203,16 @@ export async function getTrendingPagePayload(): Promise<TrendingPagePayload> {
       (c) => catMap.get(c.slug.toLowerCase()) ?? null
     );
 
-    const rows = enrichTrendingRows(coins, {
+    const baseRows = enrichTrendingRows(coins, {
       coingeckoScores,
       categoryLabels,
     });
+    const heatMap = signalHeatBySymbol(signalTrending);
+    const rows = applyAttentionOverlay(baseRows, {
+      signalHeatBySymbol: heatMap,
+      narratives,
+      categoryLabels,
+    }).sort((a, b) => b.attentionScore - a.attentionScore);
 
     const opportunities = [...rows]
       .sort((a, b) => opportunityBlend(b) - opportunityBlend(a))
@@ -188,18 +224,33 @@ export async function getTrendingPagePayload(): Promise<TrendingPagePayload> {
         logoUrl: r.coin.logoUrl,
         change24hPct: r.coin.change24hPct,
         trendingScore: r.trendingScore,
+        attentionScore: r.attentionScore,
         block70Score: r.block70Score,
         blendScore: opportunityBlend(r),
       }));
 
-    return { rows, opportunities, updatedAt, isFallback: false };
+    return {
+      rows,
+      opportunities,
+      updatedAt,
+      isFallback: false,
+      hours,
+      narratives,
+      categories,
+    };
   } catch {
     const coins = mockToCoins();
     const coingeckoScores = coins.map(() => null);
-    const rows = enrichTrendingRows(coins, {
+    const categoryLabels = coins.map((c) => c.categoryIds?.[0] ?? null);
+    const baseRows = enrichTrendingRows(coins, {
       coingeckoScores,
-      categoryLabels: coins.map((c) => c.categoryIds?.[0] ?? null),
+      categoryLabels,
     });
+    const rows = applyAttentionOverlay(baseRows, {
+      signalHeatBySymbol: new Map(),
+      narratives: [],
+      categoryLabels,
+    }).sort((a, b) => b.attentionScore - a.attentionScore);
     const opportunities = [...rows]
       .sort((a, b) => opportunityBlend(b) - opportunityBlend(a))
       .slice(0, 5)
@@ -210,10 +261,19 @@ export async function getTrendingPagePayload(): Promise<TrendingPagePayload> {
         logoUrl: r.coin.logoUrl,
         change24hPct: r.coin.change24hPct,
         trendingScore: r.trendingScore,
+        attentionScore: r.attentionScore,
         block70Score: r.block70Score,
         blendScore: opportunityBlend(r),
       }));
-    return { rows, opportunities, updatedAt, isFallback: true };
+    return {
+      rows,
+      opportunities,
+      updatedAt,
+      isFallback: true,
+      hours,
+      narratives: [],
+      categories: [],
+    };
   }
 }
 

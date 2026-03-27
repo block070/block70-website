@@ -9,6 +9,9 @@ export type SmartMoney = "accumulating" | "selling" | "neutral";
 
 export type Momentum = "up" | "flat" | "down";
 
+/** Attention engine lifecycle label (Early / Exploding / Cooling). */
+export type MomentumPhase = "early" | "exploding" | "cooling";
+
 export type TrendTab = "all" | "depin" | "ai" | "l1" | "meme" | "gaming";
 
 export const TRENDING_TABS: { id: TrendTab; label: string }[] = [
@@ -116,6 +119,92 @@ export function momentumTitle(m: Momentum): string {
   if (m === "up") return "Accelerating";
   if (m === "down") return "Slowing";
   return "Stable";
+}
+
+/**
+ * % turnover vs cohort median: (turnover / medianTurnover - 1) * 100.
+ */
+export function volumeSpikePctVsMedian(turnover: number, medianTurnover: number): number {
+  const m = Math.max(medianTurnover, 1e-18);
+  const pct = (turnover / m - 1) * 100;
+  return Math.round(Math.max(-99, Math.min(9_999, pct)) * 10) / 10;
+}
+
+export function momentumPhaseFrom(
+  tier: TrendingTier,
+  momentum: Momentum,
+  change24hPct: number,
+): MomentumPhase {
+  const p24 = Number.isFinite(change24hPct) ? change24hPct : 0;
+  if (momentum === "down" || tier === "low" || p24 < -2.5) return "cooling";
+  if (tier === "exploding" || (tier === "trending" && momentum === "up" && p24 > 1.2))
+    return "exploding";
+  return "early";
+}
+
+export function momentumPhaseLabel(phase: MomentumPhase): string {
+  if (phase === "exploding") return "Exploding";
+  if (phase === "cooling") return "Cooling";
+  return "Early";
+}
+
+export function momentumPhaseClasses(phase: MomentumPhase): string {
+  switch (phase) {
+    case "exploding":
+      return "bg-orange-500/15 text-orange-300 border-orange-500/35";
+    case "cooling":
+      return "bg-slate-600/20 text-slate-400 border-slate-500/40";
+    default:
+      return "bg-crypto-blue/15 text-crypto-blue border-crypto-blue/30";
+  }
+}
+
+/** Blend base trending score with signal-window heat (both 0–100). */
+export function computeAttentionScore(baseTrendingScore: number, signalHeat: number): number {
+  const b = Math.max(0, Math.min(100, baseTrendingScore));
+  const s = Math.max(0, Math.min(100, signalHeat));
+  return Math.round(Math.max(0, Math.min(100, b * 0.72 + s * 0.28)));
+}
+
+/** Map token symbol/slug keys to 0–100 heat from trending signal aggregates. */
+export function signalHeatBySymbol(
+  signals: Array<{ token_symbol: string | null; signal_count: number }>,
+): Map<string, number> {
+  if (!signals.length) return new Map();
+  const maxCount = Math.max(...signals.map((s) => s.signal_count ?? 0), 1);
+  const map = new Map<string, number>();
+  for (const s of signals) {
+    const sym = (s.token_symbol ?? "").trim().toUpperCase();
+    if (!sym) continue;
+    const raw = (s.signal_count ?? 0) / maxCount;
+    const heat = Math.round(Math.min(100, 12 + raw * 88));
+    const prev = map.get(sym) ?? 0;
+    if (heat > prev) map.set(sym, heat);
+  }
+  return map;
+}
+
+/** Pick a short narrative label: prefer engine whyTag, else overlap with narrative names. */
+export function pickNarrativeTagLine(args: {
+  whyTag: string;
+  categoryLabel: string | null | undefined;
+  coinName: string;
+  coinSlug: string;
+  narratives: Array<{ name: string }>;
+}): string {
+  const { whyTag, categoryLabel, coinName, coinSlug, narratives } = args;
+  const cat = (categoryLabel ?? "").toLowerCase();
+  const blob = `${cat} ${coinName.toLowerCase()} ${coinSlug.toLowerCase()}`;
+  for (const n of narratives) {
+    const name = n.name.trim();
+    if (!name) continue;
+    const lower = name.toLowerCase();
+    const parts = lower.split(/\s+/).filter((w) => w.length > 3);
+    for (const w of parts) {
+      if (blob.includes(w)) return name.length > 48 ? `${name.slice(0, 45)}…` : name;
+    }
+  }
+  return whyTag;
 }
 
 /** Map DB/API category + slug/name to a filter tab; null = only visible on “All”. */
@@ -250,6 +339,14 @@ export type EnrichedTrendingRow = {
   sparkline7d: number[];
   trendTab: TrendTab | null;
   volumeScorePart: number;
+  /** Attention engine score (trending + signal-window heat). */
+  attentionScore: number;
+  /** % turnover vs median of this cohort. */
+  volumeSpikePct: number;
+  narrativeTag: string;
+  momentumPhase: MomentumPhase;
+  /** Normalized 0–100 from signal trending API for selected hours window. */
+  signalHeat: number;
 };
 
 export function enrichTrendingRows(
@@ -300,6 +397,10 @@ export function enrichTrendingRows(
       smartMoney: sm,
     });
 
+    const volumeSpikePct = volumeSpikePctVsMedian(t, medianT);
+    const momentum = momentumFromPrice(coin.change24hPct, coin.change7dPct);
+    const momentumPhase = momentumPhaseFrom(tier.tier, momentum, coin.change24hPct);
+
     return {
       coin,
       block70Score,
@@ -307,7 +408,7 @@ export function enrichTrendingRows(
       tier,
       whyTag,
       quickSignal: quickSignalFromBlock70(block70Score),
-      momentum: momentumFromPrice(coin.change24hPct, coin.change7dPct),
+      momentum,
       smartMoney: sm,
       sparkline7d: syntheticSparkline7d(coin.priceUsd, coin.change7dPct),
       trendTab: inferTrendTab(
@@ -316,6 +417,51 @@ export function enrichTrendingRows(
         coin.name
       ),
       volumeScorePart,
+      attentionScore: trendingScore,
+      volumeSpikePct,
+      narrativeTag: whyTag,
+      momentumPhase,
+      signalHeat: 0,
+    };
+  });
+}
+
+/** Apply signal heat and narrative tagging after base enrichment. */
+export function applyAttentionOverlay(
+  rows: EnrichedTrendingRow[],
+  args: {
+    signalHeatBySymbol: Map<string, number>;
+    narratives: Array<{ name: string }>;
+    categoryLabels: (string | null)[];
+  },
+): EnrichedTrendingRow[] {
+  return rows.map((row, i) => {
+    const sym = row.coin.symbol?.toUpperCase() ?? "";
+    const heat =
+      (sym ? args.signalHeatBySymbol.get(sym) : undefined) ??
+      args.signalHeatBySymbol.get(row.coin.slug.toUpperCase()) ??
+      0;
+    const attentionScore = computeAttentionScore(row.trendingScore, heat);
+    const tier = tierFromTrendingScore(attentionScore);
+    const narrativeTag = pickNarrativeTagLine({
+      whyTag: row.whyTag,
+      categoryLabel: args.categoryLabels[i],
+      coinName: row.coin.name,
+      coinSlug: row.coin.slug,
+      narratives: args.narratives,
+    });
+    const momentumPhase = momentumPhaseFrom(
+      tier.tier,
+      row.momentum,
+      row.coin.change24hPct,
+    );
+    return {
+      ...row,
+      signalHeat: heat,
+      attentionScore,
+      tier,
+      narrativeTag,
+      momentumPhase,
     };
   });
 }
