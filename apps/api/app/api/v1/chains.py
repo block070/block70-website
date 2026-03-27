@@ -17,7 +17,7 @@ from app.services.connectors.market_cache import market_cache_get, market_cache_
 
 router = APIRouter(prefix="/api/v1/chains", tags=["chains"])
 
-CHAIN_CACHE_KEY = "chains_data"
+CHAIN_CACHE_KEY = "chains_data_v2"
 CHAIN_CACHE_TTL = 60
 
 logger = logging.getLogger(__name__)
@@ -49,17 +49,20 @@ def _synthetic_change_percent(chain_name: str) -> float:
 def _compute_chain_payload(raw: Dict[str, Any]) -> Dict[str, Any]:
     """
     Transform DeFiLlama chain into our schema.
-    tvl_24h_change: from API if available, else synthetic (DeFiLlama has no chain-level change).
+    tvl_24h_change: from API if available, else synthetic (DeFiLlama v2/chains often omits it).
     netflow_24h = tvl * (tvl_24h_change / 100)
     momentum_score = (tvl_24h_change * 0.5) + (netflow_normalized * 0.5)
+    volume_24h / fees_24h / active_addresses_24h: reserved for future Llama or other connectors.
     """
     tvl = float(raw.get("tvl") or 0)
     name = raw.get("name") or "Unknown"
     raw_change = raw.get("tvlChange") or raw.get("change_1d")
     if isinstance(raw_change, (int, float)):
         tvl_24h_change = float(raw_change)
+        tvl_change_is_estimated = False
     else:
         tvl_24h_change = _synthetic_change_percent(name)
+        tvl_change_is_estimated = True
 
     netflow_24h = tvl * (tvl_24h_change / 100) if tvl else 0
     netflow_normalized = netflow_24h / 1e9
@@ -83,8 +86,12 @@ def _compute_chain_payload(raw: Dict[str, Any]) -> Dict[str, Any]:
         "symbol": symbol,
         "tvl": round(tvl, 2),
         "tvl_24h_change": round(tvl_24h_change, 4),
+        "tvl_change_is_estimated": tvl_change_is_estimated,
         "netflow_24h": round(netflow_24h, 2),
-        "active_users": None,  # DeFiLlama chains endpoint doesn't provide this
+        "volume_24h": None,
+        "fees_24h": None,
+        "active_addresses_24h": None,
+        "active_users": None,
         "momentum_score": round(momentum_score, 4),
         "whale_inflow_24h": whale_inflow_24h,
         "bridge_inflow_24h": bridge_inflow_24h,

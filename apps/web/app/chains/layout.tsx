@@ -1,7 +1,7 @@
 export const metadata = {
-  title: "Chains · Block70 Crypto Data",
+  title: "Ecosystem intelligence · Block70",
   description:
-    "Blockchain ecosystem intelligence. Track where capital, users, and activity are flowing across major blockchains in real-time.",
+    "Compare blockchain ecosystems: TVL from DeFiLlama, modeled liquidity flows, protocol categories and top tokens per chain. Volume, fees, and DAA when data connectors are available — with clear methodology labels.",
 };
 
 export default function ChainsLayout({

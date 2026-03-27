@@ -10,6 +10,14 @@ type ProtocolPayload = {
   category: string;
 };
 
+type CoinPayload = {
+  name: string;
+  symbol: string;
+  slug: string;
+  price: number;
+  change_24h: number | null;
+};
+
 async function fetchProtocolsForChain(
   chainName: string,
   limit: number
@@ -63,7 +71,7 @@ async function fetchProtocolsForChain(
 
 export type ExpansionResponse = {
   protocols: ProtocolPayload[];
-  coins: never[];
+  coins: CoinPayload[];
 };
 
 export async function GET(
@@ -78,6 +86,23 @@ export async function GET(
     return NextResponse.json({ protocols: [], coins: [] }, { status: 400 });
   }
 
+  const origin = request.nextUrl.origin;
+
+  async function fetchCoinsLocal(): Promise<CoinPayload[]> {
+    try {
+      const cRes = await fetch(
+        `${origin}/api/v1/chains/${encodeURIComponent(chainName)}/coins?limit=${limit}`,
+        { cache: "no-store", headers: { Accept: "application/json" } }
+      );
+      if (!cRes.ok) return [];
+      const raw = (await cRes.json()) as unknown;
+      if (!Array.isArray(raw)) return [];
+      return raw as CoinPayload[];
+    } catch {
+      return [];
+    }
+  }
+
   if (API_BASE) {
     try {
       const res = await fetch(
@@ -85,9 +110,13 @@ export async function GET(
         { cache: "no-store", headers: { Accept: "application/json" } }
       );
       if (res.ok) {
-        const data = await res.json();
+        const data = (await res.json()) as ExpansionResponse;
         if (data && (data.protocols?.length ?? 0) > 0) {
-          return NextResponse.json(data);
+          const coins =
+            Array.isArray(data.coins) && data.coins.length > 0
+              ? data.coins
+              : await fetchCoinsLocal();
+          return NextResponse.json({ protocols: data.protocols, coins });
         }
       }
     } catch {
@@ -96,6 +125,7 @@ export async function GET(
   }
 
   const protocols = await fetchProtocolsForChain(chainName, limit);
+  const coins = await fetchCoinsLocal();
 
-  return NextResponse.json({ protocols, coins: [] });
+  return NextResponse.json({ protocols, coins });
 }

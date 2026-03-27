@@ -1054,7 +1054,16 @@ export type ChainDto = {
   symbol: string;
   tvl: number;
   tvl_24h_change: number;
+  /** True when 24h TVL % is synthetic (see /api/v1/chains implementation). */
+  tvl_change_is_estimated?: boolean;
   netflow_24h: number;
+  /** DEX / on-chain transfer volume where available; often null until a connector is wired. */
+  volume_24h?: number | null;
+  /** Protocol or chain fees 24h where available. */
+  fees_24h?: number | null;
+  /** Daily active addresses where available (preferred over legacy active_users). */
+  active_addresses_24h?: number | null;
+  /** @deprecated Use active_addresses_24h when populated. */
   active_users: number | null;
   momentum_score: number;
   whale_inflow_24h?: number | null;

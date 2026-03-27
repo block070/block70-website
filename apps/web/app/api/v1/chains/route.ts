@@ -10,7 +10,12 @@ type ChainPayload = {
   symbol: string;
   tvl: number;
   tvl_24h_change: number;
+  /** When true, 24h % is a deterministic placeholder (DeFiLlama v2/chains often omits change). */
+  tvl_change_is_estimated: boolean;
   netflow_24h: number;
+  volume_24h: number | null;
+  fees_24h: number | null;
+  active_addresses_24h: number | null;
   active_users: number | null;
   momentum_score: number;
 };
@@ -30,12 +35,18 @@ function syntheticChangePercent(chainName: string): number {
 function computePayload(raw: Record<string, unknown>): ChainPayload {
   const tvl = Number(raw.tvl) || 0;
   const name = (raw.name as string) || "Unknown";
-  const tvl_24h_change =
-    typeof raw.tvlChange === "number"
-      ? raw.tvlChange
-      : typeof raw.change_1d === "number"
-        ? raw.change_1d
-        : syntheticChangePercent(name);
+  let tvl_24h_change: number;
+  let tvl_change_is_estimated: boolean;
+  if (typeof raw.tvlChange === "number") {
+    tvl_24h_change = raw.tvlChange;
+    tvl_change_is_estimated = false;
+  } else if (typeof raw.change_1d === "number") {
+    tvl_24h_change = raw.change_1d;
+    tvl_change_is_estimated = false;
+  } else {
+    tvl_24h_change = syntheticChangePercent(name);
+    tvl_change_is_estimated = true;
+  }
   const netflow_24h = tvl * (tvl_24h_change / 100);
   const netflow_normalized = netflow_24h / 1e9;
   const momentum_score = tvl_24h_change * 0.5 + netflow_normalized * 0.5;
@@ -52,7 +63,11 @@ function computePayload(raw: Record<string, unknown>): ChainPayload {
     symbol,
     tvl: Math.round(tvl * 100) / 100,
     tvl_24h_change: Math.round(tvl_24h_change * 10000) / 10000,
+    tvl_change_is_estimated,
     netflow_24h: Math.round(netflow_24h * 100) / 100,
+    volume_24h: null,
+    fees_24h: null,
+    active_addresses_24h: null,
     active_users: null,
     momentum_score: Math.round(momentum_score * 10000) / 10000,
   };
