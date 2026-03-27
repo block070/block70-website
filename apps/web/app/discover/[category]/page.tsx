@@ -94,6 +94,12 @@ export default async function DiscoverCategoryPage({ params }: PageProps) {
         <p className="mt-1 text-sm text-[var(--b70-text-muted)]">
           Coins in the {title} category. Explore market data, signals, and opportunities.
         </p>
+        <p className="mt-2 text-xs text-[var(--b70-text-muted)]">
+          <Link href={`/categories/${encodeURIComponent(category)}`} className="text-crypto-blue hover:underline">
+            Open sector intelligence view
+          </Link>{" "}
+          for dominance, snapshot KPIs, and flow context (same slug when the category exists in snapshots).
+        </p>
       </section>
 
       <CategoryMarketOverview

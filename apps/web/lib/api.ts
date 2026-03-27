@@ -392,6 +392,26 @@ function marketCategoryToDirectoryItem(m: MarketCategory): CategoryDirectoryApiI
   };
 }
 
+/** Single row from GET /api/v1/categories/{slug} — same shape as directory items. */
+export async function getCategoryDirectoryEntry(slug: string): Promise<CategoryDirectoryApiItem | null> {
+  const s = (slug || "").trim().toLowerCase();
+  if (!s) return null;
+  const path = `/api/v1/categories/${encodeURIComponent(s)}`;
+  try {
+    const base = getApiBaseUrl();
+    const url = base ? `${base}${path.startsWith("/") ? "" : "/"}${path}` : path;
+    const res = await fetch(url, {
+      headers: { "Content-Type": "application/json" },
+      cache: "no-store",
+    });
+    if (res.status === 404) return null;
+    if (!res.ok) return null;
+    return (await res.json()) as CategoryDirectoryApiItem;
+  } catch {
+    return null;
+  }
+}
+
 export async function getCategoryDirectory(params?: {
   order?: string;
   limit?: number;

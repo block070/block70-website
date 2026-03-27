@@ -8,6 +8,8 @@ export type TopCoinRow = {
   block70Score: number;
 };
 
+export type DominanceBasis = "global" | "page";
+
 export type EnrichedCategory = MarketCategory & {
   top3: TopCoinRow[];
   avgBlock70: number;
@@ -16,6 +18,10 @@ export type EnrichedCategory = MarketCategory & {
   trend: "bullish" | "neutral" | "bearish";
   capitalFlow: "in" | "out" | "neutral";
   volToMcap: number;
+  /** Share of denominator market cap, 0–100; null if unknown. */
+  dominancePct: number | null;
+  /** `global` = vs total crypto mcap from market summary; `page` = vs sum of caps on this directory page only. */
+  dominanceBasis: DominanceBasis;
 };
 
 /** Map snapshot API row to the shape expected by CategoriesPageClient. */
@@ -36,7 +42,59 @@ export function mapCategoryDirectoryToEnriched(row: CategoryDirectoryApiItem): E
     trend: row.trend,
     capitalFlow: row.capital_flow,
     volToMcap: row.vol_to_mcap,
+    dominancePct: null,
+    dominanceBasis: "page",
   };
+}
+
+/**
+ * Fill dominance vs total crypto market cap when `globalTotalMarketcapUsd` is valid;
+ * otherwise vs the sum of sector caps on this page (directory slice).
+ */
+/** Dominance for one sector vs total crypto mcap; no bogus “100%” when global totals are missing. */
+export function dominanceForSingleSector(
+  sectorMcap: number,
+  globalTotalMarketcapUsd: number | null | undefined,
+): { dominancePct: number | null; dominanceBasis: DominanceBasis } {
+  const m = Math.max(0, sectorMcap);
+  const g =
+    globalTotalMarketcapUsd != null &&
+    typeof globalTotalMarketcapUsd === "number" &&
+    Number.isFinite(globalTotalMarketcapUsd) &&
+    globalTotalMarketcapUsd > 0
+      ? globalTotalMarketcapUsd
+      : null;
+  if (g != null && m > 0) {
+    return { dominancePct: (m / g) * 100, dominanceBasis: "global" };
+  }
+  return { dominancePct: null, dominanceBasis: "page" };
+}
+
+export function applyDominanceToCategories(
+  categories: EnrichedCategory[],
+  globalTotalMarketcapUsd: number | null | undefined,
+): EnrichedCategory[] {
+  const useGlobal =
+    globalTotalMarketcapUsd != null &&
+    typeof globalTotalMarketcapUsd === "number" &&
+    Number.isFinite(globalTotalMarketcapUsd) &&
+    globalTotalMarketcapUsd > 0;
+  const pageSum = categories.reduce((s, c) => s + Math.max(0, c.market_cap ?? 0), 0);
+  const denom = useGlobal ? globalTotalMarketcapUsd! : pageSum;
+  const basis: DominanceBasis = useGlobal ? "global" : "page";
+
+  if (denom <= 0) {
+    return categories.map((c) => ({ ...c, dominancePct: null, dominanceBasis: basis }));
+  }
+
+  return categories.map((c) => {
+    const m = Math.max(0, c.market_cap ?? 0);
+    return {
+      ...c,
+      dominancePct: (m / denom) * 100,
+      dominanceBasis: basis,
+    };
+  });
 }
 
 export function inferSector(id: string, name: string): string {
