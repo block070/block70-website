@@ -14,6 +14,41 @@ export type TrendOpp = {
   detected_at?: string | null;
 };
 
+const GROWTH_EPS = 1e-6;
+
+function oppEffectiveTime(o: TrendOpp): Date | null {
+  const s = o.detected_at ?? o.created_at;
+  if (!s || typeof s !== "string") return null;
+  const t = Date.parse(s);
+  if (!Number.isFinite(t)) return null;
+  return new Date(t);
+}
+
+/** Match FastAPI narrative intelligence: WoW on summed scores in 7d windows. */
+function growthRateForOpportunityGroup(group: TrendOpp[]): number | null {
+  const now = Date.now();
+  const ms7 = 7 * 24 * 60 * 60 * 1000;
+  const recentStart = now - ms7;
+  const prevStart = now - 2 * ms7;
+  const prevEnd = recentStart;
+
+  let recent = 0;
+  let prev = 0;
+  for (const o of group) {
+    const eff = oppEffectiveTime(o);
+    if (!eff) continue;
+    const sc = typeof o.total_score === "number" ? o.total_score : 0;
+    const t = eff.getTime();
+    if (t >= recentStart && t <= now) recent += sc;
+    if (t >= prevStart && t <= prevEnd) prev += sc;
+  }
+
+  if (prev <= GROWTH_EPS) {
+    return recent > GROWTH_EPS ? null : 0;
+  }
+  return (recent - prev) / prev;
+}
+
 function utcLast14Dates(): string[] {
   const out: string[] = [];
   const now = new Date();
@@ -83,7 +118,7 @@ export function syntheticNarrativesFromTrending(opps: TrendOpp[], cap: number): 
       created_at: group[0]!.created_at ?? null,
       attention,
       sentiment,
-      growth_rate: 0,
+      growth_rate: growthRateForOpportunityGroup(group),
       related_symbols: symbols,
       daily_series,
     });
@@ -149,7 +184,7 @@ export function intelligenceDetailFromTrendingSlug(
     created_at: group[0]!.created_at ?? null,
     attention,
     sentiment,
-    growth_rate: 0,
+    growth_rate: growthRateForOpportunityGroup(group),
     related_symbols: symbols,
     daily_series,
     opportunities,

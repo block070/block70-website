@@ -25,7 +25,8 @@ function sentimentStyles(s: number): { label: string; className: string } {
   };
 }
 
-function formatGrowthRate(g: number): string {
+function formatGrowthRate(g: number | null): string {
+  if (g == null) return "New";
   const pct = g * 100;
   const capped = Math.max(-999, Math.min(999, pct));
   return `${capped >= 0 ? "+" : ""}${capped.toFixed(0)}%`;
@@ -96,7 +97,11 @@ export default async function NarrativeDetailPage({ params }: PageProps) {
             <p
               className={clsx(
                 "font-[family-name:var(--font-jetbrains)] text-lg",
-                data.growth_rate >= 0 ? "text-emerald-400" : "text-rose-400",
+                data.growth_rate === null
+                  ? "text-sky-400/95"
+                  : data.growth_rate >= 0
+                    ? "text-emerald-400"
+                    : "text-rose-400",
               )}
             >
               {formatGrowthRate(data.growth_rate)}

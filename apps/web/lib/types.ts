@@ -89,7 +89,8 @@ export interface NarrativeIntelligenceRow {
   created_at: string | null;
   attention: number;
   sentiment: number;
-  growth_rate: number;
+  /** WoW ratio; null when there is attention but no prior-week baseline ("new"). */
+  growth_rate: number | null;
   related_symbols: string[];
   daily_series: NarrativeDailyPoint[];
 }

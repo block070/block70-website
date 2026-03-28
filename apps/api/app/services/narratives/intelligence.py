@@ -108,7 +108,7 @@ class BuiltIntelligenceRow:
     matched: List[Opportunity]
     attention_recent: float
     attention_prev: float
-    growth_rate: float
+    growth_rate: Optional[float]
     sentiment: float
     related_symbols: List[str]
     daily_series: List[Tuple[date, float]]
@@ -130,11 +130,11 @@ def _build_row(
 
     attention_recent = _sum_attention_in_range(matched, win_recent_start, end)
     attention_prev = _sum_attention_in_range(matched, win_prev_start, win_prev_end)
-    # Week-over-week: (recent − prior) / prior. If the prior 7d window had no attention
-    # (common for newly detected opps / seeds), using max(prior, EPS) explodes the ratio;
-    # the web UI caps at +999%. Report 0 when there is no meaningful prior baseline.
+    # Week-over-week: (recent − prior) / prior. If the prior 7d window had no attention,
+    # dividing by EPS explodes the ratio (UI capped at +999%). Use null when there is
+    # recent activity but no prior baseline ("new"); use 0 when both windows are flat.
     if attention_prev <= EPS:
-        growth_rate = 0.0
+        growth_rate = None if attention_recent > EPS else 0.0
     else:
         growth_rate = (attention_recent - attention_prev) / attention_prev
 

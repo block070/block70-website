@@ -91,7 +91,7 @@ def get_narratives_intelligence(
 
     - **attention:** sum of `total_score` in the last 7 days (UTC), using `detected_at` or `created_at`.
     - **sentiment:** mean(`upscore - risk_score`) clamped to [-1, 1].
-    - **growth_rate:** (attention last 7d − attention prior 7d) / max(prior, ε).
+    - **growth_rate:** WoW ratio when prior-week attention exists; null for new activity without a prior baseline; 0 when flat.
     - **daily_series:** 14 UTC days of per-day attention sums for sparklines.
     """
     built_rows, computed_at = compute_intelligence_rows(db, narrative_limit=limit)

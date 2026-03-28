@@ -34,8 +34,12 @@ class NarrativeIntelligenceRow(BaseModel):
     sentiment: float = Field(
         description="Proxy −1..1: mean(upside_score - risk_score) over matched opps."
     )
-    growth_rate: float = Field(
-        description="(attn_7d - attn_prev_7d) / max(attn_prev_7d, ε)."
+    growth_rate: Optional[float] = Field(
+        default=None,
+        description=(
+            "(attn_7d - attn_prev_7d) / attn_prev_7d when the prior 7d window has attention; "
+            "null when there is recent attention but no prior-week baseline (e.g. newly detected)."
+        ),
     )
     related_symbols: List[str] = Field(
         default_factory=list,

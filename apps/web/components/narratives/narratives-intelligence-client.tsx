@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useEffect } from "react";
 import useSWR from "swr";
 import { clsx } from "clsx";
 import {
@@ -54,10 +55,65 @@ function bubbleFill(sentiment: number): string {
   return "var(--b70-crypto-blue)";
 }
 
-function formatGrowthRate(g: number): string {
+function formatGrowthRate(g: number | null | undefined): string {
+  if (g == null) return "New";
   const pct = g * 100;
   const capped = Math.max(-999, Math.min(999, pct));
   return `${capped >= 0 ? "+" : ""}${capped.toFixed(0)}%`;
+}
+
+type NarrativeBubbleDatum = {
+  id: number;
+  name: string;
+  growth_rate: number;
+  is_new_growth: boolean;
+  sentiment: number;
+  attention: number;
+};
+
+function NarrativeScatterTooltip({
+  active,
+  payload,
+}: {
+  active?: boolean;
+  payload?: ReadonlyArray<{ payload?: NarrativeBubbleDatum }>;
+}) {
+  if (!active || !payload?.length) return null;
+  const p = payload[0]?.payload;
+  if (!p) return null;
+  const growthLabel = p.is_new_growth ? "New" : formatGrowthRate(p.growth_rate);
+  return (
+    <div
+      className="rounded-lg border px-3 py-2 text-xs shadow-lg"
+      style={{
+        background: "var(--b70-card)",
+        borderColor: "var(--b70-border)",
+        color: "var(--b70-text)",
+      }}
+    >
+      <p className="font-semibold" style={{ color: "var(--b70-text)" }}>
+        {p.name}
+      </p>
+      <p className="mt-1" style={{ color: "var(--b70-text-muted)" }}>
+        7d vs prior 7d:{" "}
+        <span className="font-[family-name:var(--font-jetbrains)] font-medium" style={{ color: "var(--b70-text)" }}>
+          {growthLabel}
+        </span>
+      </p>
+      <p className="mt-0.5" style={{ color: "var(--b70-text-muted)" }}>
+        Sentiment:{" "}
+        <span className="font-[family-name:var(--font-jetbrains)] font-medium" style={{ color: "var(--b70-text)" }}>
+          {p.sentiment.toFixed(2)}
+        </span>
+      </p>
+      <p className="mt-0.5" style={{ color: "var(--b70-text-muted)" }}>
+        Attention (plot size):{" "}
+        <span className="font-[family-name:var(--font-jetbrains)] font-medium" style={{ color: "var(--b70-text)" }}>
+          {p.attention.toFixed(2)}
+        </span>
+      </p>
+    </div>
+  );
 }
 
 const LINE_PALETTE = ["#38bdf8", "#a78bfa", "#34d399", "#fbbf24", "#f472b6"];
@@ -79,14 +135,23 @@ export function NarrativesIntelligenceClient({ initialData }: Props) {
 
   const sortedByAttention = [...narratives].sort((a, b) => b.attention - a.attention);
   const top5Trend = sortedByAttention.slice(0, 5);
-  const withSignal = narratives.filter((n) => n.attention > 1e-9 || Math.abs(n.growth_rate) > 1e-9);
+  const withSignal = narratives.filter(
+    (n) =>
+      n.attention > 1e-9 ||
+      n.growth_rate === null ||
+      (n.growth_rate != null && Math.abs(n.growth_rate) > 1e-9),
+  );
   const rising = [...withSignal]
-    .filter((n) => n.attention >= 0.02 || n.growth_rate > 0)
-    .sort((a, b) => b.growth_rate - a.growth_rate)
+    .filter((n) => n.attention >= 0.02 || (n.growth_rate ?? 0) > 0 || n.growth_rate === null)
+    .sort((a, b) => {
+      const ga = a.growth_rate === null ? Number.POSITIVE_INFINITY : a.growth_rate;
+      const gb = b.growth_rate === null ? Number.POSITIVE_INFINITY : b.growth_rate;
+      return gb - ga;
+    })
     .slice(0, 8);
   const fading = [...withSignal]
-    .filter((n) => n.attention >= 0.02 || n.growth_rate < 0)
-    .sort((a, b) => a.growth_rate - b.growth_rate)
+    .filter((n) => n.attention >= 0.02 || (n.growth_rate ?? 0) < 0)
+    .sort((a, b) => (a.growth_rate ?? 0) - (b.growth_rate ?? 0))
     .slice(0, 8);
 
   const dates =
@@ -107,16 +172,44 @@ export function NarrativesIntelligenceClient({ initialData }: Props) {
     top5Trend.some((_, i) => Number(r[`s${i}`]) > 1e-9),
   );
 
-  const bubbleData = sortedByAttention
+  const bubbleData: NarrativeBubbleDatum[] = sortedByAttention
     .filter((n) => n.trend_score > 0 || n.attention > 0)
     .slice(0, 40)
     .map((n) => ({
       id: n.id,
       name: n.name,
-      growth_rate: n.growth_rate,
+      growth_rate: n.growth_rate ?? 0,
+      is_new_growth: n.growth_rate === null,
       sentiment: n.sentiment,
       attention: Math.max(n.attention, 0.01),
     }));
+
+  // #region agent log
+  useEffect(() => {
+    const list = data?.narratives ?? initialData?.narratives ?? [];
+    if (list.length === 0) return;
+    const sample = list.slice(0, 6).map((n) => ({
+      id: n.id,
+      growth_rate: n.growth_rate,
+    }));
+    fetch("http://127.0.0.1:7428/ingest/b2bee36a-3f9b-42a9-b6fb-0dc54bacc543", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Debug-Session-Id": "9aa1f6",
+      },
+      body: JSON.stringify({
+        sessionId: "9aa1f6",
+        location: "narratives-intelligence-client.tsx:intelSample",
+        message: "narrative growth sample after load",
+        data: { sample, n: list.length },
+        timestamp: Date.now(),
+        hypothesisId: "H-verify-growth",
+        runId: "post-fix",
+      }),
+    }).catch(() => {});
+  }, [data?.narratives, initialData?.narratives]);
+  // #endregion
 
   return (
     <div className="space-y-10 pb-16 pt-2">
@@ -188,7 +281,10 @@ export function NarrativesIntelligenceClient({ initialData }: Props) {
                     background: "var(--b70-card)",
                     border: "1px solid var(--b70-border)",
                     borderRadius: "8px",
+                    color: "var(--b70-text)",
                   }}
+                  labelStyle={{ color: "var(--b70-text)" }}
+                  itemStyle={{ color: "var(--b70-text-muted)" }}
                 />
                 <Legend
                   wrapperStyle={{ fontSize: 11 }}
@@ -242,24 +338,7 @@ export function NarrativesIntelligenceClient({ initialData }: Props) {
                 <ZAxis type="number" dataKey="attention" range={[80, 420]} />
                 <Tooltip
                   cursor={{ strokeDasharray: "3 3" }}
-                  contentStyle={{
-                    background: "var(--b70-card)",
-                    border: "1px solid var(--b70-border)",
-                    borderRadius: "8px",
-                  }}
-                  formatter={(v, name) => {
-                    if (name === "Growth") return [formatGrowthRate(Number(v)), "7d vs prior 7d"];
-                    if (name === "Sentiment") return [Number(v).toFixed(2), "Skew"];
-                    return [String(v), String(name)];
-                  }}
-                  labelFormatter={(_, payload) => {
-                    const p0 = Array.isArray(payload) ? payload[0] : undefined;
-                    const name =
-                      p0 && typeof p0 === "object" && "payload" in p0
-                        ? (p0 as { payload?: { name?: string } }).payload?.name
-                        : undefined;
-                    return name ? String(name) : "";
-                  }}
+                  content={(tipProps) => <NarrativeScatterTooltip {...tipProps} />}
                 />
                 <Scatter name="Narratives" data={bubbleData}>
                   {bubbleData.map((d) => (
@@ -324,7 +403,13 @@ function RotationRow({ n, positive }: { n: NarrativeIntelligenceRow; positive: b
       <span
         className={clsx(
           "font-[family-name:var(--font-jetbrains)] text-xs",
-          positive && n.growth_rate > 0.02 ? "text-emerald-400" : !positive && n.growth_rate < -0.02 ? "text-rose-400" : "text-[var(--b70-text-muted)]",
+          n.growth_rate === null
+            ? "text-sky-400/95"
+            : positive && n.growth_rate > 0.02
+              ? "text-emerald-400"
+              : !positive && n.growth_rate < -0.02
+                ? "text-rose-400"
+                : "text-[var(--b70-text-muted)]",
         )}
       >
         {g}
@@ -363,7 +448,11 @@ function NarrativeCard({ n }: { n: NarrativeIntelligenceRow }) {
           <p
             className={clsx(
               "font-[family-name:var(--font-jetbrains)]",
-              n.growth_rate >= 0 ? "text-emerald-400" : "text-rose-400",
+              n.growth_rate === null
+                ? "text-sky-400/95"
+                : n.growth_rate >= 0
+                  ? "text-emerald-400"
+                  : "text-rose-400",
             )}
           >
             {formatGrowthRate(n.growth_rate)}
