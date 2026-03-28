@@ -1,6 +1,7 @@
-import { getOpportunities, getRadarEventsForToken } from "@/lib/api";
+import { getOpportunities, getRadarEventsForToken, getSignalsForToken } from "@/lib/api";
 import type { Opportunity, RadarEventDto } from "@/lib/types";
 import { OpportunityCard } from "@/components/opportunities/opportunity-card";
+import { RadarTimeline } from "@/components/radar/radar-timeline";
 
 type PageProps = {
   params: { token: string };
@@ -29,6 +30,14 @@ export default async function RadarTokenPage({ params }: PageProps) {
   let events: RadarEventDto[] = [];
   let opportunities: Opportunity[] = [];
   let error: string | null = null;
+  let granularError: string | null = null;
+  let timelineSignals: {
+    timestamp: string;
+    signal_type: string;
+    description?: string;
+    source?: string;
+    strength?: number;
+  }[] = [];
 
   try {
     const [eventsResp, oppsResp] = await Promise.all([
@@ -40,6 +49,20 @@ export default async function RadarTokenPage({ params }: PageProps) {
   } catch {
     error =
       "Unable to load radar details for this token right now. Please try again shortly.";
+  }
+
+  try {
+    const signalsResp = await getSignalsForToken(token, { limit: 40 });
+    timelineSignals = signalsResp.map((s) => ({
+      timestamp: s.created_at,
+      signal_type: s.signal_type,
+      description: s.description ?? s.title ?? undefined,
+      source: s.source ?? undefined,
+      strength: s.signal_strength,
+    }));
+  } catch {
+    granularError =
+      "Granular signal timeline unavailable (signals API). Summaries below still apply when present.";
   }
 
   const bestEvent = events[0] ?? null;
@@ -70,6 +93,14 @@ export default async function RadarTokenPage({ params }: PageProps) {
           {error}
         </section>
       ) : null}
+
+      {granularError && !error ? (
+        <section className="rounded-xl border border-amber-800/50 bg-amber-950/30 p-3 text-xs text-amber-100/90">
+          {granularError}
+        </section>
+      ) : null}
+
+      <RadarTimeline signals={timelineSignals} />
 
       {bestEvent ? (
         <section className="rounded-xl border border-emerald-500/60 bg-slate-950/80 p-4 text-xs text-slate-200">
