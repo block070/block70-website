@@ -17,7 +17,14 @@ Optional: delete seeded rows (by slug prefix) then re-seed:
 from __future__ import annotations
 
 import argparse
+import sys
 from datetime import datetime, timezone
+from pathlib import Path
+
+# Running as `python scripts/...py` does not add /app to sys.path (unlike uvicorn).
+_ROOT = Path(__file__).resolve().parents[1]
+if str(_ROOT) not in sys.path:
+    sys.path.insert(0, str(_ROOT))
 
 from app.db.session import SessionLocal
 from app.models import Opportunity, OpportunityStatus
