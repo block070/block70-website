@@ -75,6 +75,34 @@ export interface NarrativeTokenGroup {
   opportunities: Opportunity[];
 }
 
+export interface NarrativeDailyPoint {
+  date: string;
+  attention: number;
+}
+
+/** Aggregates from GET /api/v1/narratives/intelligence */
+export interface NarrativeIntelligenceRow {
+  id: number;
+  name: string;
+  description: string | null;
+  trend_score: number;
+  created_at: string | null;
+  attention: number;
+  sentiment: number;
+  growth_rate: number;
+  related_symbols: string[];
+  daily_series: NarrativeDailyPoint[];
+}
+
+export interface NarrativeIntelligenceListResponse {
+  narratives: NarrativeIntelligenceRow[];
+  computed_at: string;
+}
+
+export interface NarrativeIntelligenceDetail extends NarrativeIntelligenceRow {
+  opportunities: Opportunity[];
+}
+
 export interface AlphaRankedOpportunity {
   alpha_score: number;
   rank_position: number;

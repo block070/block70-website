@@ -2,6 +2,8 @@ import type {
   AlphaEvent,
   AlphaRankedOpportunity,
   CandidateProject,
+  NarrativeIntelligenceDetail,
+  NarrativeIntelligenceListResponse,
   NarrativeTokenGroup,
   Opportunity,
   OpportunityFilter,
@@ -605,6 +607,34 @@ export async function getNarrativesList(params?: {
   const query = search.toString();
   return fetchJson<MarketNarrativeDto[]>(
     `/api/v1/narratives${query ? `?${query}` : ""}`,
+  );
+}
+
+export async function getNarrativesIntelligence(params?: {
+  limit?: number;
+}): Promise<NarrativeIntelligenceListResponse> {
+  const search = new URLSearchParams();
+  if (params?.limit != null) search.set("limit", String(params.limit));
+  const query = search.toString();
+  return fetchJson<NarrativeIntelligenceListResponse>(
+    `/api/v1/narratives/intelligence${query ? `?${query}` : ""}`,
+  );
+}
+
+export async function getNarrativeDetail(params: {
+  slug?: string;
+  id?: number;
+  opportunityLimit?: number;
+}): Promise<NarrativeIntelligenceDetail> {
+  const search = new URLSearchParams();
+  if (params.slug != null && params.slug !== "")
+    search.set("slug", params.slug);
+  if (params.id != null) search.set("id", String(params.id));
+  if (params.opportunityLimit != null)
+    search.set("opportunity_limit", String(params.opportunityLimit));
+  const query = search.toString();
+  return fetchJson<NarrativeIntelligenceDetail>(
+    `/api/v1/narratives/detail${query ? `?${query}` : ""}`,
   );
 }
 
