@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import List
 
 from fastapi import APIRouter, Depends, Path, Query
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 
 from fastapi import HTTPException
 
@@ -16,6 +16,11 @@ router = APIRouter(prefix="/api/v1/ai", tags=["ai-insights"])
 
 
 def _insight_to_dict(i: AIInsight) -> dict:
+    raw_sources = getattr(i, "sources", None) or []
+    sources = [
+        {"source_type": s.source_type, "source_id": s.source_id}
+        for s in raw_sources
+    ]
     return {
         "id": i.id,
         "insight_type": i.insight_type,
@@ -24,7 +29,12 @@ def _insight_to_dict(i: AIInsight) -> dict:
         "related_tokens": i.related_tokens or [],
         "confidence_score": i.confidence_score,
         "created_at": i.created_at.isoformat() if i.created_at else None,
+        "sources": sources,
     }
+
+
+def _insights_base_query(db: Session):
+    return db.query(AIInsight).options(selectinload(AIInsight.sources))
 
 
 @router.get("/insights")
@@ -35,7 +45,7 @@ def list_insights(
     offset: int = Query(default=0, ge=0),
 ) -> List[dict]:
     """List AI-generated insights with optional type filter."""
-    q = db.query(AIInsight).order_by(AIInsight.created_at.desc())
+    q = _insights_base_query(db).order_by(AIInsight.created_at.desc())
     if insight_type:
         q = q.filter(AIInsight.insight_type == insight_type)
     rows = q.offset(offset).limit(limit).all()
@@ -50,7 +60,7 @@ def get_top_insights(
 ) -> List[dict]:
     """Return highest-impact insights (by confidence and recency)."""
     rows = (
-        db.query(AIInsight)
+        _insights_base_query(db)
         .filter(AIInsight.confidence_score >= min_confidence)
         .order_by(AIInsight.confidence_score.desc(), AIInsight.created_at.desc())
         .limit(limit)
@@ -62,11 +72,11 @@ def get_top_insights(
 @router.get("/insights/latest")
 def get_latest_insights(
     db: Session = Depends(get_db),
-    limit: int = Query(default=10, ge=1, le=50),
+    limit: int = Query(default=10, ge=1, le=100),
 ) -> List[dict]:
     """Return the most recent AI insights (for feed)."""
     rows = (
-        db.query(AIInsight)
+        _insights_base_query(db)
         .order_by(AIInsight.created_at.desc())
         .limit(limit)
         .all()
@@ -83,7 +93,7 @@ def get_insights_for_token(
     """Return AI insights that mention or relate to the given token."""
     token_upper = token.upper()
     all_recent = (
-        db.query(AIInsight)
+        _insights_base_query(db)
         .order_by(AIInsight.created_at.desc())
         .limit(limit * 3)
         .all()

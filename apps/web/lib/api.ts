@@ -694,6 +694,11 @@ export async function getOpportunitiesTop(params?: {
   );
 }
 
+export type AIInsightSourceDto = {
+  source_type: string;
+  source_id: string;
+};
+
 export type AIInsightDto = {
   id: number;
   insight_type: string;
@@ -702,6 +707,8 @@ export type AIInsightDto = {
   related_tokens: string[];
   confidence_score: number;
   created_at: string | null;
+  /** Lineage from Block70 ingest (signals, radar, flows, etc.). */
+  sources?: AIInsightSourceDto[];
 };
 
 export async function getAIInsights(params?: {
