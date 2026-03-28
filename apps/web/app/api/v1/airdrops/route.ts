@@ -1,27 +1,22 @@
 import { NextRequest, NextResponse } from "next/server";
 
-const API_BASE =
-  process.env.API_SERVER_URL || process.env.NEXT_PUBLIC_API_BASE_URL || "";
+import { backendGet, getBackendApiBase } from "@/lib/narratives/resolve-narratives-api";
 
 export const dynamic = "force-dynamic";
 
 /**
- * Proxies to the Python API when env is set; otherwise returns [] so SSR/client
- * relative `/api/v1/airdrops` resolves (avoids 404 when Next has no backend URL on server).
+ * Proxies to FastAPI using the same backend base + TLS fallback as narratives.
+ * Returns [] when no base is configured or upstream fails.
  */
 export async function GET(req: NextRequest) {
   const limitParam = req.nextUrl.searchParams.get("limit") ?? "200";
   const limit = Math.min(500, Math.max(1, Number(limitParam) || 200));
 
-  if (API_BASE) {
-    const base = API_BASE.replace(/\/$/, "");
+  const base = getBackendApiBase();
+  if (base) {
     try {
-      const upstream = await fetch(
-        `${base}/api/v1/airdrops?limit=${encodeURIComponent(String(limit))}`,
-        {
-          cache: "no-store",
-          headers: { Accept: "application/json" },
-        },
+      const upstream = await backendGet(
+        `${base.replace(/\/$/, "")}/api/v1/airdrops?limit=${encodeURIComponent(String(limit))}`,
       );
       if (upstream.ok) {
         const data = await upstream.json();

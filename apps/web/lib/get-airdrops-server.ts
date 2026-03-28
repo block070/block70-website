@@ -2,6 +2,8 @@ import "server-only";
 
 import { headers } from "next/headers";
 
+import { backendGet, getBackendApiBase } from "@/lib/narratives/resolve-narratives-api";
+
 import type { Opportunity } from "./types";
 
 function normalizeOpportunityList(raw: unknown): Opportunity[] | null {
@@ -32,21 +34,41 @@ function envOrDefaultOrigin(): string {
   return `${protocol}://${host}`;
 }
 
+// #region agent log
+function airdropsDbg(message: string, data: Record<string, unknown>) {
+  const payload = {
+    sessionId: "9aa1f6",
+    location: "get-airdrops-server.ts",
+    message,
+    data,
+    timestamp: Date.now(),
+    hypothesisId: "H-airdrops",
+  };
+  fetch("http://127.0.0.1:7428/ingest/b2bee36a-3f9b-42a9-b6fb-0dc54bacc543", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "X-Debug-Session-Id": "9aa1f6",
+    },
+    body: JSON.stringify(payload),
+  }).catch(() => {});
+}
+// #endregion
+
 /**
- * SSR: resolve `/api/v1/airdrops` against the current request host (correct port in dev)
- * when API_SERVER_URL is unset. Uses `revalidate: 0` (not `cache: "no-store"`) to avoid
- * Next static prerender throwing "Dynamic server usage: no-store fetch".
+ * SSR: load airdrops from FastAPI using the same backend base + TLS fallback as narratives.
+ * When no API base is configured, resolve `/api/v1/airdrops` on the current host (Next proxy).
  */
 export async function getAirdropsForServer(): Promise<Opportunity[]> {
-  const path = "/api/v1/airdrops";
-  const envBase =
-    process.env.API_SERVER_URL?.replace(/\/$/, "") ||
-    process.env.NEXT_PUBLIC_API_BASE_URL?.replace(/\/$/, "") ||
-    "";
+  const path = "/api/v1/airdrops?limit=200";
+  const backendBase = getBackendApiBase();
 
   let url: string;
-  if (envBase) {
-    url = `${envBase}${path}`;
+  let mode: "backend" | "next-relative";
+
+  if (backendBase) {
+    url = `${backendBase.replace(/\/$/, "")}${path}`;
+    mode = "backend";
   } else {
     try {
       const h = await headers();
@@ -62,22 +84,51 @@ export async function getAirdropsForServer(): Promise<Opportunity[]> {
     } catch {
       url = `${envOrDefaultOrigin()}${path}`;
     }
-  }
-
-  const res = await fetch(url, {
-    headers: { Accept: "application/json", "Content-Type": "application/json" },
-    next: { revalidate: 0 },
-  });
-
-  if (!res.ok) {
-    throw new Error(`API request failed with status ${res.status}`);
+    mode = "next-relative";
   }
 
   let raw: unknown;
-  try {
-    raw = await res.json();
-  } catch (e) {
-    throw e;
+
+  if (mode === "backend") {
+    const r = await backendGet(url);
+    // #region agent log
+    airdropsDbg("airdrops backendGet result", {
+      mode,
+      status: r.status,
+      ok: r.ok,
+      host: (() => {
+        try {
+          return new URL(url).hostname;
+        } catch {
+          return "";
+        }
+      })(),
+    });
+    // #endregion
+    if (!r.ok) {
+      throw new Error(`API request failed with status ${r.status}`);
+    }
+    raw = await r.json();
+  } else {
+    const res = await fetch(url, {
+      headers: { Accept: "application/json", "Content-Type": "application/json" },
+      next: { revalidate: 0 },
+    });
+    // #region agent log
+    airdropsDbg("airdrops relative fetch result", {
+      mode,
+      status: res.status,
+      ok: res.ok,
+    });
+    // #endregion
+    if (!res.ok) {
+      throw new Error(`API request failed with status ${res.status}`);
+    }
+    try {
+      raw = await res.json();
+    } catch (e) {
+      throw e;
+    }
   }
 
   const data = normalizeOpportunityList(raw);

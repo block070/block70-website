@@ -15,7 +15,7 @@ import { join } from "node:path";
 
 const FETCH_MS = 25_000;
 
-type BackendGetResult = {
+export type BackendGetResult = {
   ok: boolean;
   status: number;
   text: () => Promise<string>;
@@ -58,7 +58,7 @@ function shouldTryHttpAfterCertError(u: URL, hasExplicitHttpFallback: boolean) {
 }
 
 /** GET to FastAPI; if HTTPS fails TLS hostname verification (mis-issued cert for api.block70.com), retry plain HTTP (dev: localhost:8000, or NARRATIVES_HTTP_FALLBACK_BASE). */
-async function backendGet(urlStr: string): Promise<BackendGetResult> {
+export async function backendGet(urlStr: string): Promise<BackendGetResult> {
   const doFetch = (url: string) =>
     fetch(url, {
       cache: "no-store",
