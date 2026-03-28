@@ -12,7 +12,8 @@ export default async function AirdropsPage() {
   let backendError: string | null = null;
 
   try {
-    const data = await withTimeout(getAirdropsForServer(), 8_000);
+    /** Must exceed `backendGet` abort (25s) so we do not false-timeout during TLS retry / slow API. */
+    const data = await withTimeout(getAirdropsForServer(), 28_000);
     opportunities = data.sort((a, b) => b.total_score - a.total_score);
   } catch {
     backendError =
