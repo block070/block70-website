@@ -130,8 +130,13 @@ def _build_row(
 
     attention_recent = _sum_attention_in_range(matched, win_recent_start, end)
     attention_prev = _sum_attention_in_range(matched, win_prev_start, win_prev_end)
-    denom = max(attention_prev, EPS)
-    growth_rate = (attention_recent - attention_prev) / denom
+    # Week-over-week: (recent − prior) / prior. If the prior 7d window had no attention
+    # (common for newly detected opps / seeds), using max(prior, EPS) explodes the ratio;
+    # the web UI caps at +999%. Report 0 when there is no meaningful prior baseline.
+    if attention_prev <= EPS:
+        growth_rate = 0.0
+    else:
+        growth_rate = (attention_recent - attention_prev) / attention_prev
 
     sentiment = _sentiment_proxy(matched)
     related = _related_symbols(matched)
