@@ -1,0 +1,3 @@
+{"sessionId":"9aa1f6","runId":"post-fix","hypothesisId":"H1","location":"ai-insights-engine-client.tsx:setModeAndUrl","message":"mode set via history.replaceState (no router.replace)","data":{"mode":"trader"},"timestamp":1774683948409}
+{"sessionId":"9aa1f6","runId":"post-fix","hypothesisId":"H1","location":"ai-insights-engine-client.tsx:setModeAndUrl","message":"mode set via history.replaceState (no router.replace)","data":{"mode":"investor"},"timestamp":1774683953494}
+{"sessionId":"9aa1f6","runId":"post-fix","hypothesisId":"H1","location":"ai-insights-engine-client.tsx:setModeAndUrl","message":"mode set via history.replaceState (no router.replace)","data":{"mode":"beginner"},"timestamp":1774683956462}

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime, timezone
+from email.utils import parsedate_to_datetime
 from typing import List, Optional
 
 import feedparser
@@ -49,6 +50,7 @@ class AirdropsConnector:
     # ------------------------------------------------------------------
     def fetch_all(self, *, limit: int = 50) -> List[ExternalAirdrop]:
         items: List[ExternalAirdrop] = []
+        items.extend(self._fetch_airdropalert_rss(limit=limit))
         items.extend(self._fetch_airdrops_io(limit=limit))
         items.extend(self._fetch_dappradar(limit=limit))
         items.extend(self._fetch_ico_drops(limit=limit))
@@ -62,6 +64,67 @@ class AirdropsConnector:
             seen.add(key)
             unique.append(item)
         return unique[:limit]
+
+    # ------------------------------------------------------------------
+    # AirdropAlert (RSS)
+    # ------------------------------------------------------------------
+    def _fetch_airdropalert_rss(self, *, limit: int) -> List[ExternalAirdrop]:
+        """
+        Public RSS feed from AirdropAlert. Parsed with feedparser; HTML
+        stripped from summaries. Fails soft on network or parse errors.
+        """
+        url = "https://airdropalert.com/feed/rssfeed"
+        try:
+            resp = self._session.get(url, timeout=10)
+            resp.raise_for_status()
+        except Exception:
+            return []
+
+        parsed = feedparser.parse(resp.text)
+        out: List[ExternalAirdrop] = []
+        now = datetime.now(timezone.utc)
+
+        for entry in getattr(parsed, "entries", [])[: limit * 2]:
+            title = (getattr(entry, "title", "") or "").strip()
+            link = (getattr(entry, "link", "") or "").strip()
+            if not title or not link:
+                continue
+
+            raw_summary = (
+                getattr(entry, "summary", "")
+                or getattr(entry, "description", "")
+                or ""
+            )
+            try:
+                desc = BeautifulSoup(raw_summary, "html.parser").get_text(" ", strip=True)
+            except Exception:
+                desc = str(raw_summary).strip()
+
+            ts = now
+            published = getattr(entry, "published", None) or getattr(entry, "updated", None)
+            if published:
+                try:
+                    ts = parsedate_to_datetime(str(published)).astimezone(timezone.utc)
+                except Exception:
+                    ts = now
+
+            out.append(
+                ExternalAirdrop(
+                    project_name=title[:500],
+                    chain=None,
+                    description=(desc or "Airdrop listing from AirdropAlert RSS.")[:2000],
+                    reward_estimate=None,
+                    difficulty=None,
+                    status="active",
+                    source="AirdropAlert",
+                    source_url=link,
+                    timestamp=ts,
+                )
+            )
+            if len(out) >= limit:
+                break
+
+        return out
 
     # ------------------------------------------------------------------
     # Airdrops.io

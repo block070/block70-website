@@ -15,6 +15,7 @@ router = APIRouter(prefix="/api/v1/airdrops", tags=["airdrops"])
 ALLOWED_AIRDROP_SOURCES = {
     "DefiLlama Airdrops",
     "Airdrops.io",
+    "AirdropAlert",
     "DappRadar",
     "ICO Drops",
 }
