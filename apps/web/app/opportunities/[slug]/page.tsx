@@ -51,31 +51,34 @@ export async function generateMetadata({
 }: OpportunityDetailProps): Promise<Metadata> {
   try {
     const opportunity = await getOpportunityBySlug(params.slug);
+    const baseDesc =
+      opportunity.summary ??
+      "Actionable research signals from the Block70 Alpha Network—not financial advice.";
+    const suffix =
+      " Verify sources, risk, and execution yourself before acting.";
+    const description =
+      baseDesc.length + suffix.length > 155
+        ? `${baseDesc.slice(0, 120).trim()}…${suffix}`
+        : `${baseDesc}${suffix}`;
     return {
       title: `${opportunity.title} · Block70 Opportunity`,
-      description:
-        opportunity.summary ??
-        "Research-grade crypto opportunity surfaced by the Block70 Alpha Network.",
+      description,
       openGraph: {
         title: `${opportunity.title} · Block70 Opportunity`,
-        description:
-          opportunity.summary ??
-          "Research-grade crypto opportunity surfaced by the Block70 Alpha Network.",
+        description,
         type: "article",
       },
       twitter: {
         card: "summary_large_image",
         title: `${opportunity.title} · Block70 Opportunity`,
-        description:
-          opportunity.summary ??
-          "Research-grade crypto opportunity surfaced by the Block70 Alpha Network.",
+        description,
       },
     };
   } catch {
     return {
       title: "Opportunity · Block70",
       description:
-        "Research-grade crypto opportunity surfaced by the Block70 Alpha Network.",
+        "Actionable research signals—not financial advice. Verify every thesis before acting.",
     };
   }
 }

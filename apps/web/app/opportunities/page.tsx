@@ -35,13 +35,15 @@ export default async function OpportunitiesPage({ searchParams }: Props) {
       <RiskWarningBanner />
       <header className="flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <h2 className="text-lg font-semibold text-slate-50">Opportunities</h2>
+          <h2 className="font-[family-name:var(--font-jetbrains)] text-lg font-semibold text-[var(--b70-text)]">
+            Opportunity engine
+          </h2>
           <RiskBadge />
         </div>
       </header>
-      <p className="text-xs text-slate-400">
-        Highest-scoring opportunities from signals, wallet activity, capital
-        flows, and radar.
+      <p className="text-xs text-[var(--b70-text-muted)]">
+        Model-ranked picks from signals, wallet activity, capital flows, and
+        radar—research on each detail page; not executable advice.
       </p>
 
       {topScanner.length > 0 && (

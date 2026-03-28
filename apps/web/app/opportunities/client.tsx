@@ -1,14 +1,23 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { Filter, Hourglass, ShieldCheck, Zap } from "lucide-react";
 
 import type { Opportunity } from "@/lib/types";
-import { OpportunityCard } from "@/components/opportunities/opportunity-card";
+import { OpportunityEngineCard } from "@/components/opportunities/opportunity-engine-card";
+import { OpportunityHero } from "@/components/opportunities/opportunity-hero";
+import { OpportunitiesPerformanceStrip } from "@/components/opportunities/opportunities-performance-strip";
 import {
   AdvancedFilters,
   type AdvancedFiltersValue,
 } from "@/components/opportunities/advanced-filters";
 import { getPremiumAlerts } from "@/lib/api";
+import {
+  confidencePercent,
+  matchesShortHorizon,
+  normalizedRisk,
+} from "@/lib/opportunity-present";
+import { clsx } from "clsx";
 
 type Props = {
   initialOpportunities: Opportunity[];
@@ -34,6 +43,9 @@ export function OpportunitiesListClient({
   const [typeFilter, setTypeFilter] = useState<string | "">("");
   const [chainFilter, setChainFilter] = useState(initialChainFilter);
   const [minScoreFilter, setMinScoreFilter] = useState<string>("");
+  const [presetHighConfidence, setPresetHighConfidence] = useState(false);
+  const [presetLowRisk, setPresetLowRisk] = useState(false);
+  const [presetShortHorizon, setPresetShortHorizon] = useState(false);
   const [advancedFilters, setAdvancedFilters] = useState<AdvancedFiltersValue>({
     roi: "",
     score: "",
@@ -45,10 +57,10 @@ export function OpportunitiesListClient({
   });
   const [planType, setPlanType] = useState<PlanType>("free");
 
+  const heroOpportunity = initialOpportunities[0] ?? null;
+  const heroId = heroOpportunity?.id ?? null;
+
   useEffect(() => {
-    // Determine current plan based on PremiumAlertSubscription records.
-    // For MVP, we derive the plan from the highest plan_type associated
-    // with the configured user identifier (or fall back to free).
     const userIdentifier =
       process.env.NEXT_PUBLIC_USER_IDENTIFIER ?? "demo-user";
 
@@ -97,38 +109,44 @@ export function OpportunitiesListClient({
         return false;
       }
 
-       // Apply advanced filters only for non-free plans.
-       if (planType !== "free") {
-         const minRoi = parseFloat(advancedFilters.roi);
-         if (!Number.isNaN(minRoi)) {
-           const roi = op.estimated_roi_percent ?? 0;
-           if (roi < minRoi) {
-             return false;
-           }
-         }
+      if (presetHighConfidence && confidencePercent(op) < 70) return false;
+      if (presetLowRisk && normalizedRisk(op) !== "low") return false;
+      if (presetShortHorizon && !matchesShortHorizon(op)) return false;
 
-         const minConf = parseFloat(advancedFilters.confidence);
-         if (!Number.isNaN(minConf)) {
-           if (op.confidence_score * 100 < minConf) {
-             return false;
-           }
-         }
+      if (planType !== "free") {
+        const minRoi = parseFloat(advancedFilters.roi);
+        if (!Number.isNaN(minRoi)) {
+          const roi = op.estimated_roi_percent ?? 0;
+          if (roi < minRoi) {
+            return false;
+          }
+        }
 
-         if (advancedFilters.riskLevel) {
-           if ((op.risk_level ?? "").toLowerCase() !== advancedFilters.riskLevel.toLowerCase()) {
-             return false;
-           }
-         }
+        const minConf = parseFloat(advancedFilters.confidence);
+        if (!Number.isNaN(minConf)) {
+          if (op.confidence_score * 100 < minConf) {
+            return false;
+          }
+        }
 
-         if (advancedFilters.difficulty) {
-           if (
-             (op.difficulty_level ?? "").toLowerCase() !==
-             advancedFilters.difficulty.toLowerCase()
-           ) {
-             return false;
-           }
-         }
-       }
+        if (advancedFilters.riskLevel) {
+          if (
+            (op.risk_level ?? "").toLowerCase() !==
+            advancedFilters.riskLevel.toLowerCase()
+          ) {
+            return false;
+          }
+        }
+
+        if (advancedFilters.difficulty) {
+          if (
+            (op.difficulty_level ?? "").toLowerCase() !==
+            advancedFilters.difficulty.toLowerCase()
+          ) {
+            return false;
+          }
+        }
+      }
 
       return true;
     });
@@ -137,22 +155,92 @@ export function OpportunitiesListClient({
     typeFilter,
     chainFilter,
     minScoreFilter,
+    presetHighConfidence,
+    presetLowRisk,
+    presetShortHorizon,
     planType,
     advancedFilters,
   ]);
 
+  const gridOpportunities = useMemo(() => {
+    if (heroId == null) return filtered;
+    return filtered.filter((op) => op.id !== heroId);
+  }, [filtered, heroId]);
+
+  const onlyHeroMatches =
+    heroId != null &&
+    filtered.length === 1 &&
+    filtered[0]?.id === heroId;
+
   return (
     <>
-      <section className="rounded-xl border border-slate-800 bg-slate-950/70 p-4">
-        <div className="flex flex-wrap gap-3 text-xs">
+      {!backendError && heroOpportunity ? (
+        <OpportunityHero
+          opportunity={heroOpportunity}
+          href={`/opportunities/${heroOpportunity.slug}`}
+        />
+      ) : null}
+
+      <OpportunitiesPerformanceStrip />
+
+      <section className="rounded-xl border border-[var(--b70-border)] bg-[var(--b70-card)] p-4 shadow-sm">
+        <p className="text-[10px] font-semibold uppercase tracking-wider text-[var(--b70-crypto-blue)]">
+          Quick filters
+        </p>
+        <div className="mt-2 flex flex-wrap gap-2">
+          <button
+            type="button"
+            disabled={!!backendError}
+            onClick={() => setPresetHighConfidence((v) => !v)}
+            className={clsx(
+              "inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-[11px] font-medium transition-colors",
+              presetHighConfidence
+                ? "border-[var(--b70-crypto-blue)] bg-[var(--b70-crypto-blue)]/15 text-[var(--b70-crypto-blue)]"
+                : "border-[var(--b70-border)] bg-[var(--b70-bg)] text-[var(--b70-text-muted)] hover:border-[var(--b70-crypto-blue)]/40",
+            )}
+          >
+            <Zap className="h-3.5 w-3.5" aria-hidden />
+            High confidence (≥70%)
+          </button>
+          <button
+            type="button"
+            disabled={!!backendError}
+            onClick={() => setPresetLowRisk((v) => !v)}
+            className={clsx(
+              "inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-[11px] font-medium transition-colors",
+              presetLowRisk
+                ? "border-[var(--b70-crypto-blue)] bg-[var(--b70-crypto-blue)]/15 text-[var(--b70-crypto-blue)]"
+                : "border-[var(--b70-border)] bg-[var(--b70-bg)] text-[var(--b70-text-muted)] hover:border-[var(--b70-crypto-blue)]/40",
+            )}
+          >
+            <ShieldCheck className="h-3.5 w-3.5" aria-hidden />
+            Low risk
+          </button>
+          <button
+            type="button"
+            disabled={!!backendError}
+            onClick={() => setPresetShortHorizon((v) => !v)}
+            className={clsx(
+              "inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-[11px] font-medium transition-colors",
+              presetShortHorizon
+                ? "border-[var(--b70-crypto-blue)] bg-[var(--b70-crypto-blue)]/15 text-[var(--b70-crypto-blue)]"
+                : "border-[var(--b70-border)] bg-[var(--b70-bg)] text-[var(--b70-text-muted)] hover:border-[var(--b70-crypto-blue)]/40",
+            )}
+          >
+            <Hourglass className="h-3.5 w-3.5" aria-hidden />
+            Short horizon
+          </button>
+        </div>
+        <div className="mt-3 flex flex-wrap gap-3 text-xs">
           <div className="flex flex-col gap-1">
-            <label className="text-[11px] uppercase tracking-wide text-slate-400">
+            <label className="flex items-center gap-1 text-[11px] uppercase tracking-wide text-[var(--b70-text-muted)]">
+              <Filter className="h-3 w-3" aria-hidden />
               Type
             </label>
             <select
               value={typeFilter}
               onChange={(e) => setTypeFilter(e.target.value)}
-              className="h-8 rounded-md border border-slate-700 bg-slate-950 px-2 text-xs text-slate-100 outline-none focus:border-emerald-500"
+              className="h-8 rounded-md border border-[var(--b70-border)] bg-[var(--b70-bg)] px-2 text-xs text-[var(--b70-text)] outline-none focus:border-[var(--b70-crypto-blue)]"
               disabled={!!backendError}
             >
               <option value="">All</option>
@@ -165,7 +253,7 @@ export function OpportunitiesListClient({
           </div>
 
           <div className="flex flex-col gap-1">
-            <label className="text-[11px] uppercase tracking-wide text-slate-400">
+            <label className="text-[11px] uppercase tracking-wide text-[var(--b70-text-muted)]">
               Chain
             </label>
             <input
@@ -173,14 +261,14 @@ export function OpportunitiesListClient({
               value={chainFilter}
               onChange={(e) => setChainFilter(e.target.value)}
               placeholder="e.g. solana"
-              className="h-8 rounded-md border border-slate-700 bg-slate-950 px-2 text-xs text-slate-100 outline-none placeholder:text-slate-500 focus:border-emerald-500"
+              className="h-8 rounded-md border border-[var(--b70-border)] bg-[var(--b70-bg)] px-2 text-xs text-[var(--b70-text)] outline-none placeholder:text-[var(--b70-text-muted)] focus:border-[var(--b70-crypto-blue)]"
               disabled={!!backendError}
             />
           </div>
 
           <div className="flex flex-col gap-1">
-            <label className="text-[11px] uppercase tracking-wide text-slate-400">
-              Min Score (%)
+            <label className="text-[11px] uppercase tracking-wide text-[var(--b70-text-muted)]">
+              Min score (%)
             </label>
             <input
               type="number"
@@ -189,14 +277,14 @@ export function OpportunitiesListClient({
               value={minScoreFilter}
               onChange={(e) => setMinScoreFilter(e.target.value)}
               placeholder="e.g. 60"
-              className="h-8 w-24 rounded-md border border-slate-700 bg-slate-950 px-2 text-xs text-slate-100 outline-none placeholder:text-slate-500 focus:border-emerald-500"
+              className="h-8 w-24 rounded-md border border-[var(--b70-border)] bg-[var(--b70-bg)] px-2 text-xs text-[var(--b70-text)] outline-none placeholder:text-[var(--b70-text-muted)] focus:border-[var(--b70-crypto-blue)]"
               disabled={!!backendError}
             />
           </div>
         </div>
 
         {backendError ? (
-          <p className="mt-3 text-[11px] text-rose-200">{backendError}</p>
+          <p className="mt-3 text-[11px] text-rose-300">{backendError}</p>
         ) : null}
       </section>
 
@@ -206,7 +294,6 @@ export function OpportunitiesListClient({
             value={advancedFilters}
             onChange={(next) => {
               setAdvancedFilters(next);
-              // Keep basic filters in sync where appropriate so UX feels coherent.
               if (next.opportunityType !== typeFilter) {
                 setTypeFilter(next.opportunityType);
               }
@@ -224,13 +311,18 @@ export function OpportunitiesListClient({
 
       <section className="space-y-3">
         {filtered.length === 0 ? (
-          <div className="rounded-xl border border-dashed border-slate-800 bg-slate-950/60 p-6 text-center text-sm text-slate-400">
+          <div className="rounded-xl border border-dashed border-[var(--b70-border)] bg-[var(--b70-card)]/80 p-6 text-center text-sm text-[var(--b70-text-muted)]">
             No opportunities match the current filters. As Block70 detects new
             alpha across chains, they&apos;ll appear here.
           </div>
+        ) : onlyHeroMatches ? (
+          <p className="rounded-xl border border-[var(--b70-border)] bg-[var(--b70-card)]/80 px-4 py-3 text-center text-xs text-[var(--b70-text-muted)]">
+            Your filters narrow to the highlighted pick above—open the thesis for
+            full context.
+          </p>
         ) : (
-          filtered.map((opportunity) => (
-            <OpportunityCard
+          gridOpportunities.map((opportunity) => (
+            <OpportunityEngineCard
               key={opportunity.id}
               opportunity={opportunity}
               href={`/opportunities/${opportunity.slug}`}
@@ -241,4 +333,3 @@ export function OpportunitiesListClient({
     </>
   );
 }
-

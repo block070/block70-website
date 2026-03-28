@@ -1,4 +1,7 @@
 export * from "./opportunity-card";
+export * from "./opportunity-engine-card";
+export * from "./opportunity-hero";
+export * from "./opportunities-performance-strip";
 export * from "./opportunity-filters";
 export * from "./advanced-filters";
 export * from "./score-breakdown";
