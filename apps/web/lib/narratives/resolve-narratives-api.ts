@@ -99,7 +99,26 @@ async function backendGet(urlStr: string): Promise<BackendGetResult> {
           text: () => r.text(),
           json: () => r.json(),
         };
-      } catch {
+      } catch (httpErr) {
+        // #region agent log
+        narrDbg(
+          "resolve-narratives-api.ts:backendGet",
+          "http fallback after TLS SAN mismatch failed",
+          "H7b",
+          {
+            httpFallback: fbBase,
+            httpErr:
+              httpErr instanceof Error
+                ? httpErr.message
+                : String(httpErr).slice(0, 200),
+          },
+        );
+        // #endregion
+        if (process.env.NODE_ENV === "development") {
+          console.warn(
+            `[resolve-narratives] TLS failed for ${u.hostname}; HTTP retry to ${fbBase} also failed. Start FastAPI on :8000 or set NARRATIVES_HTTP_FALLBACK_BASE.`,
+          );
+        }
         throw first;
       }
     }
@@ -172,7 +191,14 @@ function hostOf(urlish: string): string | null {
 }
 
 /** Public hostname; TLS must include this in SAN. If Node reports cert/hostname mismatch, use API_SERVER_URL or NARRATIVES_HTTP_FALLBACK_BASE. */
+/** Production HTTPS origin for FastAPI when TLS is valid for api.block70.com. */
 const BLOCK70_PROD_API = "https://api.block70.com";
+
+/**
+ * In development, call the live Next route on www (cert includes www SAN). Production
+ * then uses API_SERVER_URL to reach Python, avoiding local TLS failure on api.block70.com.
+ */
+const BLOCK70_DEV_RELAY_ORIGIN = "https://www.block70.com";
 
 /**
  * When no explicit API base env vars are set, infer the public FastAPI origin from the
@@ -185,7 +211,11 @@ function inferredApiBaseFromSiteUrl(): string {
     process.env.SITEMAP_BASE_URL,
   ]) {
     const h = hostOf(env?.replace(/\/$/, "") ?? "");
-    if (h === "block70.com" || h === "www.block70.com") return BLOCK70_PROD_API;
+    if (h === "block70.com" || h === "www.block70.com") {
+      return process.env.NODE_ENV === "development"
+        ? BLOCK70_DEV_RELAY_ORIGIN
+        : BLOCK70_PROD_API;
+    }
   }
   return "";
 }
@@ -204,9 +234,9 @@ export function getBackendApiBase(): string {
     if (fromSite) return fromSite;
     if (process.env.NODE_ENV === "development") {
       console.warn(
-        "[resolve-narratives] No API_SERVER_URL or NEXT_PUBLIC_API_BASE_URL; using development default.",
+        "[resolve-narratives] No API_SERVER_URL or NEXT_PUBLIC_API_BASE_URL; using www.block70.com relay (avoids broken api.block70.com TLS in dev). For direct FastAPI use API_SERVER_URL.",
       );
-      return BLOCK70_PROD_API;
+      return BLOCK70_DEV_RELAY_ORIGIN;
     }
     return "";
   }
