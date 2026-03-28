@@ -1,4 +1,5 @@
-import { getWalletLeaderboard, getAirdrops } from "@/lib/api";
+import { getWalletLeaderboard } from "@/lib/api";
+import { getAirdropsForServer } from "@/lib/get-airdrops-server";
 import { WhaleActivity } from "@/components/home/whale-activity";
 import { AirdropHighlights } from "@/components/home/airdrop-highlights";
 import { UserDashboard } from "@/components/home/user-dashboard";
@@ -9,7 +10,7 @@ const FETCH_TIMEOUT_MS = 6_000;
 export async function WhaleAirdropSection() {
   const [walletsResult, airdropsResult] = await Promise.allSettled([
     withTimeout(getWalletLeaderboard(), FETCH_TIMEOUT_MS),
-    withTimeout(getAirdrops(), FETCH_TIMEOUT_MS),
+    withTimeout(getAirdropsForServer(), FETCH_TIMEOUT_MS),
   ]);
 
   const walletLeaderboard = walletsResult.status === "fulfilled" ? walletsResult.value : [];

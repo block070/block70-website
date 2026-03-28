@@ -88,24 +88,6 @@ export function AiInsightsEngineClient({
     p.set("mode", m);
     const qs = p.toString();
     window.history.replaceState(null, "", qs ? `/insights?${qs}` : "/insights");
-    // #region agent log
-    fetch("http://127.0.0.1:7428/ingest/b2bee36a-3f9b-42a9-b6fb-0dc54bacc543", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "X-Debug-Session-Id": "9aa1f6",
-      },
-      body: JSON.stringify({
-        sessionId: "9aa1f6",
-        runId: "post-fix",
-        hypothesisId: "H1",
-        location: "ai-insights-engine-client.tsx:setModeAndUrl",
-        message: "mode set via history.replaceState (no router.replace)",
-        data: { mode: m },
-        timestamp: Date.now(),
-      }),
-    }).catch(() => {});
-    // #endregion
   }, []);
 
   const filteredSorted = useMemo(() => {

@@ -29,7 +29,7 @@ export function getApiBaseUrl(): string {
     (typeof process.env.NEXT_PUBLIC_SITE_URL === "string"
       ? process.env.NEXT_PUBLIC_SITE_URL.replace(/^https?:\/\//, "")
       : "") ||
-    "localhost:3000";
+    `localhost:${process.env.PORT || "3000"}`;
   return `${protocol}://${host}`;
 }
 

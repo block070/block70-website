@@ -1,6 +1,4 @@
 import { Suspense } from "react";
-import { appendFileSync } from "fs";
-import { join } from "path";
 import {
   getAIInsightsLatest,
   getLatestBriefing,
@@ -80,29 +78,6 @@ export default async function AIInsightsFeedPage() {
       "No insight data in view—check API connectivity or seed insights.",
     );
   }
-
-  // #region agent log
-  try {
-    const logPath = join(process.cwd(), "..", "..", "debug-9aa1f6.log");
-    appendFileSync(
-      logPath,
-      `${JSON.stringify({
-        sessionId: "9aa1f6",
-        hypothesisId: "H2",
-        location: "insights/page.tsx:AIInsightsFeedPage",
-        message: "insights server render after fetch",
-        data: {
-          insightCount: rawInsights.length,
-          warningCount: loadWarnings.length,
-          warnings: loadWarnings.slice(),
-        },
-        timestamp: Date.now(),
-      })}\n`,
-    );
-  } catch {
-    /* ignore */
-  }
-  // #endregion
 
   return (
     <Suspense fallback={<InsightsFallback />}>

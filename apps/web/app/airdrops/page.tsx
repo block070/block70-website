@@ -1,17 +1,18 @@
-import { getAirdrops } from "@/lib/api";
 import type { Opportunity } from "@/lib/types";
+import { getAirdropsForServer } from "@/lib/get-airdrops-server";
 import { withTimeout } from "@/lib/with-timeout";
 
 import { AirdropsDiscoveryClient } from "@/components/airdrops/airdrops-discovery-client";
 
-export const revalidate = 60;
+/** Required with headers() + dynamic data fetch in this tree. */
+export const dynamic = "force-dynamic";
 
 export default async function AirdropsPage() {
   let opportunities: Opportunity[] = [];
   let backendError: string | null = null;
 
   try {
-    const data = await withTimeout(getAirdrops(), 8_000);
+    const data = await withTimeout(getAirdropsForServer(), 8_000);
     opportunities = data.sort((a, b) => b.total_score - a.total_score);
   } catch {
     backendError =
