@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import {
   Activity,
   ChevronRight,
@@ -53,7 +53,6 @@ export function AiInsightsEngineClient({
   loadWarnings,
   generatedAt,
 }: Props) {
-  const router = useRouter();
   const searchParams = useSearchParams();
   const [mode, setMode] = useState<InsightsViewerMode>("investor");
   const [typeFilter, setTypeFilter] = useState<string>("");
@@ -75,20 +74,39 @@ export function AiInsightsEngineClient({
     }
   }, [searchParams]);
 
-  const setModeAndUrl = useCallback(
-    (m: InsightsViewerMode) => {
-      setMode(m);
-      try {
-        localStorage.setItem(INSIGHT_MODE_STORAGE_KEY, m);
-      } catch {
-        /* ignore */
-      }
-      const p = new URLSearchParams(searchParams.toString());
-      p.set("mode", m);
-      router.replace(`/insights?${p.toString()}`, { scroll: false });
-    },
-    [router, searchParams],
-  );
+  /** Mode is presentation-only: use History API so we do not trigger a full RSC refetch
+   * (router.replace re-ran the server page and could repopulate loadWarnings on transient API failure). */
+  const setModeAndUrl = useCallback((m: InsightsViewerMode) => {
+    setMode(m);
+    try {
+      localStorage.setItem(INSIGHT_MODE_STORAGE_KEY, m);
+    } catch {
+      /* ignore */
+    }
+    if (typeof window === "undefined") return;
+    const p = new URLSearchParams(window.location.search);
+    p.set("mode", m);
+    const qs = p.toString();
+    window.history.replaceState(null, "", qs ? `/insights?${qs}` : "/insights");
+    // #region agent log
+    fetch("http://127.0.0.1:7428/ingest/b2bee36a-3f9b-42a9-b6fb-0dc54bacc543", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Debug-Session-Id": "9aa1f6",
+      },
+      body: JSON.stringify({
+        sessionId: "9aa1f6",
+        runId: "post-fix",
+        hypothesisId: "H1",
+        location: "ai-insights-engine-client.tsx:setModeAndUrl",
+        message: "mode set via history.replaceState (no router.replace)",
+        data: { mode: m },
+        timestamp: Date.now(),
+      }),
+    }).catch(() => {});
+    // #endregion
+  }, []);
 
   const filteredSorted = useMemo(() => {
     let rows = dedupeInsights(initialInsights);
