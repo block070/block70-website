@@ -1,41 +1,77 @@
-import { AlphaIntelligencePanel } from "@/components/dashboard/alpha-intelligence-panel";
-import { OpportunityInsightFeed } from "@/components/dashboard/opportunity-insight-feed";
-import { AlphaFeed } from "@/components/dashboard/alpha-feed";
-import { RadarPanel } from "@/components/dashboard/radar-panel";
-import { ProjectHunterPanel } from "@/components/dashboard/project-hunter-panel";
-import { DailyBriefingPanel } from "@/components/dashboard/daily-briefing";
+import type { AlphaEvent, AlphaRankedOpportunity } from "@/lib/types";
+import { getAlphaFeed, getAlphaTop, getLatestBriefing } from "@/lib/api";
+import { getTrendingAlpha, type AlphaPostDto } from "@/lib/community-api";
+import { AlphaDeskClient } from "@/components/alpha/alpha-desk-client";
+import { withTimeout } from "@/lib/with-timeout";
 
-export default function AlphaPage() {
+const FETCH_MS = 8_000;
+
+export default async function AlphaPage() {
+  const loadWarnings: string[] = [];
+
+  const postsP = withTimeout(
+    getTrendingAlpha(48).catch(() => {
+      loadWarnings.push("Trending community posts could not be loaded.");
+      return [] as AlphaPostDto[];
+    }),
+    FETCH_MS,
+    [],
+  );
+
+  const topP = withTimeout(
+    getAlphaTop().catch(() => {
+      loadWarnings.push("Alpha top rankings could not be loaded.");
+      return [] as AlphaRankedOpportunity[];
+    }),
+    FETCH_MS,
+    [],
+  );
+
+  const feedP = withTimeout(
+    getAlphaFeed(24).catch(() => {
+      loadWarnings.push("Alpha event stream could not be loaded.");
+      return [] as AlphaEvent[];
+    }),
+    FETCH_MS,
+    [],
+  );
+
+  const briefingP = withTimeout(
+    getLatestBriefing().catch(() => null),
+    FETCH_MS,
+    null,
+  );
+
+  const [initialPosts, initialAlphaTop, initialAlphaFeed, briefingRaw] =
+    await Promise.all([postsP, topP, feedP, briefingP]);
+
+  const briefing =
+    briefingRaw != null
+      ? {
+          id: briefingRaw.id,
+          summary: briefingRaw.summary,
+          created_at: briefingRaw.created_at,
+        }
+      : null;
+
+  if (
+    loadWarnings.length === 0 &&
+    initialPosts.length === 0 &&
+    initialAlphaTop.length === 0 &&
+    initialAlphaFeed.length === 0
+  ) {
+    loadWarnings.push(
+      "No desk data in view—check API connectivity or try again later.",
+    );
+  }
+
   return (
-    <div className="space-y-6">
-      <section>
-        <h1 className="text-lg font-semibold text-slate-50">
-          Alpha Intelligence
-        </h1>
-        <p className="mt-1 text-xs text-slate-400">
-          Unified view of Block70&apos;s Alpha engines: ranked opportunities,
-          radar clusters, AI research, and real-time signals.
-        </p>
-      </section>
-
-      <section>
-        <AlphaIntelligencePanel />
-      </section>
-
-      <section className="grid gap-4 md:grid-cols-2">
-        <OpportunityInsightFeed />
-        <RadarPanel />
-      </section>
-
-      <section className="grid gap-4 md:grid-cols-2">
-        <AlphaFeed />
-        <ProjectHunterPanel />
-      </section>
-
-      <section>
-        <DailyBriefingPanel />
-      </section>
-    </div>
+    <AlphaDeskClient
+      initialPosts={initialPosts}
+      initialAlphaTop={initialAlphaTop}
+      initialAlphaFeed={initialAlphaFeed}
+      briefing={briefing}
+      loadWarnings={loadWarnings}
+    />
   );
 }
-
