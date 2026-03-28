@@ -12,12 +12,18 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params;
   const ex = await getExchangeBySlug(slug).catch(() => null);
   if (!ex) return { title: "Exchange · Block70" };
+  const volNote =
+    ex.trade_volume_24h_usd >= 1e9
+      ? `$${(ex.trade_volume_24h_usd / 1e9).toFixed(2)}B`
+      : ex.trade_volume_24h_usd >= 1e6
+        ? `$${(ex.trade_volume_24h_usd / 1e6).toFixed(2)}M`
+        : `$${(ex.trade_volume_24h_usd / 1e3).toFixed(0)}K`;
   return {
-    title: `${ex.name} Review, Fees & Volume | Block70`,
-    description: `${ex.name} exchange: Trust score ${ex.trust_score}/10, 24h volume $${(ex.trade_volume_24h_usd / 1e9).toFixed(2)}B. Compare fees and features.`,
+    title: `${ex.name} · Liquidity & markets | Block70`,
+    description: `${ex.name}: trust ${ex.trust_score}/10, ~${volNote} 24h volume (CoinGecko). Profile includes volume history, top markets, and spread proxy—data via CoinGecko.`,
     openGraph: {
-      title: `${ex.name} Review, Fees & Volume | Block70`,
-      description: `${ex.name} exchange: Trust score ${ex.trust_score}/10, 24h volume $${(ex.trade_volume_24h_usd / 1e9).toFixed(2)}B.`,
+      title: `${ex.name} · Liquidity & markets | Block70`,
+      description: `${ex.name}: trust ${ex.trust_score}/10, ~${volNote} 24h volume (CoinGecko).`,
     },
   };
 }

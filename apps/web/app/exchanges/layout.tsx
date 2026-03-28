@@ -1,7 +1,7 @@
 export const metadata = {
-  title: "Exchanges · Block70 Crypto Data",
+  title: "Exchanges · Liquidity & venue activity · Block70",
   description:
-    "Exchange metrics wired into Block70's execution and liquidity intelligence. Compare top CEX and DEX venues by volume and trust score.",
+    "Liquidity-focused exchange dashboard: 24h volume, trust, heuristic liquidity index, session activity, and venue links. Market depth from CoinGecko tickers on exchange profile pages—not on-chain reserves.",
 };
 
 export default function ExchangesLayout({
