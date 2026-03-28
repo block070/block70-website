@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { getNarrativeDetail } from "@/lib/api";
+import { getNarrativeDetailForServer } from "@/lib/get-narratives-intelligence-server";
 import { NarrativeDetailTrend } from "@/components/narratives/narrative-detail-trend";
 import { clsx } from "clsx";
 
@@ -34,7 +34,7 @@ function formatGrowthRate(g: number): string {
 export async function generateMetadata({ params }: PageProps) {
   let title = "Narrative · Block70";
   try {
-    const d = await getNarrativeDetail({ slug: params.slug });
+    const d = await getNarrativeDetailForServer({ slug: params.slug });
     title = `${d.name} · Narrative intelligence`;
   } catch {
     /* keep default */
@@ -48,7 +48,10 @@ export async function generateMetadata({ params }: PageProps) {
 export default async function NarrativeDetailPage({ params }: PageProps) {
   let data;
   try {
-    data = await getNarrativeDetail({ slug: params.slug, opportunityLimit: 100 });
+    data = await getNarrativeDetailForServer({
+      slug: params.slug,
+      opportunityLimit: 100,
+    });
   } catch {
     notFound();
   }

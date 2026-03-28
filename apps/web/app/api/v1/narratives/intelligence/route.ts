@@ -1,35 +1,58 @@
 import { NextRequest, NextResponse } from "next/server";
 
-const API_BASE =
-  process.env.API_SERVER_URL || process.env.NEXT_PUBLIC_API_BASE_URL || "";
+import type { NarrativesIntelligenceMeta } from "@/lib/narratives/resolve-narratives-api";
+import { resolveNarrativesIntelligence } from "@/lib/narratives/resolve-narratives-api";
 
 export const dynamic = "force-dynamic";
 
-export async function GET(req: NextRequest) {
-  const limitRaw = req.nextUrl.searchParams.get("limit") ?? "50";
-  const limit = Math.min(200, Math.max(1, Number(limitRaw) || 50));
+function narrProxyLog(event: string, data: Record<string, unknown>) {
+  console.log(`[narratives/intelligence] ${event}`, JSON.stringify(data));
+}
 
-  if (API_BASE) {
-    const base = API_BASE.replace(/\/$/, "");
-    try {
-      const upstream = await fetch(
-        `${base}/api/v1/narratives/intelligence?limit=${encodeURIComponent(String(limit))}`,
-        {
-          cache: "no-store",
-          headers: { Accept: "application/json" },
-        },
-      );
-      if (upstream.ok) {
-        const data = await upstream.json();
-        return NextResponse.json(data);
-      }
-    } catch {
-      /* fall through */
+function metaToResponseHeaders(meta: NarrativesIntelligenceMeta): Record<string, string> {
+  const h: Record<string, string> = {
+    "X-Narratives-Source": meta.source,
+    "Cache-Control": "no-store",
+  };
+  if (meta.intelStatus !== undefined) {
+    h["X-Narratives-Intel-Status"] = String(meta.intelStatus);
+  }
+  if (meta.trendingStatus !== undefined) {
+    h["X-Narratives-Trending-Status"] = String(meta.trendingStatus);
+  }
+  if (meta.oppsLen !== undefined) {
+    h["X-Narratives-Trending-Count"] = String(meta.oppsLen);
+  }
+  if (meta.syntheticLen !== undefined) {
+    h["X-Narratives-Count"] = String(meta.syntheticLen);
+  } else if (meta.intelCount !== undefined && meta.intelCount >= 0) {
+    h["X-Narratives-Count"] = String(meta.intelCount);
+  }
+  if (meta.narrativeOppsSource !== undefined) {
+    h["X-Narratives-Opps-Source"] = meta.narrativeOppsSource;
+  }
+  if (meta.opportunitiesListStatus !== undefined) {
+    h["X-Narratives-Opportunities-List-Status"] = String(
+      meta.opportunitiesListStatus,
+    );
+  }
+  if (meta.resolveDbg) {
+    const encoded = encodeURIComponent(JSON.stringify(meta.resolveDbg));
+    if (encoded.length <= 3800) {
+      h["X-Narratives-DBG"] = encoded;
     }
   }
+  return h;
+}
 
-  return NextResponse.json({
-    narratives: [],
-    computed_at: new Date().toISOString(),
+export async function GET(request: NextRequest) {
+  const limitRaw = request.nextUrl.searchParams.get("limit") ?? "50";
+  const limit = Math.min(200, Math.max(1, Number(limitRaw) || 50));
+
+  const { payload, meta } = await resolveNarrativesIntelligence(limit);
+  narrProxyLog("branch", { ...meta, limit });
+
+  return NextResponse.json(payload, {
+    headers: metaToResponseHeaders(meta),
   });
 }

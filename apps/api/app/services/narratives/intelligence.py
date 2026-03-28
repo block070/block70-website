@@ -7,6 +7,7 @@ substring of the opportunity title or summary.
 
 from __future__ import annotations
 
+from collections import defaultdict
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta, timezone
 from typing import Dict, List, Optional, Sequence, Tuple
@@ -156,6 +157,80 @@ def load_narrative_opportunities(db: Session) -> List[Opportunity]:
     return list(q.all())
 
 
+def _synthetic_market_narratives_from_opportunities(
+    opps: List[Opportunity],
+    *,
+    cap: int,
+) -> List[MarketNarrative]:
+    """
+    When `market_narratives` has no rows (common on fresh / under-seeded prod), derive one
+    narrative per distinct opportunity title so the intelligence dashboard still surfaces live
+    narrative-type opportunities.
+    """
+    groups: Dict[str, List[Opportunity]] = defaultdict(list)
+    for o in opps:
+        title = _normalize_ws(o.title or "")
+        if not title:
+            continue
+        groups[title.lower()].append(o)
+
+    scored: List[Tuple[float, str, List[Opportunity]]] = []
+    for key, group in groups.items():
+        mx = max(float(x.total_score or 0.0) for x in group)
+        scored.append((mx, key, group))
+    scored.sort(key=lambda x: -x[0])
+
+    out: List[MarketNarrative] = []
+    sid = -1
+    for mx, _key, group in scored[:cap]:
+        canonical = _normalize_ws(group[0].title or "")
+        if not canonical:
+            continue
+        best = max(group, key=lambda x: float(x.total_score or 0.0))
+        desc = _normalize_ws(best.summary or "") or None
+        created_candidates = [x.created_at for x in group if x.created_at is not None]
+        created_at = min(created_candidates) if created_candidates else _utc_now()
+        out.append(
+            MarketNarrative(
+                id=sid,
+                name=canonical,
+                description=desc,
+                trend_score=float(mx),
+                created_at=created_at,
+            )
+        )
+        sid -= 1
+
+    return out
+
+
+def narrative_from_opportunity_title_match(
+    db: Session,
+    decoded_name: str,
+) -> Optional[MarketNarrative]:
+    """Resolve drill-down when slug equals a narrative opportunity title (no DB narrative row)."""
+    key = _normalize_ws(decoded_name).lower()
+    if not key:
+        return None
+    opps = load_narrative_opportunities(db)
+    group = [o for o in opps if _normalize_ws(o.title or "").lower() == key]
+    if not group:
+        return None
+    canonical = _normalize_ws(group[0].title or "")
+    best = max(group, key=lambda x: float(x.total_score or 0.0))
+    desc = _normalize_ws(best.summary or "") or None
+    created_candidates = [x.created_at for x in group if x.created_at is not None]
+    created_at = min(created_candidates) if created_candidates else _utc_now()
+    oid = min(o.id for o in group)
+    return MarketNarrative(
+        id=-oid,
+        name=canonical,
+        description=desc,
+        trend_score=float(best.total_score or 0.0),
+        created_at=created_at,
+    )
+
+
 def compute_intelligence_rows(
     db: Session,
     *,
@@ -166,6 +241,11 @@ def compute_intelligence_rows(
     engine = NarrativeEngine()
     narratives = engine.list_narratives(db, limit=narrative_limit)
     opps = load_narrative_opportunities(db)
+    if not narratives and opps:
+        narratives = _synthetic_market_narratives_from_opportunities(
+            opps,
+            cap=narrative_limit,
+        )
     now = _utc_now()
     # Last 14 UTC calendar days inclusive ending today.
     today = now.date()
@@ -205,8 +285,11 @@ def narrative_by_slug_or_id(
         return None
 
     # ILIKE without wildcards = case-insensitive equality in PostgreSQL.
-    return (
+    row = (
         db.query(MarketNarrative)
         .filter(MarketNarrative.name.ilike(decoded))
         .first()
     )
+    if row is not None:
+        return row
+    return narrative_from_opportunity_title_match(db, decoded)

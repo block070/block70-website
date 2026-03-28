@@ -86,6 +86,9 @@ def get_narratives_intelligence(
     **Linking:** each narrative `name` (case-insensitive) must appear in the opportunity
     `title` or `summary` for the row to receive that opportunity's scores.
 
+    If `market_narratives` is empty, rows are **synthesized** from distinct narrative-type
+    opportunity titles so the dashboard still reflects live opportunities.
+
     - **attention:** sum of `total_score` in the last 7 days (UTC), using `detected_at` or `created_at`.
     - **sentiment:** mean(`upscore - risk_score`) clamped to [-1, 1].
     - **growth_rate:** (attention last 7d − attention prior 7d) / max(prior, ε).
