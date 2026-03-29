@@ -496,6 +496,19 @@ export type CapitalFlowTrendingDto = {
   flow_count: number;
 };
 
+export type CapitalFlowSummaryDto = {
+  hours: number;
+  chain_filter: string | null;
+  total_volume: number;
+  dominant_chain: { chain: string; total_amount: number; flow_count: number } | null;
+  by_chain: { chain: string; total_amount: number; flow_count: number }[];
+  by_category: { category: string; total_amount: number; flow_count: number }[];
+  top_destinations: { asset: string; total_amount: number; flow_count: number }[];
+  hot_edges: CapitalFlowTrendingDto[];
+  recent: CapitalFlowDto[];
+  disclaimer?: string;
+};
+
 export async function getFlows(params?: {
   chain?: string;
   hours?: number;
@@ -512,13 +525,28 @@ export async function getFlows(params?: {
 export async function getFlowsTrending(params?: {
   hours?: number;
   limit?: number;
+  chain?: string;
 }): Promise<CapitalFlowTrendingDto[]> {
   const search = new URLSearchParams();
   if (params?.hours != null) search.set("hours", String(params.hours));
   if (params?.limit != null) search.set("limit", String(params.limit));
+  if (params?.chain) search.set("chain", params.chain);
   const query = search.toString();
   return fetchJson<CapitalFlowTrendingDto[]>(
     `/api/v1/flows/trending${query ? `?${query}` : ""}`,
+  );
+}
+
+export async function getCapitalFlowSummary(params?: {
+  hours?: number;
+  chain?: string | null;
+}): Promise<CapitalFlowSummaryDto> {
+  const search = new URLSearchParams();
+  if (params?.hours != null) search.set("hours", String(params.hours));
+  if (params?.chain) search.set("chain", params.chain);
+  const query = search.toString();
+  return fetchJson<CapitalFlowSummaryDto>(
+    `/api/v1/flows/summary${query ? `?${query}` : ""}`,
   );
 }
 

@@ -18,7 +18,7 @@ export function CoinWhaleActivity({ name, symbol }: Props) {
       </p>
       <div className="mt-4 flex flex-wrap gap-2">
         <Link
-          href="/flows"
+          href="/capitalflow"
           className="rounded-lg border border-slate-700 bg-slate-950/60 px-3 py-2 text-xs font-medium text-slate-200 hover:border-crypto-blue/50 hover:text-crypto-blue"
         >
           Capital flows

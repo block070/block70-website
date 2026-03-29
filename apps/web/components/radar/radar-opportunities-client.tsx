@@ -487,7 +487,11 @@ export function RadarOpportunitiesClient({
       </section>
 
       <p className="text-[10px] text-[var(--b70-text-muted)]">
-        For on-chain movement context see <Link href="/flows" className="text-[var(--b70-crypto-blue)] hover:underline">flows</Link>.
+        For on-chain movement context see{" "}
+        <Link href="/capitalflow" className="text-[var(--b70-crypto-blue)] hover:underline">
+          capital flow
+        </Link>
+        .
         Signals are automated and may be wrong. Not financial advice.
       </p>
     </div>

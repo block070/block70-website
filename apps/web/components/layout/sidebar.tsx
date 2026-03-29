@@ -40,7 +40,7 @@ const SECTIONS: { title: string; items: NavItem[] }[] = [
     items: [
       { href: "/wallets", label: "Wallets" },
       { href: "/smartwallets", label: "Whale intelligence" },
-      { href: "/flows", label: "Capital flow" },
+      { href: "/capitalflow", label: "Capital flow" },
       { href: "/simulation", label: "Simulations" },
     ],
   },

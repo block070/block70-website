@@ -44,10 +44,29 @@ def get_trending_flows(
     db: Session = Depends(get_db),
     hours: int = Query(default=24, ge=1, le=168),
     limit: int = Query(default=20, ge=1, le=100),
+    chain: str | None = Query(default=None, description="Filter by chain"),
 ) -> List[dict]:
     """Return trending capital flows (aggregated by source/destination)."""
     engine = CapitalFlowEngine()
-    return engine.trending(db, hours=hours, limit=limit)
+    return engine.trending(db, hours=hours, limit=limit, chain=chain)
+
+
+@router.get("/summary")
+def get_flows_summary(
+    db: Session = Depends(get_db),
+    hours: int = Query(default=24, ge=1, le=720, description="Look-back hours"),
+    chain: str | None = Query(default=None, description="Filter by chain"),
+) -> dict:
+    """Macro snapshot: volume, chain/category/destination breakdowns, hot edges."""
+    since = datetime.now(timezone.utc) - timedelta(hours=hours)
+    engine = CapitalFlowEngine()
+    out = engine.summary(db, hours=hours, chain=chain)
+    out["recent"] = [_flow_to_dict(f) for f in engine.list_flows(db, chain=chain, since=since, limit=20)]
+    out["disclaimer"] = (
+        "Category labels map from Block70 coin metadata when symbols match; "
+        "unmatched assets count as Unknown. Not exhaustive on-chain coverage."
+    )
+    return out
 
 
 @router.get("/{token}")

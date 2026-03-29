@@ -176,7 +176,7 @@ export function ExchangesLiquidityClient() {
           Block70 does not ingest proprietary exchange reserve or wallet-flow panels. For on-chain capital
           movement context, see{" "}
           <Link
-            href="/flows"
+            href="/capitalflow"
             className="font-medium text-[var(--b70-crypto-blue)] hover:underline"
           >
             flows

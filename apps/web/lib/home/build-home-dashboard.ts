@@ -245,7 +245,7 @@ function fallbackNews(): NewsIntelRow[] {
       id: -203,
       title: "Stablecoin net inflows tick higher across CEX rails",
       source: "Block70 Intel",
-      url: "/flows",
+      url: "/capitalflow",
       aiSummary:
         "Dry powder entering centralized venues often precedes volatility expansion within 48–96h.",
       narrativeImpact: 68,

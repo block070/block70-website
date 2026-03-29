@@ -13,10 +13,13 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from typing import List, Optional
 
+from collections import defaultdict
+from typing import Any
+
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
-from app.models import CapitalFlow
+from app.models import CapitalFlow, Coin
 
 
 @dataclass
@@ -124,6 +127,7 @@ class CapitalFlowEngine:
         *,
         hours: int = 24,
         limit: int = 20,
+        chain: Optional[str] = None,
     ) -> List[dict]:
         """
         Return trending flows: aggregated by (source_asset, destination_asset)
@@ -139,7 +143,11 @@ class CapitalFlowEngine:
                 func.count(CapitalFlow.id).label("flow_count"),
             )
             .filter(CapitalFlow.timestamp >= since)
-            .group_by(
+        )
+        if chain:
+            sub = sub.filter(CapitalFlow.chain == chain)
+        sub = (
+            sub.group_by(
                 CapitalFlow.source_asset,
                 CapitalFlow.destination_asset,
                 CapitalFlow.chain,
@@ -158,6 +166,135 @@ class CapitalFlowEngine:
             }
             for r in rows
         ]
+
+    def summary(
+        self,
+        db: Session,
+        *,
+        hours: int = 24,
+        chain: Optional[str] = None,
+        limit_destinations: int = 20,
+        limit_categories: int = 20,
+        limit_edges: int = 30,
+        category_source_limit: int = 150,
+    ) -> dict[str, Any]:
+        """
+        Macro snapshot: volume, by-chain, destination accumulators, category rollups
+        (via Coin.symbol → Coin.category, unknown when no match), and hot edges.
+        Category totals use the top ``category_source_limit`` destinations by volume
+        (not full ledger) to keep queries bounded.
+        """
+        since = datetime.now(timezone.utc) - timedelta(hours=hours)
+        lookup_limit = max(limit_destinations, category_source_limit)
+
+        def _base_flow_filter(q):
+            q = q.filter(CapitalFlow.timestamp >= since)
+            if chain:
+                q = q.filter(CapitalFlow.chain == chain)
+            return q
+
+        total_row = _base_flow_filter(
+            db.query(func.coalesce(func.sum(CapitalFlow.amount), 0.0)),
+        ).one()
+        total_volume = float(total_row[0] or 0)
+
+        by_chain_rows = (
+            _base_flow_filter(
+                db.query(
+                    CapitalFlow.chain,
+                    func.sum(CapitalFlow.amount).label("total_amount"),
+                    func.count(CapitalFlow.id).label("flow_count"),
+                )
+            )
+            .group_by(CapitalFlow.chain)
+            .order_by(func.sum(CapitalFlow.amount).desc())
+            .all()
+        )
+        by_chain = [
+            {
+                "chain": r.chain,
+                "total_amount": float(r.total_amount or 0),
+                "flow_count": int(r.flow_count or 0),
+            }
+            for r in by_chain_rows
+        ]
+
+        dest_rows = (
+            _base_flow_filter(
+                db.query(
+                    CapitalFlow.destination_asset,
+                    func.sum(CapitalFlow.amount).label("total_amount"),
+                    func.count(CapitalFlow.id).label("flow_count"),
+                )
+            )
+            .group_by(CapitalFlow.destination_asset)
+            .order_by(func.sum(CapitalFlow.amount).desc())
+            .limit(lookup_limit)
+            .all()
+        )
+        top_destinations = [
+            {
+                "asset": r.destination_asset,
+                "total_amount": float(r.total_amount or 0),
+                "flow_count": int(r.flow_count or 0),
+            }
+            for r in dest_rows[:limit_destinations]
+        ]
+
+        sym_set = {r.destination_asset.upper() for r in dest_rows if r.destination_asset}
+        cat_map: dict[str, str] = {}
+        if sym_set:
+            upper_syms = list(sym_set)
+            coins = (
+                db.query(Coin.symbol, Coin.category)
+                .filter(func.upper(Coin.symbol).in_(upper_syms))
+                .all()
+            )
+            for c in coins:
+                if not c.symbol:
+                    continue
+                k = c.symbol.upper()
+                if k in cat_map:
+                    continue
+                cat_map[k] = (c.category or "").strip() or "Unknown"
+
+        by_cat_agg: dict[str, dict[str, float | int]] = defaultdict(
+            lambda: {"total_amount": 0.0, "flow_count": 0}
+        )
+        for r in dest_rows:
+            sym = (r.destination_asset or "").upper()
+            label = cat_map.get(sym, "Unknown")
+            bucket = by_cat_agg[label]
+            bucket["total_amount"] = float(bucket["total_amount"]) + float(r.total_amount or 0)
+            bucket["flow_count"] = int(bucket["flow_count"]) + int(r.flow_count or 0)
+
+        by_category = sorted(
+            (
+                {
+                    "category": name,
+                    "total_amount": float(v["total_amount"]),
+                    "flow_count": int(v["flow_count"]),
+                }
+                for name, v in by_cat_agg.items()
+            ),
+            key=lambda x: x["total_amount"],
+            reverse=True,
+        )[:limit_categories]
+
+        hot_edges = self.trending(db, hours=hours, limit=limit_edges, chain=chain)
+
+        dominant = by_chain[0] if by_chain else None
+
+        return {
+            "hours": hours,
+            "chain_filter": chain,
+            "total_volume": total_volume,
+            "dominant_chain": dominant,
+            "by_chain": by_chain,
+            "by_category": by_category,
+            "top_destinations": top_destinations,
+            "hot_edges": hot_edges,
+        }
 
     def flows_for_token(
         self,
