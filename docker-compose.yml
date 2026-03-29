@@ -17,6 +17,9 @@ services:
     ports:
       - "${REDIS_PORT:-6379}:6379"
 
+  # restart: always = Docker restarts the container if the *process exits*. It does NOT fix a hung
+  # Python worker, wrong API_SERVER_URL from the web container, or TLS/network to api.block70.com.
+  # Healthcheck is for visibility only unless you use an external watchdog (see scripts/restart-api-if-unhealthy.sh).
   api:
     build:
       context: ./apps/api

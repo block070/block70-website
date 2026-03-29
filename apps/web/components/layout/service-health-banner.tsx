@@ -15,7 +15,9 @@ type HealthDown = {
   latencyMs?: number;
   runbook?: {
     title: string;
+    note?: string;
     docker: string;
+    dockerRestart?: string;
     dockerLogs: string;
     uvicorn: string;
     statusPage: string;
@@ -116,7 +118,16 @@ export function ServiceHealthBanner() {
       {expanded && rb ? (
         <div className="mx-auto mt-2 max-w-6xl rounded-md border border-amber-500/25 bg-[var(--b70-bg)]/80 p-3 font-[family-name:var(--font-jetbrains)] text-[11px] leading-relaxed text-[var(--b70-text-muted)]">
           <p className="mb-2 font-medium text-[var(--b70-text)]">{rb.title}</p>
+          {rb.note ? <p className="mb-2 text-[var(--b70-text)]/90">{rb.note}</p> : null}
           <ul className="list-inside list-disc space-y-1">
+            {rb.dockerRestart ? (
+              <li>
+                <span className="text-[var(--b70-text)]/80">Restart: </span>
+                <code className="rounded bg-[var(--b70-card)] px-1 text-[var(--b70-text)]">
+                  {rb.dockerRestart}
+                </code>
+              </li>
+            ) : null}
             <li>
               <code className="rounded bg-[var(--b70-card)] px-1 text-[var(--b70-text)]">{rb.docker}</code>
             </li>

@@ -5,6 +5,7 @@ import json
 import logging
 import os
 import secrets
+import tempfile
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Optional
@@ -19,8 +20,20 @@ from app.services.alerts.notifications import send_smtp_email
 
 logger = logging.getLogger(__name__)
 
-_REPO_ROOT = Path(__file__).resolve().parents[5]
-_DEBUG_LOG = _REPO_ROOT / "debug-9aa1f6.log"
+
+def _resolve_agent_debug_log() -> Path:
+    """Monorepo: block70/apps/api/... → log under repo root. Docker (WORKDIR /app): use system temp."""
+    here = Path(__file__).resolve()
+    for anc in here.parents:
+        try:
+            if (anc / "apps" / "api").is_dir():
+                return anc / "debug-9aa1f6.log"
+        except OSError:
+            continue
+    return Path(tempfile.gettempdir()) / "debug-9aa1f6.log"
+
+
+_DEBUG_LOG = _resolve_agent_debug_log()
 
 
 def _agent_dbg(location: str, message: str, data: dict) -> None:

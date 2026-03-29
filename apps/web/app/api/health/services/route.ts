@@ -7,12 +7,16 @@ export const dynamic = "force-dynamic";
 /** Minimal instructions shown in the UI when the API is unreachable (no secrets). */
 const RUNBOOK = {
   title: "Start or restart the Block70 API",
-  docker: "From the repo root: docker compose up -d api",
-  dockerLogs: "docker compose logs -f api",
+  note: "This yellow banner only checks connectivity—it does not restart Docker or your VPS. Restart commands must be run on the server that hosts the API.",
+  docker:
+    "From the repo root (first deploy / after pull): docker compose up -d api",
+  dockerRestart:
+    "Quick restart API container only: docker compose restart api  ·  or: docker restart block70-api",
+  dockerLogs: "docker compose logs -f api --tail 100",
   uvicorn:
     "Local dev: cd apps/api then uvicorn app.main:app --reload --host 0.0.0.0 --port 8000",
   statusPage: "/status",
-  docs: "See docs/REAL_DATA_LOCALLY.md in the repo for full setup.",
+  docs: "See docs/DEPLOY.md (recovery) and docs/REAL_DATA_LOCALLY.md. Optional cron: scripts/restart-api-if-unhealthy.sh",
 };
 
 /**

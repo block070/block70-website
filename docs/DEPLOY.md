@@ -35,6 +35,42 @@ The status page fetches **directly from the API** in the browser (bypassing the 
 1. `NEXT_PUBLIC_API_BASE_URL` points to the API (e.g. `http://108.175.11.229:8000` or `https://api.block70.com`)
 2. `FRONTEND_ORIGIN` includes your frontend domain (e.g. `https://block70.com,http://108.175.11.229:3000`) so CORS allows the fetch
 
+## Yellow banner: "Backend API: fetch failed"
+
+The site **only monitors** the API (`GET /api/health/services` → your FastAPI `/health`). It **does not** restart containers or processes.
+
+1. **SSH to the server** that runs the Block70 stack (same host as Docker or wherever the API listens).
+2. **Restart the API** (from repo root, where `docker-compose.yml` lives):
+
+   ```bash
+   docker compose restart api
+   ```
+
+   Container name may be `block70-api`; equivalent:
+
+   ```bash
+   docker restart block70-api
+   ```
+
+3. **If that does not fix it**, inspect logs and recreate:
+
+   ```bash
+   docker compose logs -f api --tail 150
+   docker compose up -d --force-recreate api
+   ```
+
+4. **Config**: Ensure Vercel/host env has `API_SERVER_URL` (or `NEXT_PUBLIC_API_BASE_URL`) pointing at a URL the **Next.js server** can actually reach (see table above). A wrong URL produces the same banner even when the API is healthy on localhost.
+
+### Optional: cron self-heal (Linux VPS)
+
+From repo root, run every 5 minutes (adjust `API_HEALTH_URL` if the API is not on localhost:8000):
+
+```bash
+*/5 * * * * cd /path/to/block70 && API_HEALTH_URL=http://127.0.0.1:8000/health ./scripts/restart-api-if-unhealthy.sh >> /var/log/block70-api-watch.log 2>&1
+```
+
+This only restarts the `api` service when `/health` fails; it does not replace proper monitoring.
+
 ## Chart cache (new)
 
 - Chart data is cached in **Redis** to avoid CoinGecko 429 rate limits.

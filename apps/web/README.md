@@ -63,7 +63,7 @@ If FastAPI is unreachable, an **amber banner** appears under the top nav with:
 - **Show how to fix** — copy-paste commands for Docker and local uvicorn
 - Link to **`/status`** for scheduler job detail
 
-The banner calls `GET /api/health/services`, which checks your configured API base (`API_SERVER_URL` / `NEXT_PUBLIC_API_BASE_URL`) using the same TLS-aware fetch as other server routes.
+The banner calls `GET /api/health/services`, which checks your configured API base (`API_SERVER_URL` / `NEXT_PUBLIC_API_BASE_URL`) using the same TLS-aware fetch as other server routes. It does **not** restart Docker or the API—use `docker compose restart api` on the server (see `docs/DEPLOY.md`). Optional cron: `scripts/restart-api-if-unhealthy.sh`.
 
 **Run FastAPI locally** (from repo root):
 
