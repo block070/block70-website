@@ -10,6 +10,21 @@ export const dynamic = "force-dynamic";
 export async function GET(req: Request) {
   const base = getApiBaseUrl().replace(/\/$/, "");
   if (!base) {
+    // #region agent log
+    void fetch("http://127.0.0.1:7428/ingest/b2bee36a-3f9b-42a9-b6fb-0dc54bacc543", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "9aa1f6" },
+      body: JSON.stringify({
+        sessionId: "9aa1f6",
+        runId: "capitalflow",
+        hypothesisId: "H_no_api_base",
+        location: "api/flows/summary/route.ts:GET",
+        message: "no API base configured",
+        data: {},
+        timestamp: Date.now(),
+      }),
+    }).catch(() => {});
+    // #endregion
     return NextResponse.json(
       {
         error: "no_api_base",
@@ -29,6 +44,42 @@ export async function GET(req: Request) {
       headers: { Accept: "application/json" },
     });
     const body = await r.text();
+    // #region agent log
+    let totalVol: number | null = null;
+    let hotLen: number | null = null;
+    try {
+      const j = JSON.parse(body) as { total_volume?: number; hot_edges?: unknown[] };
+      totalVol = typeof j.total_volume === "number" ? j.total_volume : null;
+      hotLen = Array.isArray(j.hot_edges) ? j.hot_edges.length : null;
+    } catch {
+      /* ignore */
+    }
+    let apiHost = "unknown";
+    try {
+      apiHost = new URL(base).hostname;
+    } catch {
+      /* ignore */
+    }
+    void fetch("http://127.0.0.1:7428/ingest/b2bee36a-3f9b-42a9-b6fb-0dc54bacc543", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "9aa1f6" },
+      body: JSON.stringify({
+        sessionId: "9aa1f6",
+        runId: "capitalflow",
+        hypothesisId: "H_proxy_upstream",
+        location: "api/flows/summary/route.ts:GET",
+        message: "proxy response",
+        data: {
+          apiHost,
+          upstreamStatus: r.status,
+          totalVol,
+          hotLen,
+          bodyChars: body.length,
+        },
+        timestamp: Date.now(),
+      }),
+    }).catch(() => {});
+    // #endregion
     return new NextResponse(body, {
       status: r.status,
       headers: { "Content-Type": r.headers.get("Content-Type") || "application/json" },

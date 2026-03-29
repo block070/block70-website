@@ -9,6 +9,19 @@ import type { CapitalFlowSummaryDto } from "@/lib/api";
 import { Card, CardHeader } from "@/components/ui/card";
 import { CapitalFlowChart } from "@/components/flows/capital-flow-chart";
 import { CapitalFlowSankey } from "./capital-flow-sankey";
+import { buildDemoCapitalFlowSummary } from "@/lib/capital-flow-demo";
+
+type ViewSummary = CapitalFlowSummaryDto & { demo_mode?: boolean };
+
+function isLedgerEmpty(s: CapitalFlowSummaryDto): boolean {
+  return (
+    s.total_volume === 0 &&
+    s.hot_edges.length === 0 &&
+    s.by_chain.length === 0 &&
+    s.top_destinations.length === 0 &&
+    (s.recent?.length ?? 0) === 0
+  );
+}
 
 async function fetchSummary(hours: number, chain: string | undefined): Promise<CapitalFlowSummaryDto> {
   const p = new URLSearchParams({ hours: String(hours) });
@@ -22,9 +35,46 @@ async function fetchSummary(hours: number, chain: string | undefined): Promise<C
     } catch {
       detail = await r.text();
     }
+    // #region agent log
+    void fetch("http://127.0.0.1:7428/ingest/b2bee36a-3f9b-42a9-b6fb-0dc54bacc543", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "9aa1f6" },
+      body: JSON.stringify({
+        sessionId: "9aa1f6",
+        runId: "capitalflow",
+        hypothesisId: "H_fetch_fail",
+        location: "capital-flow-dashboard-client.tsx:fetchSummary",
+        message: "summary request failed",
+        data: { status: r.status, detail: detail.slice(0, 120) },
+        timestamp: Date.now(),
+      }),
+    }).catch(() => {});
+    // #endregion
     throw new Error(detail || `HTTP ${r.status}`);
   }
-  return r.json() as Promise<CapitalFlowSummaryDto>;
+  const parsed = (await r.json()) as CapitalFlowSummaryDto;
+  // #region agent log
+  void fetch("http://127.0.0.1:7428/ingest/b2bee36a-3f9b-42a9-b6fb-0dc54bacc543", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "9aa1f6" },
+    body: JSON.stringify({
+      sessionId: "9aa1f6",
+      runId: "capitalflow",
+      hypothesisId: "H_live_payload",
+      location: "capital-flow-dashboard-client.tsx:fetchSummary",
+      message: "summary ok",
+      data: {
+        totalVol: parsed.total_volume,
+        hotLen: parsed.hot_edges?.length ?? -1,
+        chainLen: parsed.by_chain?.length ?? -1,
+        recentLen: parsed.recent?.length ?? -1,
+        empty: isLedgerEmpty(parsed),
+      },
+      timestamp: Date.now(),
+    }),
+  }).catch(() => {});
+  // #endregion
+  return parsed;
 }
 
 const HOURS_OPTIONS = [
@@ -61,7 +111,7 @@ function formatTime(ts: number): string {
 }
 
 type Props = {
-  initialSummary: CapitalFlowSummaryDto | null;
+  initialSummary: CapitalFlowSummaryDto;
   defaultHours?: number;
 };
 
@@ -80,11 +130,33 @@ export function CapitalFlowDashboardClient({
     {
       refreshInterval: 45_000,
       revalidateOnFocus: true,
-      fallbackData: initialSummary ?? undefined,
+      fallbackData: initialSummary,
     },
   );
 
-  const summary = data;
+  const summary = data ?? initialSummary;
+
+  const view: ViewSummary | null = useMemo(() => {
+    if (!summary) return null;
+    if (!isLedgerEmpty(summary)) return { ...summary, demo_mode: false };
+    const demo = buildDemoCapitalFlowSummary(hours, chain || null);
+    // #region agent log
+    void fetch("http://127.0.0.1:7428/ingest/b2bee36a-3f9b-42a9-b6fb-0dc54bacc543", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "9aa1f6" },
+      body: JSON.stringify({
+        sessionId: "9aa1f6",
+        runId: "capitalflow",
+        hypothesisId: "H_demo_applied",
+        location: "capital-flow-dashboard-client.tsx:view",
+        message: "using demo fallback",
+        data: { hours, chain: chain || "all", demoHotLen: demo.hot_edges.length },
+        timestamp: Date.now(),
+      }),
+    }).catch(() => {});
+    // #endregion
+    return { ...demo, demo_mode: true };
+  }, [summary, hours, chain]);
 
   const [lastUpdatedAt, setLastUpdatedAt] = useState<number | null>(null);
   useEffect(() => {
@@ -94,13 +166,13 @@ export function CapitalFlowDashboardClient({
   const [catQ, setCatQ] = useState("");
 
   const filteredCategories = useMemo(() => {
-    const rows = summary?.by_category ?? [];
+    const rows = view?.by_category ?? [];
     const q = catQ.trim().toLowerCase();
     if (!q) return rows;
     return rows.filter((r) => r.category.toLowerCase().includes(q));
-  }, [summary?.by_category, catQ]);
+  }, [view?.by_category, catQ]);
 
-  const dominant = summary?.dominant_chain;
+  const dominant = view?.dominant_chain;
 
   return (
     <div className="space-y-6">
@@ -152,10 +224,18 @@ export function CapitalFlowDashboardClient({
         </p>
       ) : null}
 
+      {view?.demo_mode ? (
+        <p className="rounded-lg border border-[var(--b70-crypto-blue)]/30 bg-[var(--b70-crypto-blue)]/10 px-3 py-2 text-xs text-[var(--b70-text)]">
+          <span className="font-semibold text-[var(--b70-crypto-blue)]">Sample data.</span> The
+          capital-flow ledger returned no rows for this window—showing illustrative flows so layouts
+          and charts are visible. Replace with production ingest for live macro tracking.
+        </p>
+      ) : null}
+
       <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <KpiCard
           label="Window volume"
-          value={summary ? formatVol(summary.total_volume) : isLoading ? "…" : "—"}
+          value={view ? formatVol(view.total_volume) : isLoading ? "…" : "—"}
           hint="Sum of flow amounts in window"
         />
         <KpiCard
@@ -165,12 +245,12 @@ export function CapitalFlowDashboardClient({
         />
         <KpiCard
           label="Hot edges"
-          value={summary ? String(summary.hot_edges.length) : "—"}
+          value={view ? String(view.hot_edges.length) : "—"}
           hint="Top aggregated routes"
         />
         <KpiCard
           label="Categories (sample)"
-          value={summary ? String(summary.by_category.length) : "—"}
+          value={view ? String(view.by_category.length) : "—"}
           hint="From top destinations vs coins DB"
         />
       </section>
@@ -179,14 +259,14 @@ export function CapitalFlowDashboardClient({
         <Card>
           <CardHeader title="Sankey — capital rails" subtitle="Width ~ relative flow (aggregated)" />
           <div className="p-4">
-            <CapitalFlowSankey edges={summary?.hot_edges ?? []} />
+            <CapitalFlowSankey edges={view?.hot_edges ?? []} />
           </div>
         </Card>
         <Card>
           <CardHeader title="Flow network (SVG)" subtitle="Compact rail view" />
           <div className="p-4">
             <CapitalFlowChart
-              flows={summary?.hot_edges ?? []}
+              flows={view?.hot_edges ?? []}
               maxNodes={14}
               className="text-[var(--b70-crypto-blue)]"
             />
@@ -198,11 +278,11 @@ export function CapitalFlowDashboardClient({
         <Card>
           <CardHeader title="Hot flows" subtitle="Largest aggregated movements" />
           <div className="p-4">
-            {!summary?.hot_edges.length ? (
+            {!view?.hot_edges.length ? (
               <EmptyHint />
             ) : (
               <ul className="space-y-2">
-                {summary.hot_edges.slice(0, 12).map((t, i) => (
+                {view.hot_edges.slice(0, 12).map((t, i) => (
                   <li
                     key={`${t.source_asset}-${t.destination_asset}-${t.chain}-${i}`}
                     className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-[var(--b70-border)] bg-[var(--b70-card)]/50 px-3 py-2 text-xs"
@@ -257,11 +337,11 @@ export function CapitalFlowDashboardClient({
         <Card>
           <CardHeader title="By chain" subtitle="Share of flow amount in window" />
           <div className="p-4">
-            {!summary?.by_chain.length ? (
+            {!view?.by_chain.length ? (
               <EmptyHint />
             ) : (
               <ul className="space-y-2">
-                {summary.by_chain.map((r) => (
+                {view.by_chain.map((r) => (
                   <li
                     key={r.chain}
                     className="flex items-center justify-between rounded-lg border border-[var(--b70-border)] bg-[var(--b70-card)]/50 px-3 py-2 text-xs"
@@ -326,14 +406,14 @@ export function CapitalFlowDashboardClient({
           }
         />
         <div className="p-4">
-          {summary?.disclaimer ? (
-            <p className="mb-3 text-[10px] text-[var(--b70-text-muted)]">{summary.disclaimer}</p>
+          {view?.disclaimer ? (
+            <p className="mb-3 text-[10px] text-[var(--b70-text-muted)]">{view.disclaimer}</p>
           ) : null}
-          {!summary?.recent?.length ? (
+          {!view?.recent?.length ? (
             <EmptyHint />
           ) : (
             <ul className="space-y-2">
-              {summary.recent.slice(0, 18).map((f) => (
+              {view.recent.slice(0, 18).map((f) => (
                 <li
                   key={f.id}
                   className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-[var(--b70-border)] bg-[var(--b70-card)]/50 px-3 py-2 text-xs"
