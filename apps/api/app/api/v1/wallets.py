@@ -5,10 +5,11 @@ from typing import Any, List
 
 from fastapi import APIRouter, Depends, HTTPException, Path, Query
 from sqlalchemy import func
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
 from app.db import get_db
-from app.models import Opportunity, OpportunityStatus, WalletProfile
+from app.models import Opportunity, OpportunityStatus, WalletLedgerEvent, WalletProfile
 from app.services.wallets import WalletPerformanceEngine
 
 
@@ -127,12 +128,72 @@ def get_wallet_performance(
     perf = engine.get_performance(db, address)
     if perf is None:
         raise HTTPException(status_code=404, detail="Wallet not found")
+    holdings = perf.token_holdings or []
     return {
         "wallet_address": perf.wallet_address,
         "chain": perf.chain,
         "roi": perf.roi,
         "win_rate": perf.win_rate,
-        "token_holdings": perf.token_holdings,
+        "token_holdings": holdings,
+        "holdings_status": "available" if holdings else "unavailable",
+        "holdings_note": "Balances are populated when indexer/RPC enrichment is wired; empty means not loaded.",
+    }
+
+
+@router.get("/{address}/activity")
+def get_wallet_activity(
+    address: str = Path(..., description="Wallet address"),
+    db: Session = Depends(get_db),
+    limit: int = Query(50, ge=1, le=200),
+) -> dict:
+    """Synthetic activity from wallet-type opportunities (not full DEX history)."""
+    engine = WalletPerformanceEngine()
+    items = engine.get_wallet_activity_from_opportunities(db, address, limit=limit)
+    return {
+        "wallet_address": address,
+        "source": "opportunity_engine",
+        "disclaimer": "Derived from Block70 wallet-type opportunities, not a canonical buy/sell ledger.",
+        "items": items,
+    }
+
+
+@router.get("/{address}/events")
+def get_wallet_ledger_events(
+    address: str = Path(..., description="Wallet address"),
+    db: Session = Depends(get_db),
+    limit: int = Query(50, ge=1, le=200),
+    chain: str | None = Query(default=None, description="Optional chain filter"),
+) -> dict:
+    """Indexed ledger events when `wallet_ledger_events` is populated; else empty."""
+    try:
+        q = db.query(WalletLedgerEvent).filter(
+            WalletLedgerEvent.wallet_address == address,
+        )
+        if chain:
+            q = q.filter(WalletLedgerEvent.chain == chain)
+        rows = (
+            q.order_by(WalletLedgerEvent.occurred_at.desc()).limit(limit).all()
+        )
+    except SQLAlchemyError:
+        rows = []
+    return {
+        "wallet_address": address,
+        "source": "ledger_indexer",
+        "items": [
+            {
+                "id": r.id,
+                "chain": r.chain,
+                "tx_hash": r.tx_hash,
+                "occurred_at": r.occurred_at.isoformat(),
+                "event_type": r.event_type,
+                "token_symbol": r.token_symbol,
+                "amount_native": r.amount_native,
+                "amount_usd_est": r.amount_usd_est,
+                "counterparty": r.counterparty,
+                "raw_summary": r.raw_summary,
+            }
+            for r in rows
+        ],
     }
 
 

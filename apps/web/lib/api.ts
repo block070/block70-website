@@ -571,9 +571,63 @@ export async function getWalletPerformance(address: string): Promise<{
   roi: number;
   win_rate: number;
   token_holdings: { symbol: string; balance: number }[];
+  holdings_status?: string;
+  holdings_note?: string;
 }> {
   return fetchJson(
     `/api/v1/wallets/${encodeURIComponent(address)}/performance`,
+  );
+}
+
+export type WalletActivityItem = {
+  id: number;
+  kind: string;
+  title: string;
+  summary: string;
+  total_score: number;
+  detected_at: string | null;
+  asset_symbol: string | null;
+  chain: string | null;
+};
+
+export async function getWalletActivity(
+  address: string,
+  limit = 50,
+): Promise<{
+  wallet_address: string;
+  source: string;
+  disclaimer: string;
+  items: WalletActivityItem[];
+}> {
+  const q = new URLSearchParams({ limit: String(limit) });
+  return fetchJson(
+    `/api/v1/wallets/${encodeURIComponent(address)}/activity?${q}`,
+  );
+}
+
+export type WalletLedgerItem = {
+  id: number;
+  chain: string;
+  tx_hash: string | null;
+  occurred_at: string;
+  event_type: string;
+  token_symbol: string | null;
+  amount_native: number | null;
+  amount_usd_est: number | null;
+  counterparty: string | null;
+  raw_summary: string | null;
+};
+
+export async function getWalletLedgerEvents(
+  address: string,
+  opts?: { limit?: number; chain?: string },
+): Promise<{ wallet_address: string; source: string; items: WalletLedgerItem[] }> {
+  const q = new URLSearchParams();
+  if (opts?.limit != null) q.set("limit", String(opts.limit));
+  if (opts?.chain) q.set("chain", opts.chain);
+  const qs = q.toString();
+  return fetchJson(
+    `/api/v1/wallets/${encodeURIComponent(address)}/events${qs ? `?${qs}` : ""}`,
   );
 }
 

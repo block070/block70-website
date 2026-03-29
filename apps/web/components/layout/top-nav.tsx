@@ -13,6 +13,7 @@ const TOP_LINKS = [
   { href: "/copilot", label: "AI Assistant" },
   { href: "/signals", label: "Signals" },
   { href: "/airdrops", label: "Airdrops" },
+  { href: "/smartwallets", label: "Whales" },
   { href: "/wallets", label: "Wallets" },
   { href: "/opportunities", label: "Opportunities" },
   { href: "/news", label: "News" },

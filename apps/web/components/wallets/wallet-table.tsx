@@ -68,7 +68,7 @@ export function WalletTable({
           {visibleRows.map((wallet) => (
             <tr key={wallet.id} className="border-t border-slate-800 bg-slate-950/50">
               <td className="px-3 py-2 text-slate-200">
-                <Link href={`/wallets/${wallet.chain}/${wallet.address}`} className="hover:text-emerald-300">
+                <Link href={`/smartwallets/${wallet.chain}/${wallet.address}`} className="hover:text-emerald-300">
                   {shortAddress(wallet.address)}
                 </Link>
               </td>

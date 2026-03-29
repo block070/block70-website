@@ -45,7 +45,7 @@ export function WhaleWidget({
         subtitle="Recent large trades"
         action={
           <Link
-            href="/wallets/smart-money"
+            href="/smartwallets"
             className="text-xs font-medium text-[var(--b70-crypto-blue)] hover:underline"
           >
             Smart money →

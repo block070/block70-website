@@ -25,7 +25,7 @@ export function WhaleActivity({ wallets, errorMessage = null }: WhaleActivityPro
           </p>
         </div>
         <Link
-          href="/wallets/smart-money"
+          href="/smartwallets"
           className="text-xs font-medium text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300"
         >
           Smart money →

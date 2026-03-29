@@ -40,7 +40,7 @@ function fallbackSearch(q: string, limit: number): SearchResult[] {
     results.push({ id: "airdrops", category: "airdrops", title: "Airdrops", href: "/airdrops" });
   }
   if (lower.includes("wallet") || lower.includes("whale")) {
-    results.push({ id: "wallets", category: "wallets", title: "Smart wallets", href: "/wallets" });
+    results.push({ id: "wallets", category: "wallets", title: "Whale intelligence", href: "/smartwallets" });
   }
   if (lower.includes("narrative")) {
     results.push({ id: "narratives", category: "narratives", title: "Narratives", href: "/narratives" });

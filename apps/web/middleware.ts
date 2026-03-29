@@ -5,6 +5,7 @@ const PROTECTED_PATTERNS = [
   /^\/wallets\/dashboard(?:\/.*)?$/,
   /^\/wallets\/tokens\/[^/]+(?:\/.*)?$/,
   /^\/wallets\/(bitcoin|ethereum|solana)\/[^/]+(?:\/.*)?$/,
+  /^\/smartwallets\/(bitcoin|ethereum|solana)\/[^/]+(?:\/.*)?$/,
 ];
 
 export function middleware(request: NextRequest) {
@@ -33,6 +34,6 @@ export function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/wallets/:path*", "/crypto-hour", "/crypto-hour/:path*"],
+  matcher: ["/wallets/:path*", "/smartwallets/:path*", "/crypto-hour", "/crypto-hour/:path*"],
 };
 

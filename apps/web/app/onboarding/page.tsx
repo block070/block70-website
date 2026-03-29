@@ -6,7 +6,7 @@ import { useState } from "react";
 const INTERESTS = [
   { id: "arbitrage", label: "Arbitrage" },
   { id: "mining", label: "Liquidity mining" },
-  { id: "wallets", label: "Smart wallets" },
+  { id: "wallets", label: "Whale intelligence" },
 ];
 
 export default function OnboardingPage() {

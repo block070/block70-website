@@ -386,7 +386,7 @@ export function buildSourceSummary(result: AISearchResult): SourceSummary {
   return {
     newsHref: "/news",
     marketHref: "/market",
-    walletsHref: "/wallets/top",
+    walletsHref: "/smartwallets",
     hasRadar: (result.related_radar?.length ?? 0) > 0,
     narrativeCount: result.related_narratives?.length ?? 0,
     signalCount: result.related_signals?.length ?? 0,

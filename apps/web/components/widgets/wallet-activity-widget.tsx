@@ -39,7 +39,7 @@ export function WalletActivityWidget({
         subtitle="Smart wallet transactions"
         action={
           <Link
-            href="/wallets/smart-money"
+            href="/smartwallets"
             className="text-xs font-medium text-[var(--b70-crypto-blue)] hover:underline"
           >
             Leaderboard

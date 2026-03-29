@@ -72,7 +72,7 @@ export function InsightsPanel() {
           </ul>
         )}
         <Link
-          href="/wallets/smart-money"
+          href="/smartwallets"
           className="mt-3 inline-block text-xs font-medium text-[var(--b70-crypto-blue)] hover:underline"
         >
           View smart money leaderboard →

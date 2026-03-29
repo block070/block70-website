@@ -213,8 +213,8 @@ function mockSearch(q: string): SearchResult[] {
     out.push({
       id: "wallets",
       category: "wallets",
-      title: "Smart wallets",
-      href: "/wallets",
+          title: "Whale intelligence",
+          href: "/smartwallets",
     });
   }
   if (lower.includes("narrative")) {

@@ -365,7 +365,7 @@ export function IntelligenceDashboard() {
 
           {/* SMART MONEY */}
           <section>
-            <SectionTitle kicker="03" title="Smart money" href="/wallets/smart-money" />
+            <SectionTitle kicker="03" title="Smart money" href="/smartwallets" />
             <div className="grid gap-4 lg:grid-cols-2">
               <div className="rounded-xl border border-[var(--b70-border)] bg-[var(--b70-card)] p-4">
                 <h3 className="text-xs font-semibold text-[var(--b70-text-muted)]">Leaderboard clip</h3>

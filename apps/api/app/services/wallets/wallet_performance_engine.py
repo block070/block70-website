@@ -7,9 +7,10 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import List, Optional
 
+from sqlalchemy import func, or_
 from sqlalchemy.orm import Session
 
-from app.models import SmartWallet, WalletProfile
+from app.models import Opportunity, OpportunityStatus, SmartWallet, WalletProfile
 
 
 @dataclass
@@ -129,3 +130,49 @@ class WalletPerformanceEngine:
         db.commit()
         db.refresh(w)
         return w
+
+    def get_wallet_activity_from_opportunities(
+        self,
+        db: Session,
+        address: str,
+        *,
+        limit: int = 50,
+    ) -> List[dict]:
+        """
+        Synthetic activity from wallet-type opportunities keyed by asset_symbol
+        (or title/summary mention). Not a substitute for indexed DEX swaps.
+        """
+        key = (address or "").strip()
+        if not key:
+            return []
+        key_lower = key.lower()
+        q = (
+            db.query(Opportunity)
+            .filter(
+                Opportunity.type == "wallet",
+                Opportunity.status == OpportunityStatus.ACTIVE.value,
+                or_(
+                    func.lower(Opportunity.asset_symbol) == key_lower,
+                    Opportunity.title.ilike(f"%{key}%"),
+                    Opportunity.summary.ilike(f"%{key}%"),
+                ),
+            )
+            .order_by(Opportunity.detected_at.desc().nullslast())
+            .limit(limit)
+        )
+        rows = q.all()
+        out: List[dict] = []
+        for o in rows:
+            out.append(
+                {
+                    "id": o.id,
+                    "kind": "opportunity_signal",
+                    "title": o.title,
+                    "summary": (o.summary or "")[:500],
+                    "total_score": float(o.total_score or 0.0),
+                    "detected_at": o.detected_at.isoformat() if o.detected_at else None,
+                    "asset_symbol": o.asset_symbol,
+                    "chain": o.chain,
+                }
+            )
+        return out

@@ -67,6 +67,7 @@ from .reward_action import RewardAction
 from .reward_item import RewardItem
 from .capital_flow import CapitalFlow
 from .smart_wallet import SmartWallet
+from .wallet_ledger_event import WalletLedgerEvent
 from .radar_event_model import RadarEvent
 from .market_narrative import MarketNarrative
 from .market_opportunity import MarketOpportunity
@@ -163,6 +164,7 @@ __all__ = [
     "RewardItem",
     "CapitalFlow",
     "SmartWallet",
+    "WalletLedgerEvent",
     "RadarEvent",
     "MarketNarrative",
     "MarketOpportunity",

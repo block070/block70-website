@@ -569,7 +569,7 @@ function FlowWalletPanel({
               ))}
             </ul>
             <Link
-              href="/wallets/top"
+              href="/smartwallets"
               className="mt-2 inline-block text-[11px] text-[var(--b70-crypto-blue)] hover:underline"
             >
               Full leaderboard

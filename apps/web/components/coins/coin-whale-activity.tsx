@@ -24,7 +24,7 @@ export function CoinWhaleActivity({ name, symbol }: Props) {
           Capital flows
         </Link>
         <Link
-          href="/wallets/smart-money"
+          href="/smartwallets"
           className="rounded-lg border border-slate-700 bg-slate-950/60 px-3 py-2 text-xs font-medium text-slate-200 hover:border-crypto-blue/50 hover:text-crypto-blue"
         >
           Smart money wallets
