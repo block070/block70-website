@@ -23,12 +23,19 @@ def send_smtp_email(*, to_addr: str, subject: str, body: str) -> tuple[bool, str
     msg["Subject"] = subject
     msg["From"] = from_addr
     msg["To"] = to_addr
+    use_ssl = os.getenv("SMTP_SSL", "").strip().lower() in ("1", "true", "yes", "on")
     try:
-        with smtplib.SMTP(host, port, timeout=20) as smtp:
-            smtp.starttls()
-            if user and password:
-                smtp.login(user, password)
-            smtp.sendmail(from_addr, [to_addr], msg.as_string())
+        if use_ssl:
+            with smtplib.SMTP_SSL(host, port, timeout=20) as smtp:
+                if user and password:
+                    smtp.login(user, password)
+                smtp.sendmail(from_addr, [to_addr], msg.as_string())
+        else:
+            with smtplib.SMTP(host, port, timeout=20) as smtp:
+                smtp.starttls()
+                if user and password:
+                    smtp.login(user, password)
+                smtp.sendmail(from_addr, [to_addr], msg.as_string())
         return True, ""
     except Exception as e:
         logger.exception("smtp send failed: %s", e)

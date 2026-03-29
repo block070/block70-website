@@ -6,8 +6,20 @@ from sqlalchemy.orm import Session
 from app.core.auth_middleware import get_current_user
 from app.db import get_db
 from app.models import User
-from app.schemas.user import UserCreate, UserRead
-from app.services.auth import authenticate_user, create_user, generate_access_token
+from app.schemas.user import (
+    ForgotPasswordRequest,
+    LoginRequest,
+    ResetPasswordRequest,
+    UserCreate,
+    UserRead,
+)
+from app.services.auth import (
+    authenticate_user,
+    complete_password_reset,
+    create_user,
+    generate_access_token,
+    request_password_reset,
+)
 
 
 router = APIRouter(prefix="/api/v1/auth", tags=["auth"])
@@ -38,11 +50,10 @@ def register(payload: UserCreate, db: Session = Depends(get_db)) -> User:
 
 @router.post("/login")
 def login(
-    email: str,
-    password: str,
+    payload: LoginRequest,
     db: Session = Depends(get_db),
 ) -> dict:
-    user = authenticate_user(db, email=email, password=password)
+    user = authenticate_user(db, email=payload.email, password=payload.password)
     if not user:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -55,6 +66,35 @@ def login(
         "token_type": "bearer",
         "user": UserRead.model_validate(user).model_dump(),
     }
+
+
+_FORGOT_PW_OK_MSG = (
+    "If an account exists for this email, password reset instructions have been sent."
+)
+
+
+@router.post("/forgot-password")
+def forgot_password(
+    payload: ForgotPasswordRequest,
+    db: Session = Depends(get_db),
+) -> dict:
+    request_password_reset(db, email=payload.email)
+    return {"detail": _FORGOT_PW_OK_MSG}
+
+
+@router.post("/reset-password")
+def reset_password(
+    payload: ResetPasswordRequest,
+    db: Session = Depends(get_db),
+) -> dict:
+    try:
+        complete_password_reset(db, token=payload.token, new_password=payload.password)
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(exc),
+        ) from exc
+    return {"detail": "Password updated. You can sign in with your new password."}
 
 
 @router.get("/me", response_model=UserRead)

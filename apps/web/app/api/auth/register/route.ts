@@ -50,10 +50,11 @@ export async function POST(request: NextRequest) {
     );
   }
   // Auto-login on successful registration so client receives a usable session/token.
-  const loginResponse = await fetch(
-    `${apiBase}/api/v1/auth/login?email=${encodeURIComponent(body.email)}&password=${encodeURIComponent(body.password)}`,
-    { method: "POST" },
-  );
+  const loginResponse = await fetch(`${apiBase}/api/v1/auth/login`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email: body.email, password: body.password }),
+  });
   const loginData = await loginResponse.json().catch(() => ({}));
   if (!loginResponse.ok) {
     return NextResponse.json(

@@ -1,13 +1,52 @@
 from __future__ import annotations
 
+import hashlib
+import json
+import logging
+import os
+import secrets
 from datetime import datetime, timedelta, timezone
+from pathlib import Path
 from typing import Optional
 
 import bcrypt
 import jwt
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.models import User
+from app.services.alerts.notifications import send_smtp_email
+
+logger = logging.getLogger(__name__)
+
+_REPO_ROOT = Path(__file__).resolve().parents[5]
+_DEBUG_LOG = _REPO_ROOT / "debug-9aa1f6.log"
+
+
+def _agent_dbg(location: str, message: str, data: dict) -> None:
+    payload = {
+        "sessionId": "9aa1f6",
+        "location": location,
+        "message": message,
+        "data": data,
+        "timestamp": int(datetime.now(timezone.utc).timestamp() * 1000),
+    }
+    try:
+        with open(_DEBUG_LOG, "a", encoding="utf-8") as f:
+            f.write(json.dumps(payload) + "\n")
+    except Exception:
+        pass
+
+
+def normalize_email(email: str) -> str:
+    return (email or "").strip().lower()
+
+
+def get_user_by_email_ci(db: Session, email: str) -> Optional[User]:
+    norm = normalize_email(email)
+    if not norm:
+        return None
+    return db.query(User).filter(func.lower(User.email) == norm).first()
 
 
 def hash_password(plain_password: str) -> str:
@@ -39,12 +78,13 @@ def create_user(
 ) -> User:
     if not (accept_terms and accept_privacy and accept_disclaimer):
         raise ValueError("You must accept Terms of Service, Privacy Policy, and Risk Disclaimer to register")
-    existing = db.query(User).filter(User.email == email).first()
+    canon = normalize_email(email)
+    existing = get_user_by_email_ci(db, canon)
     if existing:
         raise ValueError("User with this email already exists")
 
     user = User(
-        email=email,
+        email=canon,
         password_hash=hash_password(password),
         name=name,
         role=role,
@@ -54,8 +94,8 @@ def create_user(
     db.add(user)
     db.flush()
 
-    from datetime import datetime, timezone
     from app.models import TermsAcceptance
+
     now = datetime.now(timezone.utc)
     db.add(
         TermsAcceptance(
@@ -85,14 +125,92 @@ def create_user(
 
 
 def authenticate_user(db: Session, *, email: str, password: str) -> Optional[User]:
-    user = db.query(User).filter(User.email == email).first()
+    # #region agent log
+    _agent_dbg(
+        "auth.authenticate_user",
+        "entry",
+        {"hypothesisId": "H1", "email_len": len((email or "").strip())},
+    )
+    # #endregion
+    user = get_user_by_email_ci(db, email)
+    # #region agent log
+    _agent_dbg(
+        "auth.authenticate_user",
+        "after_lookup",
+        {"hypothesisId": "H1", "user_found": user is not None},
+    )
+    # #endregion
     if not user:
         return None
+    # #region agent log
+    _agent_dbg(
+        "auth.authenticate_user",
+        "active_check",
+        {"hypothesisId": "H3", "is_active": bool(user.is_active)},
+    )
+    # #endregion
     if not user.is_active:
         return None
-    if not verify_password(password, user.password_hash):
+    pw_ok = verify_password(password, user.password_hash)
+    # #region agent log
+    _agent_dbg(
+        "auth.authenticate_user",
+        "password_verify",
+        {"hypothesisId": "H2", "password_ok": pw_ok},
+    )
+    # #endregion
+    if not pw_ok:
         return None
     return user
+
+
+def request_password_reset(db: Session, *, email: str) -> None:
+    user = get_user_by_email_ci(db, email)
+    if not user:
+        return
+    raw = secrets.token_urlsafe(32)
+    token_hash = hashlib.sha256(raw.encode("utf-8")).hexdigest()
+    expires = datetime.now(timezone.utc) + timedelta(hours=1)
+    base = (os.getenv("BLOCK70_PUBLIC_URL") or "").strip().rstrip("/")
+    if not base:
+        fe = os.getenv("FRONTEND_ORIGIN", "http://localhost:3000")
+        base = fe.split(",")[0].strip().rstrip("/")
+    link = f"{base}/reset-password?token={raw}"
+    ok, err = send_smtp_email(
+        to_addr=user.email,
+        subject="Reset your Block70 password",
+        body=(
+            "Use this link to set a new password (expires in 1 hour):\n\n"
+            f"{link}\n\n"
+            "If you did not request this, ignore this email."
+        ),
+    )
+    if not ok:
+        logger.warning("password reset email not sent user_id=%s: %s", user.id, err)
+        return
+    user.password_reset_token_hash = token_hash
+    user.password_reset_expires_at = expires
+    db.add(user)
+    db.commit()
+
+
+def complete_password_reset(db: Session, *, token: str, new_password: str) -> None:
+    if len(new_password) < 8:
+        raise ValueError("Password must be at least 8 characters")
+    th = hashlib.sha256(token.strip().encode("utf-8")).hexdigest()
+    now = datetime.now(timezone.utc)
+    user = db.query(User).filter(User.password_reset_token_hash == th).first()
+    if (
+        not user
+        or user.password_reset_expires_at is None
+        or user.password_reset_expires_at < now
+    ):
+        raise ValueError("Invalid or expired reset link")
+    user.password_hash = hash_password(new_password)
+    user.password_reset_token_hash = None
+    user.password_reset_expires_at = None
+    db.add(user)
+    db.commit()
 
 
 def _get_jwt_secret() -> str:

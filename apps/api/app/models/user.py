@@ -50,6 +50,13 @@ class User(Base):
     )
 
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+
+    password_reset_token_hash: Mapped[Optional[str]] = mapped_column(String(128), nullable=True)
+    password_reset_expires_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+    )
+
     referral_code: Mapped[Optional[str]] = mapped_column(
         String(32),
         unique=True,

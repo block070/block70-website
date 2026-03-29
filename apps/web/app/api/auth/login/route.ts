@@ -10,11 +10,26 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ detail: "Email and password are required" }, { status: 400 });
   }
 
+  // #region agent log
+  fetch("http://127.0.0.1:7428/ingest/b2bee36a-3f9b-42a9-b6fb-0dc54bacc543", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "9aa1f6" },
+    body: JSON.stringify({
+      sessionId: "9aa1f6",
+      location: "apps/web/app/api/auth/login/route.ts:POST",
+      message: "login_proxy_json_body",
+      data: { hypothesisId: "H2", emailLen: body.email.length },
+      timestamp: Date.now(),
+    }),
+  }).catch(() => {});
+  // #endregion
+
   const apiBase = getApiBaseUrl();
-  const response = await fetch(
-    `${apiBase}/api/v1/auth/login?email=${encodeURIComponent(body.email)}&password=${encodeURIComponent(body.password)}`,
-    { method: "POST" },
-  );
+  const response = await fetch(`${apiBase}/api/v1/auth/login`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email: body.email, password: body.password }),
+  });
   const data = await response.json().catch(() => ({}));
   if (!response.ok) {
     return NextResponse.json(

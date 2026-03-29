@@ -1,5 +1,22 @@
 const TOKEN_KEY = "block70_access_token";
 
+function detailFromResponseBody(data: unknown): string | null {
+  if (!data || typeof data !== "object") return null;
+  const d = (data as { detail?: unknown }).detail;
+  if (typeof d === "string") return d;
+  if (Array.isArray(d)) {
+    return d
+      .map((item) =>
+        typeof item === "object" && item && "msg" in item
+          ? String((item as { msg: unknown }).msg)
+          : String(item),
+      )
+      .filter(Boolean)
+      .join(", ");
+  }
+  return null;
+}
+
 type User = {
   id: number;
   email: string;
@@ -53,11 +70,10 @@ export async function login(params: {
     body: JSON.stringify(params),
   });
 
+  const data = (await res.json().catch(() => ({}))) as LoginResponse & { detail?: unknown };
   if (!res.ok) {
-    throw new Error("Invalid email or password");
+    throw new Error(detailFromResponseBody(data) || "Invalid email or password");
   }
-
-  const data = (await res.json()) as LoginResponse;
   setToken(data.access_token);
   setPlanCookie(data.user?.plan ?? "free");
 
@@ -92,15 +108,44 @@ export async function register(params: {
     body: JSON.stringify(body),
   });
 
+  const data = (await res.json().catch(() => ({}))) as LoginResponse & { detail?: unknown };
   if (!res.ok) {
-    throw new Error("Registration failed");
+    throw new Error(detailFromResponseBody(data) || "Registration failed");
   }
-  const data = (await res.json()) as LoginResponse;
   if (data.access_token) {
     setToken(data.access_token);
     setPlanCookie(data.user?.plan ?? "free");
   }
   return getCurrentUser();
+}
+
+export async function requestPasswordReset(params: { email: string }): Promise<string> {
+  const res = await fetch("/api/auth/forgot-password", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email: params.email.trim() }),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    throw new Error(detailFromResponseBody(data) || "Could not start password reset");
+  }
+  return typeof data?.detail === "string" ? data.detail : "";
+}
+
+export async function resetPasswordWithToken(params: {
+  token: string;
+  password: string;
+}): Promise<string> {
+  const res = await fetch("/api/auth/reset-password", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ token: params.token, password: params.password }),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    throw new Error(detailFromResponseBody(data) || "Password reset failed");
+  }
+  return typeof data?.detail === "string" ? data.detail : "";
 }
 
 export async function logout(): Promise<void> {
