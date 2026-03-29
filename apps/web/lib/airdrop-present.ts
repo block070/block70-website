@@ -112,6 +112,12 @@ export const AIRDROP_NEW_DAYS_DEFAULT = 14;
 
 export type AirdropPresetId = "all" | "high-value" | "low-effort" | "new";
 
+/** GET /api/v1/airdrops rows should all be airdrops; tolerate missing/odd `type`. */
+export function isAirdropRow(o: Pick<Opportunity, "type">): boolean {
+  const t = (o.type ?? "").trim().toLowerCase();
+  return t === "" || t === "airdrop";
+}
+
 function sortByHighValue(items: Opportunity[]): Opportunity[] {
   return [...items].sort((a, b) => {
     const au = a.estimated_upside;
@@ -135,7 +141,7 @@ export function applyAirdropPreset(
   items: Opportunity[],
   preset: AirdropPresetId,
 ): Opportunity[] {
-  const airdrops = items.filter((o) => o.type === "airdrop");
+  const airdrops = items.filter(isAirdropRow);
   if (preset === "all") {
     return [...airdrops].sort((a, b) => b.total_score - a.total_score);
   }

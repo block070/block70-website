@@ -7,6 +7,7 @@ import type { Opportunity } from "@/lib/types";
 import {
   type AirdropPresetId,
   applyAirdropPreset,
+  isAirdropRow,
 } from "@/lib/airdrop-present";
 
 import { AirdropRewardCard } from "./airdrop-reward-card";
@@ -55,7 +56,7 @@ export function AirdropsDiscoveryClient({
   const [newIdsSinceVisit, setNewIdsSinceVisit] = useState<number[]>([]);
 
   const airdrops = useMemo(
-    () => initialOpportunities.filter((o) => o.type === "airdrop"),
+    () => initialOpportunities.filter(isAirdropRow),
     [initialOpportunities],
   );
 
@@ -251,8 +252,18 @@ export function AirdropsDiscoveryClient({
 
       {filtered.length === 0 ? (
         <div className="rounded-xl border border-dashed border-[var(--b70-border)] bg-[var(--b70-card)]/60 p-8 text-center text-sm text-[var(--b70-text-muted)]">
-          No airdrops match this preset
-          {difficultyFilter ? " and difficulty filter" : ""}. Try &quot;All&quot; or loosen filters.
+          {initialOpportunities.length === 0 ? (
+            <>
+              No airdrop listings were returned from the API. If you run Block70 yourself, ensure the
+              airdrop pipeline has populated the database and that the web app can reach FastAPI.
+            </>
+          ) : (
+            <>
+              No airdrops match this preset
+              {difficultyFilter ? " and difficulty filter" : ""}. Try &quot;All&quot;, clear difficulty,
+              or pick another preset.
+            </>
+          )}
         </div>
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">

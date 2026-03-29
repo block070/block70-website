@@ -12,14 +12,6 @@ from app.schemas.opportunity_db import OpportunityRead
 
 router = APIRouter(prefix="/api/v1/airdrops", tags=["airdrops"])
 
-ALLOWED_AIRDROP_SOURCES = {
-    "DefiLlama Airdrops",
-    "Airdrops.io",
-    "AirdropAlert",
-    "DappRadar",
-    "ICO Drops",
-}
-
 
 @router.get("", response_model=List[OpportunityRead])
 def list_airdrops(
@@ -29,8 +21,9 @@ def list_airdrops(
     """
     List active + upcoming airdrop opportunities.
 
-    Results are pulled from the shared Opportunity table where type = 'airdrop'
-    and sorted by total_score descending.
+    Results are pulled from the shared Opportunity table where type = 'airdrop'.
+    We do not limit by `source`: null or legacy source values would otherwise be
+    omitted (SQL NULL NOT IN (...)), and non-listed pipelines would show nothing.
     """
     q = (
         db.query(Opportunity)
@@ -39,7 +32,6 @@ def list_airdrops(
             Opportunity.status.in_(
                 [OpportunityStatus.ACTIVE.value, OpportunityStatus.UPCOMING.value]
             ),
-            Opportunity.source.in_(sorted(ALLOWED_AIRDROP_SOURCES)),
         )
         .order_by(Opportunity.total_score.desc())
         .limit(limit)
