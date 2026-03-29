@@ -156,9 +156,6 @@ export function CapitalFlowDashboardClient({
   const view: ViewSummary | null = useMemo(() => {
     if (!summary) return null;
     if (!isLedgerEmpty(summary)) return { ...summary, demo_mode: false };
-    if (subscriber) {
-      return { ...summary, demo_mode: false };
-    }
     const demo = buildDemoCapitalFlowSummary(hours, chain || null);
     // #region agent log
     void fetch("http://127.0.0.1:7428/ingest/b2bee36a-3f9b-42a9-b6fb-0dc54bacc543", {
@@ -175,8 +172,12 @@ export function CapitalFlowDashboardClient({
       }),
     }).catch(() => {});
     // #endregion
-    return { ...demo, demo_mode: true };
-  }, [summary, hours, chain, subscriber]);
+    return {
+      ...demo,
+      demo_mode: true,
+      data_tier: summary.data_tier,
+    };
+  }, [summary, hours, chain]);
 
   const [lastUpdatedAt, setLastUpdatedAt] = useState<number | null>(null);
   useEffect(() => {
@@ -247,19 +248,21 @@ export function CapitalFlowDashboardClient({
 
       {view?.demo_mode ? (
         <p className="rounded-lg border border-[var(--b70-crypto-blue)]/30 bg-[var(--b70-crypto-blue)]/10 px-3 py-2 text-xs text-[var(--b70-text)]">
-          <span className="font-semibold text-[var(--b70-crypto-blue)]">Sample data.</span> The
-          capital-flow ledger returned no rows for this window—showing illustrative flows so layouts
-          and charts are visible. Subscribe for the live ledger view (no sample overlay).
-        </p>
-      ) : null}
-
-      {subscriber && summary && isLedgerEmpty(summary) && !error ? (
-        <p className="rounded-lg border border-emerald-500/25 bg-emerald-500/10 px-3 py-2 text-xs text-[var(--b70-text)]">
-          <span className="font-semibold text-emerald-400/95">Live ledger.</span> No capital-flow
-          rows matched this window yet—figures are{" "}
-          <span className="font-medium text-[var(--b70-text)]">real</span>, not placeholders. The
-          dashboard polls every ~30s; totals appear as swaps, transfers, and bridges are ingested into{" "}
-          <code className="text-[10px] text-[var(--b70-text-muted)]">capital_flows</code>.
+          <span className="font-semibold text-[var(--b70-crypto-blue)]">Illustrative data.</span>{" "}
+          {subscriber ? (
+            <>
+              Your <code className="text-[10px] text-[var(--b70-text-muted)]">capital_flows</code>{" "}
+              table has no rows for this window (ingestion is not populating it yet). Charts and
+              tables below use scaled sample flows so the desk stays usable—numbers are{" "}
+              <span className="font-medium">not</span> live on-chain totals. Wider windows (e.g. 30d)
+              scale sample volume for context only.
+            </>
+          ) : (
+            <>
+              The ledger returned no rows for this window—showing illustrative flows. Subscribe for
+              enhanced aggregates when live data is available.
+            </>
+          )}
         </p>
       ) : null}
 
@@ -268,9 +271,11 @@ export function CapitalFlowDashboardClient({
           label="Window volume"
           value={view ? formatVol(view.total_volume) : isLoading ? "…" : "—"}
           hint={
-            view?.data_tier === "enhanced"
-              ? "Sum of flow amounts (subscriber — expanded window)"
-              : "Sum of flow amounts in window"
+            view?.demo_mode
+              ? "Illustrative totals while the ledger has no rows"
+              : view?.data_tier === "enhanced"
+                ? "Sum of flow amounts (subscriber — expanded window)"
+                : "Sum of flow amounts in window"
           }
         />
         <KpiCard

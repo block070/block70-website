@@ -8,48 +8,51 @@ export function buildDemoCapitalFlowSummary(
   hours: number,
   chain_filter: string | null,
 ): CapitalFlowSummaryDto {
+  /** Richer totals for longer windows (30d vs 24h) while staying illustrative. */
+  const windowScale = Math.max(1, Math.sqrt(hours / 24));
+
   const allEdges = [
     {
       source_asset: "USDC",
       destination_asset: "ETH",
       chain: "ethereum",
-      total_amount: 2.8e8,
-      flow_count: 1240,
+      total_amount: 2.8e8 * windowScale,
+      flow_count: Math.max(120, Math.round(1240 * windowScale)),
     },
     {
       source_asset: "ETH",
       destination_asset: "WBTC",
       chain: "ethereum",
-      total_amount: 1.55e8,
-      flow_count: 612,
+      total_amount: 1.55e8 * windowScale,
+      flow_count: Math.max(80, Math.round(612 * windowScale)),
     },
     {
       source_asset: "SOL",
       destination_asset: "JUP",
       chain: "solana",
-      total_amount: 9.5e7,
-      flow_count: 890,
+      total_amount: 9.5e7 * windowScale,
+      flow_count: Math.max(80, Math.round(890 * windowScale)),
     },
     {
       source_asset: "USDT",
       destination_asset: "SOL",
       chain: "solana",
-      total_amount: 7.2e7,
-      flow_count: 540,
+      total_amount: 7.2e7 * windowScale,
+      flow_count: Math.max(60, Math.round(540 * windowScale)),
     },
     {
       source_asset: "BTC",
       destination_asset: "WBTC",
       chain: "bitcoin",
-      total_amount: 4.1e7,
-      flow_count: 210,
+      total_amount: 4.1e7 * windowScale,
+      flow_count: Math.max(40, Math.round(210 * windowScale)),
     },
     {
       source_asset: "ETH",
       destination_asset: "USDC",
       chain: "ethereum",
-      total_amount: 3.3e7,
-      flow_count: 980,
+      total_amount: 3.3e7 * windowScale,
+      flow_count: Math.max(100, Math.round(980 * windowScale)),
     },
   ];
 
@@ -93,27 +96,37 @@ export function buildDemoCapitalFlowSummary(
   const dominant_chain = by_chain[0] ? { ...by_chain[0] } : null;
 
   const by_category = [
-    { category: "Layer 1", total_amount: 1.65e8, flow_count: 1100 },
-    { category: "DeFi", total_amount: 2.8e8, flow_count: 1240 },
-    { category: "Stablecoins", total_amount: 9.5e7, flow_count: 890 },
+    { category: "Layer 1", total_amount: 1.65e8 * windowScale, flow_count: Math.round(1100 * windowScale) },
+    { category: "DeFi", total_amount: 2.8e8 * windowScale, flow_count: Math.round(1240 * windowScale) },
+    { category: "Stablecoins", total_amount: 9.5e7 * windowScale, flow_count: Math.round(890 * windowScale) },
   ].sort((a, b) => b.total_amount - a.total_amount);
 
+  const now = Date.now();
+  const spanMs = Math.min(hours * 60 * 60 * 1000, 30 * 24 * 60 * 60 * 1000);
   const recent = [
     {
       id: -1,
       source_asset: "USDC",
       destination_asset: "ETH",
-      amount: 1.2e6,
+      amount: 1.2e6 * windowScale,
       chain: "ethereum",
-      timestamp: new Date().toISOString(),
+      timestamp: new Date(now - spanMs * 0.15).toISOString(),
     },
     {
       id: -2,
       source_asset: "SOL",
       destination_asset: "JUP",
-      amount: 4.5e5,
+      amount: 4.5e5 * windowScale,
       chain: "solana",
-      timestamp: new Date().toISOString(),
+      timestamp: new Date(now - spanMs * 0.55).toISOString(),
+    },
+    {
+      id: -3,
+      source_asset: "ETH",
+      destination_asset: "WBTC",
+      amount: 8.8e5 * windowScale,
+      chain: "ethereum",
+      timestamp: new Date(now - spanMs * 0.88).toISOString(),
     },
   ];
 
@@ -128,6 +141,6 @@ export function buildDemoCapitalFlowSummary(
     hot_edges: edges,
     recent,
     disclaimer:
-      "Sample rows for empty ledger—replace with real data when the capital-flow engine ingests activity.",
+      "Illustrative data only—not ingested on-chain flows. Live rows appear when the capital-flow pipeline writes to capital_flows.",
   };
 }
