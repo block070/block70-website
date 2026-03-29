@@ -129,6 +129,65 @@ export async function backendGet(
   }
 }
 
+/** POST JSON to FastAPI; same TLS + HTTP fallback behavior as {@link backendGet}. */
+export async function backendPostJson(
+  urlStr: string,
+  body: unknown,
+  reqHeaders: Record<string, string> = {},
+): Promise<BackendGetResult> {
+  const jsonBody = JSON.stringify(body);
+  const doFetch = (url: string) =>
+    fetch(url, {
+      method: "POST",
+      cache: "no-store",
+      headers: {
+        Accept: "application/json",
+        "Content-Type": "application/json",
+        ...reqHeaders,
+      },
+      body: jsonBody,
+      signal: AbortSignal.timeout(FETCH_MS),
+    });
+
+  try {
+    const r = await doFetch(urlStr);
+    return {
+      ok: r.ok,
+      status: r.status,
+      text: () => r.text(),
+      json: () => r.json(),
+    };
+  } catch (first) {
+    const u = new URL(urlStr);
+    const { base: fbBase, explicit } = httpFallbackBaseForCertRetry();
+    if (
+      fbBase &&
+      isCertSanMismatch(first) &&
+      shouldTryHttpAfterCertError(u, explicit)
+    ) {
+      try {
+        const path = `${u.pathname}${u.search}`;
+        const r = await doFetch(`${fbBase}${path}`);
+        narrDbg(
+          "resolve-narratives-api.ts:backendPostJson",
+          "http fallback after TLS SAN mismatch",
+          "H7post",
+          { httpsHost: u.hostname, httpFallback: fbBase, status: r.status },
+        );
+        return {
+          ok: r.ok,
+          status: r.status,
+          text: () => r.text(),
+          json: () => r.json(),
+        };
+      } catch {
+        throw first;
+      }
+    }
+    throw first;
+  }
+}
+
 // #region agent log
 function debugNdjsonPath(): string | null {
   let dir = process.cwd();

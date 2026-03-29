@@ -1,7 +1,12 @@
 from __future__ import annotations
 
+import logging
+
 from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy.exc import OperationalError, ProgrammingError
 from sqlalchemy.orm import Session
+
+logger = logging.getLogger(__name__)
 
 from app.core.auth_middleware import get_current_user
 from app.db import get_db
@@ -78,7 +83,18 @@ def forgot_password(
     payload: ForgotPasswordRequest,
     db: Session = Depends(get_db),
 ) -> dict:
-    request_password_reset(db, email=payload.email)
+    try:
+        request_password_reset(db, email=payload.email)
+    except (OperationalError, ProgrammingError) as exc:
+        logger.exception("forgot-password database error")
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=(
+                "Password reset is temporarily unavailable. "
+                "The database may need migration (password reset columns on users). "
+                "Contact support if this persists."
+            ),
+        ) from exc
     return {"detail": _FORGOT_PW_OK_MSG}
 
 
@@ -93,6 +109,16 @@ def reset_password(
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=str(exc),
+        ) from exc
+    except (OperationalError, ProgrammingError) as exc:
+        logger.exception("reset-password database error")
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=(
+                "Password reset failed (database error). "
+                "Ensure the users table includes password_reset_token_hash and "
+                "password_reset_expires_at."
+            ),
         ) from exc
     return {"detail": "Password updated. You can sign in with your new password."}
 

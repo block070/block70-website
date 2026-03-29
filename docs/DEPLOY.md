@@ -28,6 +28,18 @@ Ensure these are set for production:
 | `DATABASE_URL` | PostgreSQL connection string |
 | `SITEMAP_BASE_URL` | Base URL for sitemap (e.g. `https://block70.com`) |
 
+### Password reset (`/forgot-password`)
+
+1. **Next → FastAPI**: The proxy uses `getBackendApiBase()` (same as health/narratives). Set `API_SERVER_URL` on the web host so server-side routes can reach Python.
+2. **PostgreSQL** (once): if the API returns 503 mentioning migrations, run:
+
+   ```sql
+   ALTER TABLE users ADD COLUMN IF NOT EXISTS password_reset_token_hash VARCHAR(128);
+   ALTER TABLE users ADD COLUMN IF NOT EXISTS password_reset_expires_at TIMESTAMPTZ;
+   ```
+
+3. **SMTP**: See `apps/api/.env.example` — without `SMTP_HOST`, the API accepts forgot-password requests but **does not send** email (token is not saved until send succeeds).
+
 ### Status page "Backend API unreachable"
 
 The status page fetches **directly from the API** in the browser (bypassing the web container). Ensure:
