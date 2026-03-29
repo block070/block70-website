@@ -3,6 +3,7 @@
 import { useState, type ReactNode } from "react";
 import { ExchangeAffiliateProvider } from "@/contexts/exchange-affiliate-context";
 import { TopNav } from "./top-nav";
+import { ServiceHealthBanner } from "./service-health-banner";
 import { Sidebar } from "./sidebar";
 import { LegalFooter } from "@/components/legal/legal-footer";
 import { CookieConsentBanner } from "@/components/legal/cookie-consent-banner";
@@ -20,8 +21,11 @@ export function AppLayout({ children, rightPanel }: AppLayoutProps) {
   return (
     <div className="flex min-h-screen flex-col bg-[var(--b70-bg)]">
       <TopNav />
-
-      <div className="flex flex-1 pt-14">
+      <div className="flex min-h-0 flex-1 flex-col pt-14 print:pt-0">
+        <div className="print:hidden">
+          <ServiceHealthBanner />
+        </div>
+        <div className="flex min-h-0 flex-1">
         <button
           type="button"
           onClick={() => setSidebarOpen((o) => !o)}
@@ -52,6 +56,7 @@ export function AppLayout({ children, rightPanel }: AppLayoutProps) {
             <div className="sticky top-20 p-4">{rightPanel}</div>
           </aside>
         ) : null}
+        </div>
       </div>
 
       <LegalFooter />

@@ -55,6 +55,27 @@ cp .env.example .env
 
 and adjust `NEXT_PUBLIC_API_BASE_URL` if your backend is not on `http://localhost:8000`.
 
+### Backend health banner (local or prod)
+
+If FastAPI is unreachable, an **amber banner** appears under the top nav with:
+
+- **Retry now** — probe again immediately
+- **Show how to fix** — copy-paste commands for Docker and local uvicorn
+- Link to **`/status`** for scheduler job detail
+
+The banner calls `GET /api/health/services`, which checks your configured API base (`API_SERVER_URL` / `NEXT_PUBLIC_API_BASE_URL`) using the same TLS-aware fetch as other server routes.
+
+**Run FastAPI locally** (from repo root):
+
+```bash
+cd apps/api
+uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+```
+
+**Run with Docker** (repo root): `docker compose up -d api` (see root `docker-compose.yml`).
+
+More context: `docs/REAL_DATA_LOCALLY.md`.
+
 ## Backend integration
 
 The `lib/api.ts` helper assumes a backend base URL:

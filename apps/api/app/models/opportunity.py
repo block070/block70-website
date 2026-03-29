@@ -21,6 +21,7 @@ from app.db import Base
 
 class OpportunityStatus(str, enum.Enum):
     ACTIVE = "active"
+    UPCOMING = "upcoming"
     EXPIRED = "expired"
     INACTIVE = "inactive"
 

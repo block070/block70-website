@@ -1,34 +1,43 @@
 import { NextResponse } from "next/server";
 
-const API_BASE =
-  process.env.API_SERVER_URL || process.env.NEXT_PUBLIC_API_BASE_URL || "";
+import { backendGet, getBackendApiBase } from "@/lib/narratives/resolve-narratives-api";
+
+export const dynamic = "force-dynamic";
 
 export async function GET() {
-  if (!API_BASE) {
+  const base = getBackendApiBase().replace(/\/$/, "");
+  if (!base) {
     return NextResponse.json(
       { scheduler_running: false, jobs: [], error: "API backend not configured" },
-      { status: 503 }
+      { status: 503 },
     );
   }
+
+  const url = `${base}/api/v1/status`;
   try {
-    const res = await fetch(`${API_BASE}/api/v1/status`, { cache: "no-store" });
-    const data = await res.json();
+    const res = await backendGet(url);
+    const text = await res.text();
+    let data: Record<string, unknown> = {};
+    try {
+      data = JSON.parse(text) as Record<string, unknown>;
+    } catch {
+      data = { error: "Invalid JSON from status endpoint" };
+    }
     return NextResponse.json(data, { status: res.status });
   } catch (err) {
     const msg = err instanceof Error ? err.message : "Failed to fetch status";
     const isNetwork =
       /fetch failed|Failed to fetch|ECONNREFUSED|ETIMEDOUT|ENOTFOUND/i.test(msg);
-    const base =
-      "Backend API unreachable. The Block70 API server may be down, or API_SERVER_URL may be incorrect. Use a process monitor (Docker restart policy, systemd) for auto-restart.";
-    const error = isNetwork ? base : msg;
-    const tried = `${API_BASE}/api/v1/status`;
+    const baseMsg =
+      "Backend API unreachable. The Block70 API server may be down, or API_SERVER_URL may be incorrect. Docker: docker compose up -d api · Local: cd apps/api && uvicorn app.main:app --reload --host 0.0.0.0 --port 8000";
+    const error = isNetwork ? baseMsg : msg;
     return NextResponse.json(
       {
         scheduler_running: false,
         jobs: [],
-        error: `${error} (Tried: ${tried})`,
+        error: `${error} (Tried: ${url})`,
       },
-      { status: 502 }
+      { status: 502 },
     );
   }
 }
