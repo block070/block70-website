@@ -24,6 +24,7 @@ class ApiUsage(Base):
     )
     endpoint: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
     request_count: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    http_status: Mapped[int | None] = mapped_column(Integer, nullable=True, index=True)
     timestamp: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         server_default=func.now(),

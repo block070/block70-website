@@ -59,12 +59,19 @@ def check_rate_limit(db: Session, api_key: ApiKey) -> tuple[bool, int, int]:
     return usage < limit, usage, limit
 
 
-def record_usage(db: Session, api_key_id: int, endpoint: str) -> None:
+def record_usage(
+    db: Session,
+    api_key_id: int,
+    endpoint: str,
+    *,
+    status_code: int = 200,
+) -> None:
     """Record one request for rate limiting and analytics."""
     usage = ApiUsage(
         api_key_id=api_key_id,
         endpoint=endpoint,
         request_count=1,
+        http_status=status_code,
     )
     db.add(usage)
     db.flush()

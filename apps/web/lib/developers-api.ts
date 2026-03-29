@@ -17,11 +17,20 @@ async function fetchWithAuth<T>(path: string, init?: RequestInit): Promise<T> {
   return (await res.json()) as T;
 }
 
+export type ApiKeyScopes = {
+  read: boolean;
+  write: boolean;
+  trading: boolean;
+};
+
 export type ApiKeyInfo = {
   id: number;
   key_prefix: string;
+  key_label: string | null;
   plan_type: string;
   rate_limit: number;
+  scopes: ApiKeyScopes;
+  ip_allowlist: string[];
   is_active: boolean;
   created_at: string;
   last_used: string | null;
@@ -34,15 +43,36 @@ export type CreateKeyResponse = {
   raw_key: string;
   plan_type: string;
   rate_limit: number;
+  key_label: string | null;
+  scopes: ApiKeyScopes;
+  ip_allowlist: string[];
   created_at: string;
   message: string;
 };
 
-export async function createApiKey(planType = "free"): Promise<CreateKeyResponse> {
-  return fetchWithAuth<CreateKeyResponse>(
-    `/api/v1/api-keys/create?plan_type=${encodeURIComponent(planType)}`,
-    { method: "POST" }
-  );
+export type CreateKeyBody = {
+  plan_type?: string;
+  label?: string | null;
+  scopes?: ApiKeyScopes;
+  ip_allowlist?: string[] | null;
+};
+
+export async function createApiKey(body: CreateKeyBody = {}): Promise<CreateKeyResponse> {
+  return fetchWithAuth<CreateKeyResponse>(`/api/v1/api-keys/create`, {
+    method: "POST",
+    body: JSON.stringify({
+      plan_type: body.plan_type ?? "free",
+      label: body.label ?? null,
+      scopes: body.scopes
+        ? {
+            read: body.scopes.read,
+            write: body.scopes.write,
+            trading: body.scopes.trading,
+          }
+        : undefined,
+      ip_allowlist: body.ip_allowlist ?? undefined,
+    }),
+  });
 }
 
 export async function listApiKeys(): Promise<ApiKeyInfo[]> {
@@ -50,24 +80,45 @@ export async function listApiKeys(): Promise<ApiKeyInfo[]> {
   return Array.isArray(r) ? r : [];
 }
 
+export async function updateApiKey(
+  keyId: number,
+  patch: {
+    label?: string | null;
+    scopes?: ApiKeyScopes;
+    ip_allowlist?: string[] | null;
+    rate_limit?: number | null;
+  }
+): Promise<ApiKeyInfo> {
+  return fetchWithAuth<ApiKeyInfo>(`/api/v1/api-keys/${keyId}`, {
+    method: "PATCH",
+    body: JSON.stringify(patch),
+  });
+}
+
 export async function revokeApiKey(keyId: number): Promise<{ status: string; id: number }> {
   return fetchWithAuth(`/api/v1/api-keys/${keyId}/revoke`, { method: "POST" });
 }
 
-export async function getApiKeyAnalytics(days = 7): Promise<{
+export type ApiKeyAnalytics = {
   period_days: number;
+  total_requests: number;
+  total_errors: number;
   by_key: Array<{
     api_key_id: number;
     key_prefix: string;
+    key_label: string | null;
     plan_type: string;
     request_count: number;
+    error_count: number;
     usage_today: number;
   }>;
   by_endpoint: Array<{ endpoint: string; request_count: number }>;
-}> {
-  return fetchWithAuth(
-    `/api/v1/api-keys/analytics?days=${days}`
-  );
+  errors_by_endpoint: Array<{ endpoint: string; request_count: number }>;
+  by_day: Array<{ date: string; requests: number; errors: number }>;
+};
+
+export async function getApiKeyAnalytics(days = 7): Promise<ApiKeyAnalytics> {
+  return fetchWithAuth(`/api/v1/api-keys/analytics?days=${days}`);
 }
 
 export type WebhookInfo = {
@@ -82,7 +133,10 @@ export async function listWebhooks(): Promise<WebhookInfo[]> {
   return Array.isArray(r) ? r : [];
 }
 
-export async function createWebhook(url: string, eventType: string): Promise<WebhookInfo & { created_at: string }> {
+export async function createWebhook(
+  url: string,
+  eventType: string
+): Promise<WebhookInfo & { created_at: string }> {
   return fetchWithAuth(`/api/v1/webhooks/create`, {
     method: "POST",
     body: JSON.stringify({ url, event_type: eventType }),

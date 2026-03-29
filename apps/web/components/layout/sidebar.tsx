@@ -49,7 +49,7 @@ const SECTIONS: { title: string; items: NavItem[] }[] = [
     items: [
       { href: "/developers", label: "API & keys" },
       { href: "/developers/docs", label: "API docs" },
-      { href: "/developers/analytics", label: "Usage" },
+      { href: "/developers/analytics", label: "API usage" },
       { href: "/status", label: "Service status" },
     ],
   },

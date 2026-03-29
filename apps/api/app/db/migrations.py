@@ -107,6 +107,13 @@ MIGRATIONS = [
         coin_count INTEGER NOT NULL DEFAULT 0,
         top_coins_json TEXT
     )""",
+    # Developer API keys: Stripe-style dashboard (label, scopes, IP allowlist)
+    "ALTER TABLE api_keys ADD COLUMN IF NOT EXISTS key_label VARCHAR(128)",
+    "ALTER TABLE api_keys ADD COLUMN IF NOT EXISTS scopes JSONB",
+    "ALTER TABLE api_keys ADD COLUMN IF NOT EXISTS ip_allowlist JSONB",
+    # api_usage: HTTP status per hit for error analytics
+    "ALTER TABLE api_usage ADD COLUMN IF NOT EXISTS http_status INTEGER",
+    "CREATE INDEX IF NOT EXISTS ix_api_usage_http_status ON api_usage (http_status)",
 ]
 
 

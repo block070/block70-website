@@ -4,6 +4,7 @@ from datetime import datetime
 from typing import TYPE_CHECKING
 
 from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.sql import func
 
@@ -24,8 +25,11 @@ class ApiKey(Base):
     )
     api_key_hash: Mapped[str] = mapped_column(String(128), nullable=False, index=True)
     key_prefix: Mapped[str] = mapped_column(String(16), nullable=False, index=True)
+    key_label: Mapped[str | None] = mapped_column(String(128), nullable=True)
     plan_type: Mapped[str] = mapped_column(String(32), nullable=False, default="free", index=True)
     rate_limit: Mapped[int] = mapped_column(Integer, nullable=False, default=100)
+    scopes: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
+    ip_allowlist: Mapped[list | None] = mapped_column(JSONB, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         server_default=func.now(),

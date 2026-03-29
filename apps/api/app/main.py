@@ -3,6 +3,8 @@ import os
 
 from fastapi import FastAPI, Depends
 from fastapi.middleware.cors import CORSMiddleware
+
+from app.middleware.dev_api_usage import DevApiUsageLoggingMiddleware
 from sqlalchemy.orm import Session
 from starlette.responses import PlainTextResponse
 
@@ -128,6 +130,7 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+app.add_middleware(DevApiUsageLoggingMiddleware)
 
 app.include_router(opportunities_router)
 app.include_router(flows_router)

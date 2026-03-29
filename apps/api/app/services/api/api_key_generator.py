@@ -32,6 +32,10 @@ def generate_api_key(
     user_id: int,
     plan_type: str = "free",
     rate_limit: int | None = None,
+    *,
+    key_label: str | None = None,
+    scopes: dict | None = None,
+    ip_allowlist: list | None = None,
 ) -> Tuple[ApiKey, str]:
     """
     Create a new API key for the user. Returns (ApiKey model, raw_key string).
@@ -51,8 +55,15 @@ def generate_api_key(
         user_id=user_id,
         api_key_hash=key_hash,
         key_prefix=prefix,
+        key_label=(
+            key_label.strip()[:128]
+            if key_label and str(key_label).strip()
+            else None
+        ),
         plan_type=plan_type,
         rate_limit=limit,
+        scopes=scopes,
+        ip_allowlist=ip_allowlist,
         is_active=True,
     )
     db.add(api_key)

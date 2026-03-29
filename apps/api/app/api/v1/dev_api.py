@@ -11,7 +11,7 @@ from typing import Any, List, Optional
 from fastapi import APIRouter, Depends, HTTPException, Path, Query, Request
 from sqlalchemy.orm import Session
 
-from app.core.api_auth_middleware import api_key_auth_dependency, record_usage_after
+from app.core.api_auth_middleware import api_key_auth_dependency
 from app.db import get_db
 from app.models import (
     ApiKey,
@@ -56,8 +56,7 @@ def dev_list_signals(
     limit: int = Query(100, ge=1, le=500),
     offset: int = Query(0, ge=0),
 ) -> List[dict]:
-    api_key, user = auth
-    record_usage_after(api_key, request.url.path, db)
+    _api_key, _user = auth
     q = db.query(Signal).order_by(Signal.created_at.desc())
     if chain:
         q = q.filter(Signal.chain == chain)
@@ -91,8 +90,7 @@ def dev_signals_latest(
     db: Session = Depends(get_db),
     limit: int = Query(50, ge=1, le=200),
 ) -> List[dict]:
-    api_key, user = auth
-    record_usage_after(api_key, request.url.path, db)
+    _api_key, _user = auth
     rows = (
         db.query(Signal)
         .order_by(Signal.created_at.desc())
@@ -119,8 +117,7 @@ def dev_signals_for_token(
     db: Session = Depends(get_db),
     limit: int = Query(100, ge=1, le=500),
 ) -> List[dict]:
-    api_key, user = auth
-    record_usage_after(api_key, request.url.path, db)
+    _api_key, _user = auth
     rows = (
         db.query(Signal)
         .filter(
@@ -150,8 +147,7 @@ def dev_list_wallets(
     db: Session = Depends(get_db),
     limit: int = Query(100, ge=1, le=500),
 ) -> List[dict]:
-    api_key, user = auth
-    record_usage_after(api_key, request.url.path, db)
+    _api_key, _user = auth
     rows = (
         db.query(WalletProfile)
         .order_by(WalletProfile.average_roi.desc().nullslast())
@@ -176,8 +172,7 @@ def dev_get_wallet(
     auth: tuple[ApiKey, User] = Depends(api_key_auth_dependency),
     db: Session = Depends(get_db),
 ) -> dict:
-    api_key, user = auth
-    record_usage_after(api_key, request.url.path, db)
+    _api_key, _user = auth
     w = (
         db.query(WalletProfile)
         .filter(WalletProfile.wallet_address == address)
@@ -201,8 +196,7 @@ def dev_wallet_transactions(
     db: Session = Depends(get_db),
     limit: int = Query(50, ge=1, le=200),
 ) -> List[dict]:
-    api_key, user = auth
-    record_usage_after(api_key, request.url.path, db)
+    _api_key, _user = auth
     opps = (
         db.query(Opportunity)
         .filter(
@@ -237,8 +231,7 @@ def dev_list_opportunities(
     chain: Optional[str] = Query(None),
     limit: int = Query(100, ge=1, le=500),
 ) -> List[Opportunity]:
-    api_key, user = auth
-    record_usage_after(api_key, request.url.path, db)
+    _api_key, _user = auth
     q = (
         db.query(Opportunity)
         .filter(Opportunity.status == OpportunityStatus.ACTIVE.value)
@@ -258,8 +251,7 @@ def dev_get_opportunity(
     auth: tuple[ApiKey, User] = Depends(api_key_auth_dependency),
     db: Session = Depends(get_db),
 ) -> Opportunity:
-    api_key, user = auth
-    record_usage_after(api_key, request.url.path, db)
+    _api_key, _user = auth
     o = db.get(Opportunity, id)
     if not o:
         raise HTTPException(404, "Opportunity not found")
@@ -274,8 +266,7 @@ def dev_market_prices(
     db: Session = Depends(get_db),
     limit: int = Query(100, ge=1, le=500),
 ) -> List[dict]:
-    api_key, user = auth
-    record_usage_after(api_key, request.url.path, db)
+    _api_key, _user = auth
     rows = (
         db.query(MarketData, Coin)
         .join(Coin, MarketData.coin_id == Coin.id)
@@ -307,8 +298,7 @@ def dev_market_trending(
     db: Session = Depends(get_db),
     limit: int = Query(20, ge=1, le=100),
 ) -> List[dict]:
-    api_key, user = auth
-    record_usage_after(api_key, request.url.path, db)
+    _api_key, _user = auth
     engine = TrendingSignalEngine(lookback_hours=24.0)
     since = datetime.now(timezone.utc) - timedelta(hours=24)
     results = engine.get_trending(db, since=since, limit=limit)
@@ -331,8 +321,7 @@ def dev_market_gainers(
     db: Session = Depends(get_db),
     limit: int = Query(20, ge=1, le=100),
 ) -> List[dict]:
-    api_key, user = auth
-    record_usage_after(api_key, request.url.path, db)
+    _api_key, _user = auth
     rows = (
         db.query(MarketData, Coin)
         .join(Coin, MarketData.coin_id == Coin.id)
@@ -354,8 +343,7 @@ def dev_market_losers(
     db: Session = Depends(get_db),
     limit: int = Query(20, ge=1, le=100),
 ) -> List[dict]:
-    api_key, user = auth
-    record_usage_after(api_key, request.url.path, db)
+    _api_key, _user = auth
     rows = (
         db.query(MarketData, Coin)
         .join(Coin, MarketData.coin_id == Coin.id)
@@ -377,8 +365,7 @@ def dev_airdrops(
     auth: tuple[ApiKey, User] = Depends(api_key_auth_dependency),
     db: Session = Depends(get_db),
 ) -> List[Opportunity]:
-    api_key, user = auth
-    record_usage_after(api_key, request.url.path, db)
+    _api_key, _user = auth
     return (
         db.query(Opportunity)
         .filter(
@@ -397,8 +384,7 @@ def dev_airdrops_upcoming(
     db: Session = Depends(get_db),
     limit: int = Query(20, ge=1, le=100),
 ) -> List[Opportunity]:
-    api_key, user = auth
-    record_usage_after(api_key, request.url.path, db)
+    _api_key, _user = auth
     return (
         db.query(Opportunity)
         .filter(
@@ -417,8 +403,7 @@ def dev_airdrops_active(
     auth: tuple[ApiKey, User] = Depends(api_key_auth_dependency),
     db: Session = Depends(get_db),
 ) -> List[Opportunity]:
-    api_key, user = auth
-    record_usage_after(api_key, request.url.path, db)
+    _api_key, _user = auth
     return (
         db.query(Opportunity)
         .filter(
@@ -437,8 +422,7 @@ def dev_list_strategies(
     auth: tuple[ApiKey, User] = Depends(api_key_auth_dependency),
     db: Session = Depends(get_db),
 ) -> List[dict]:
-    api_key, user = auth
-    record_usage_after(api_key, request.url.path, db)
+    _api_key, user = auth
     rows = (
         db.query(TradingStrategy)
         .filter(TradingStrategy.user_id == user.id)
@@ -463,8 +447,7 @@ def dev_list_backtests(
     auth: tuple[ApiKey, User] = Depends(api_key_auth_dependency),
     db: Session = Depends(get_db),
 ) -> List[dict]:
-    api_key, user = auth
-    record_usage_after(api_key, request.url.path, db)
+    _api_key, user = auth
     from app.models import StrategyBacktest
     rows = (
         db.query(StrategyBacktest, TradingStrategy)
@@ -495,8 +478,7 @@ def dev_get_strategy(
     auth: tuple[ApiKey, User] = Depends(api_key_auth_dependency),
     db: Session = Depends(get_db),
 ) -> dict:
-    api_key, user = auth
-    record_usage_after(api_key, request.url.path, db)
+    _api_key, user = auth
     s = (
         db.query(TradingStrategy)
         .filter(TradingStrategy.id == id, TradingStrategy.user_id == user.id)
@@ -522,8 +504,7 @@ def dev_portfolio(
     auth: tuple[ApiKey, User] = Depends(api_key_auth_dependency),
     db: Session = Depends(get_db),
 ) -> dict:
-    api_key, user = auth
-    record_usage_after(api_key, request.url.path, db)
+    _api_key, user = auth
     portfolio = _get_portfolio(db, user.id)
     if not portfolio:
         return {"portfolio": None, "message": "No portfolio yet"}
@@ -538,8 +519,7 @@ def dev_portfolio_tokens(
     auth: tuple[ApiKey, User] = Depends(api_key_auth_dependency),
     db: Session = Depends(get_db),
 ) -> List[dict]:
-    api_key, user = auth
-    record_usage_after(api_key, request.url.path, db)
+    _api_key, user = auth
     portfolio = _get_portfolio(db, user.id)
     if not portfolio:
         return []
@@ -557,8 +537,7 @@ def dev_portfolio_performance(
     auth: tuple[ApiKey, User] = Depends(api_key_auth_dependency),
     db: Session = Depends(get_db),
 ) -> dict:
-    api_key, user = auth
-    record_usage_after(api_key, request.url.path, db)
+    _api_key, user = auth
     portfolio = _get_portfolio(db, user.id)
     if not portfolio:
         return {"total_value_usd": 0, "total_profit_loss": 0}
