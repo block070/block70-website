@@ -14,7 +14,7 @@ from sqlalchemy.orm import Session
 
 from app.core.auth_middleware import get_current_user
 from app.db import get_db
-from app.models import BotSignalEvent, SignalBot, User
+from app.models import BotSignalEvent, SignalBot, TradingStrategy, User
 
 router = APIRouter(prefix="/api/v1/bots", tags=["bots"])
 
@@ -29,6 +29,7 @@ class BotCreate(BaseModel):
 class BotUpdate(BaseModel):
     is_active: bool | None = None
     config_json: dict[str, Any] | None = None
+    strategy_id: int | None = None
 
 
 class BotRead(BaseModel):
@@ -71,6 +72,7 @@ def list_bots(
             "channel_id": b.channel_id,
             "is_active": b.is_active,
             "config_json": b.config_json,
+            "strategy_id": b.strategy_id,
             "created_at": (b.created_at or datetime.now(timezone.utc)).isoformat(),
             "updated_at": (b.updated_at or datetime.now(timezone.utc)).isoformat(),
             "signals_sent_24h": count_24h,
@@ -87,12 +89,17 @@ def create_bot(
     """Create a new signal bot. platform: telegram | discord. For Discord, bot_token is the webhook URL."""
     if payload.platform not in ("telegram", "discord"):
         raise HTTPException(400, "platform must be 'telegram' or 'discord'")
+    if payload.strategy_id is not None:
+        strat = db.get(TradingStrategy, payload.strategy_id)
+        if not strat or strat.user_id != current_user.id:
+            raise HTTPException(400, "strategy_id must reference your strategy")
     bot = SignalBot(
         user_id=current_user.id,
         platform=payload.platform,
         bot_token=payload.bot_token,
         channel_id=payload.channel_id,
         config_json=payload.config_json,
+        strategy_id=payload.strategy_id,
         is_active=True,
     )
     db.add(bot)
@@ -104,6 +111,7 @@ def create_bot(
         "channel_id": bot.channel_id,
         "is_active": bot.is_active,
         "config_json": bot.config_json,
+        "strategy_id": bot.strategy_id,
         "created_at": (bot.created_at or datetime.now(timezone.utc)).isoformat(),
     }
 
@@ -134,6 +142,7 @@ def get_bot(
         "channel_id": bot.channel_id,
         "is_active": bot.is_active,
         "config_json": bot.config_json,
+        "strategy_id": bot.strategy_id,
         "created_at": (bot.created_at or datetime.now(timezone.utc)).isoformat(),
         "updated_at": (bot.updated_at or datetime.now(timezone.utc)).isoformat(),
         "signals_sent_24h": count_24h,
@@ -155,10 +164,18 @@ def update_bot(
     )
     if not bot:
         raise HTTPException(404, "Bot not found")
-    if payload.is_active is not None:
-        bot.is_active = payload.is_active
-    if payload.config_json is not None:
-        bot.config_json = payload.config_json
+    patch = payload.model_dump(exclude_unset=True)
+    if "is_active" in patch and patch["is_active"] is not None:
+        bot.is_active = patch["is_active"]
+    if "config_json" in patch:
+        bot.config_json = patch["config_json"]
+    if "strategy_id" in patch:
+        sid = patch["strategy_id"]
+        if sid is not None:
+            strat = db.get(TradingStrategy, sid)
+            if not strat or strat.user_id != current_user.id:
+                raise HTTPException(400, "strategy_id must reference your strategy")
+        bot.strategy_id = sid
     db.add(bot)
     db.commit()
     db.refresh(bot)
@@ -168,6 +185,7 @@ def update_bot(
         "channel_id": bot.channel_id,
         "is_active": bot.is_active,
         "config_json": bot.config_json,
+        "strategy_id": bot.strategy_id,
     }
 
 

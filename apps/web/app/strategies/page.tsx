@@ -4,7 +4,8 @@ import { useEffect, useState } from "react";
 
 import type { UserStrategy } from "@/lib/strategies";
 import { createStrategy, deleteStrategy, getStrategies } from "@/lib/strategies";
-import { StrategyDashboard } from "@/components/strategy/strategy-dashboard";
+import Link from "next/link";
+import { Button } from "@/components/ui/button";
 import { RiskWarningBanner } from "@/components/legal/risk-warning-banner";
 import { RiskBadge } from "@/components/legal/risk-badge";
 
@@ -172,12 +173,22 @@ export default function StrategiesPage() {
         </p>
       </section>
 
-      <section>
-        <h3 className="text-md font-semibold text-slate-100 mb-3">Trading strategies</h3>
-        <p className="text-xs text-slate-400 mb-4">
-          Create strategies with entry/exit rules, run backtests, and view performance.
+      <section className="rounded-xl border border-slate-800 bg-slate-900/40 p-4">
+        <h3 className="text-md font-semibold text-slate-100 mb-2">
+          Trading strategies & backtests
+        </h3>
+        <p className="text-xs text-slate-400 mb-3">
+          Run simulations and equity backtests on the Simulation hub (linked with your
+          account). Create strategies here or from the hub, then open the backtester tab.
         </p>
-        <StrategyDashboard />
+        <div className="flex flex-wrap gap-2">
+          <Link href="/simulation">
+            <Button>Open simulation hub</Button>
+          </Link>
+          <Link href="/strategies/create">
+            <Button variant="outline">Create trading strategy</Button>
+          </Link>
+        </div>
       </section>
 
       <section>

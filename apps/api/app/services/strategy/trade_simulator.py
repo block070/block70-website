@@ -5,13 +5,25 @@ signal triggers, and strategy rules; persist StrategySimulatedTrade.
 
 from __future__ import annotations
 
+import json
 from datetime import datetime, timedelta, timezone
-from typing import Optional
+from typing import Any, Optional
 
 from sqlalchemy.orm import Session
 
-from app.models import PriceSnapshot, Signal, TradingStrategy, StrategySimulatedTrade
+from app.models import PriceSnapshot, Signal, StrategySimulatedTrade, TradingStrategy
+from app.schemas.strategy_execution import parse_execution_from_conditions
 from app.services.strategy.strategy_engine import strategy_engine
+
+
+def _conditions_dict(strategy: TradingStrategy) -> dict[str, Any]:
+    try:
+        raw = strategy.conditions_json
+        if isinstance(raw, str):
+            return json.loads(raw or "{}")
+        return dict(raw) if raw else {}
+    except (json.JSONDecodeError, TypeError):
+        return {}
 
 
 class StrategyTradeSimulator:
@@ -137,19 +149,31 @@ class StrategyTradeSimulator:
     ) -> list[StrategySimulatedTrade]:
         """
         Load strategy, detect entry points from signals, simulate trades for each.
+        Uses execution block from conditions_json for TP/SL, hold, and max entries.
         """
         strategy = db.get(TradingStrategy, strategy_id)
         if not strategy:
             return []
 
+        conditions = _conditions_dict(strategy)
+        ex = parse_execution_from_conditions(conditions)
+        sim = StrategyTradeSimulator(
+            take_profit_pct=ex.take_profit_pct,
+            stop_loss_pct=ex.stop_loss_pct,
+            timeout_hours=ex.max_hold_hours,
+        )
+
         entries = strategy_engine.detect_entry_points(db, strategy)
+        cap = max(1, int(ex.max_entries_per_run))
         created: list[StrategySimulatedTrade] = []
-        for e in entries[:50]:  # cap for one run
+        for e in entries[:cap]:
             sig = db.get(Signal, e.signal_id)
-            entry_time = sig.created_at.replace(tzinfo=timezone.utc) if sig and sig.created_at else datetime.now(timezone.utc)
-            trade = self.simulate_from_entries(
-                db, strategy, e.token_symbol, entry_time
+            entry_time = (
+                sig.created_at.replace(tzinfo=timezone.utc)
+                if sig and sig.created_at
+                else datetime.now(timezone.utc)
             )
+            trade = sim.simulate_from_entries(db, strategy, e.token_symbol, entry_time)
             if trade:
                 created.append(trade)
         return created

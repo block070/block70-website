@@ -1,9 +1,9 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional
 
-from sqlalchemy import DateTime, Float, ForeignKey, Integer
+from sqlalchemy import DateTime, Float, ForeignKey, Integer, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.sql import func
 
@@ -26,6 +26,8 @@ class StrategyBacktest(Base):
     win_rate: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
     average_profit: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
     max_drawdown: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
+    total_return_pct: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
+    equity_curve_json: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
 
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),

@@ -19,6 +19,7 @@ export default function StrategySharePage() {
       win_rate: number;
       average_profit: number;
       max_drawdown: number;
+      total_return_pct?: number;
     } | null;
   } | null>(null);
   const [loading, setLoading] = useState(true);
@@ -73,7 +74,7 @@ export default function StrategySharePage() {
         />
         <div className="p-4">
           {data.backtest ? (
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
               <div>
                 <p className="text-xs text-slate-500">Win rate</p>
                 <p className="text-xl font-semibold text-slate-100">
@@ -84,6 +85,19 @@ export default function StrategySharePage() {
                 <p className="text-xs text-slate-500">Total trades</p>
                 <p className="text-xl font-semibold text-slate-100">
                   {data.backtest.total_trades}
+                </p>
+              </div>
+              <div>
+                <p className="text-xs text-slate-500">Total return</p>
+                <p
+                  className={`text-xl font-semibold ${
+                    (data.backtest.total_return_pct ?? 0) >= 0
+                      ? "text-emerald-400"
+                      : "text-rose-400"
+                  }`}
+                >
+                  {(data.backtest.total_return_pct ?? 0) >= 0 ? "+" : ""}
+                  {(data.backtest.total_return_pct ?? 0).toFixed(2)}%
                 </p>
               </div>
               <div>

@@ -49,11 +49,24 @@ export function StrategyInsightsPanel({
       />
       <div className="p-4 space-y-4">
         {backtest && (
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
             <div>
               <p className="text-xs text-slate-500">Win rate</p>
               <p className="text-lg font-semibold text-slate-100">
                 {(backtest.win_rate * 100).toFixed(1)}%
+              </p>
+            </div>
+            <div>
+              <p className="text-xs text-slate-500">Total return</p>
+              <p
+                className={`text-lg font-semibold ${
+                  (backtest.total_return_pct ?? 0) >= 0
+                    ? "text-emerald-400"
+                    : "text-rose-400"
+                }`}
+              >
+                {(backtest.total_return_pct ?? 0) >= 0 ? "+" : ""}
+                {(backtest.total_return_pct ?? 0).toFixed(2)}%
               </p>
             </div>
             <div>

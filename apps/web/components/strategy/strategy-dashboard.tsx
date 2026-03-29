@@ -7,9 +7,11 @@ import {
   getStrategyBacktest,
   getStrategyTrades,
   runStrategySimulation,
+  runStrategyBacktest,
   type TradingStrategyDto,
   type StrategyBacktestDto,
   type StrategySimulatedTradeDto,
+  type EquityCurvePoint,
 } from "@/lib/trading-strategies-api";
 import { BacktestResults } from "./backtest-results";
 import { SimulationChart } from "./simulation-chart";
@@ -18,10 +20,22 @@ import { Card, CardHeader } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Play, Share2, BarChart3 } from "lucide-react";
 
+function normalizeBacktest(
+  b: StrategyBacktestDto | null
+): StrategyBacktestDto | null {
+  if (!b) return null;
+  return {
+    ...b,
+    total_return_pct: b.total_return_pct ?? 0,
+    equity_curve: b.equity_curve ?? [],
+  };
+}
+
 export function StrategyDashboard() {
   const [strategies, setStrategies] = useState<TradingStrategyDto[]>([]);
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [backtest, setBacktest] = useState<StrategyBacktestDto | null>(null);
+  const [equityCurve, setEquityCurve] = useState<EquityCurvePoint[]>([]);
   const [trades, setTrades] = useState<StrategySimulatedTradeDto[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -49,13 +63,16 @@ export function StrategyDashboard() {
     if (!selectedId) {
       setBacktest(null);
       setTrades([]);
+      setEquityCurve([]);
       return;
     }
     Promise.all([
       getStrategyBacktest(selectedId).catch(() => null),
       getStrategyTrades(selectedId).catch(() => []),
     ]).then(([b, t]) => {
-      setBacktest(b);
+      const nb = normalizeBacktest(b);
+      setBacktest(nb);
+      setEquityCurve(nb?.equity_curve ?? []);
       setTrades(t || []);
     });
   }, [selectedId]);
@@ -64,13 +81,12 @@ export function StrategyDashboard() {
     if (!selectedId) return;
     setRunning(true);
     try {
-      await getStrategyBacktest(selectedId, true);
-      const [b, t] = await Promise.all([
-        getStrategyBacktest(selectedId),
-        getStrategyTrades(selectedId),
-      ]);
-      setBacktest(b);
-      setTrades(t);
+      const run = await runStrategyBacktest(selectedId, {
+        refresh_trades: false,
+      });
+      setBacktest(normalizeBacktest(run.metrics));
+      setTrades(run.trades);
+      setEquityCurve(run.equity_curve.length ? run.equity_curve : run.metrics.equity_curve ?? []);
     } catch {
       // ignore
     } finally {
@@ -83,12 +99,12 @@ export function StrategyDashboard() {
     setRunning(true);
     try {
       await runStrategySimulation(selectedId);
-      const [b, t] = await Promise.all([
-        getStrategyBacktest(selectedId, true),
-        getStrategyTrades(selectedId),
-      ]);
-      setBacktest(b);
-      setTrades(t);
+      const run = await runStrategyBacktest(selectedId, {
+        refresh_trades: false,
+      });
+      setBacktest(normalizeBacktest(run.metrics));
+      setTrades(run.trades);
+      setEquityCurve(run.equity_curve.length ? run.equity_curve : run.metrics.equity_curve ?? []);
     } catch {
       // ignore
     } finally {
@@ -102,7 +118,10 @@ export function StrategyDashboard() {
         <div className="p-4 text-rose-400">
           {error}. Log in to view your trading strategies.
         </div>
-        <div className="p-4">
+        <div className="p-4 flex flex-wrap gap-2">
+          <Link href="/login">
+            <Button>Log in</Button>
+          </Link>
           <Link href="/strategies/create">
             <Button variant="outline">Create strategy</Button>
           </Link>
@@ -187,7 +206,11 @@ export function StrategyDashboard() {
                 </Button>
               </div>
               <BacktestResults backtest={backtest} trades={trades} loading={false} />
-              <SimulationChart trades={trades} loading={false} />
+              <SimulationChart
+                trades={trades}
+                equityCurve={equityCurve}
+                loading={false}
+              />
               <StrategyInsightsPanel trades={trades} backtest={backtest} />
             </>
           )}

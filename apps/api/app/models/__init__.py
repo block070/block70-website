@@ -81,6 +81,7 @@ from .ai_search import AISearchQuery, AISearchAnalytics
 from .exchange import Exchange, ExchangeClick
 from .exchange_affiliate_link import ExchangeAffiliateLink
 from .chart_snapshot import ChartSnapshot
+from .ohlcv_candle import OhlcvCandle
 
 __all__ = [
     "Opportunity",
@@ -186,5 +187,6 @@ __all__ = [
     "ExchangeClick",
     "ExchangeAffiliateLink",
     "ChartSnapshot",
+    "OhlcvCandle",
 ]
 

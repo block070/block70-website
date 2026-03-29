@@ -10,7 +10,8 @@ from typing import Any
 
 from sqlalchemy.orm import Session
 
-from app.models import BotSignalEvent, Signal, SignalBot
+from app.models import BotSignalEvent, Signal, SignalBot, TradingStrategy
+from app.services.strategy.strategy_engine import strategy_engine
 from app.services.bots.discord_bot import send_discord_signal_alert
 from app.services.bots.telegram_bot import send_telegram_signal_alert
 
@@ -63,6 +64,11 @@ def _get_unsent_signals_for_bot(
 ) -> list[Signal]:
     since = datetime.now(timezone.utc) - timedelta(minutes=since_minutes)
     config = _bot_config(bot)
+    strategy: TradingStrategy | None = None
+    if bot.strategy_id is not None:
+        st = db.get(TradingStrategy, bot.strategy_id)
+        if st and st.user_id == bot.user_id:
+            strategy = st
     candidates = (
         db.query(Signal)
         .filter(Signal.created_at >= since)
@@ -75,6 +81,8 @@ def _get_unsent_signals_for_bot(
         if len(out) >= limit:
             break
         if _signal_already_sent_to_bot(db, s.id, bot.id):
+            continue
+        if strategy is not None and not strategy_engine.apply_conditions(strategy, s):
             continue
         if not _signal_matches_bot_config(s, config):
             continue

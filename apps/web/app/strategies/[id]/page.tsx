@@ -22,6 +22,7 @@ export default function PublicStrategyPage() {
     win_rate: number;
     average_profit: number;
     max_drawdown: number;
+    total_return_pct?: number;
   } | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -124,7 +125,7 @@ export default function PublicStrategyPage() {
         />
         <div className="p-4">
           {backtest ? (
-            <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+            <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
               <div>
                 <p className="text-xs text-slate-500">Win rate</p>
                 <p className="text-xl font-semibold text-slate-100">
@@ -135,6 +136,19 @@ export default function PublicStrategyPage() {
                 <p className="text-xs text-slate-500">Total trades</p>
                 <p className="text-xl font-semibold text-slate-100">
                   {backtest.total_trades}
+                </p>
+              </div>
+              <div>
+                <p className="text-xs text-slate-500">Total return</p>
+                <p
+                  className={`text-xl font-semibold ${
+                    (backtest.total_return_pct ?? 0) >= 0
+                      ? "text-emerald-400"
+                      : "text-rose-400"
+                  }`}
+                >
+                  {(backtest.total_return_pct ?? 0) >= 0 ? "+" : ""}
+                  {(backtest.total_return_pct ?? 0).toFixed(2)}%
                 </p>
               </div>
               <div>

@@ -14,6 +14,7 @@ type LeaderboardEntry = {
   average_profit: number;
   total_trades: number;
   max_drawdown: number;
+  total_return_pct?: number;
 };
 
 export default function StrategyLeaderboardPage() {
@@ -57,6 +58,7 @@ export default function StrategyLeaderboardPage() {
                   <th className="px-4 py-2 font-medium text-right">Win rate</th>
                   <th className="px-4 py-2 font-medium text-right">Avg profit</th>
                   <th className="px-4 py-2 font-medium text-right">Trades</th>
+                  <th className="px-4 py-2 font-medium text-right">Return</th>
                   <th className="px-4 py-2 font-medium text-right">Max DD</th>
                   <th className="px-4 py-2"></th>
                 </tr>
@@ -82,6 +84,16 @@ export default function StrategyLeaderboardPage() {
                     </td>
                     <td className="px-4 py-2 text-right text-slate-400">
                       {e.total_trades}
+                    </td>
+                    <td
+                      className={`px-4 py-2 text-right ${
+                        (e.total_return_pct ?? 0) >= 0
+                          ? "text-emerald-400"
+                          : "text-rose-400"
+                      }`}
+                    >
+                      {(e.total_return_pct ?? 0) >= 0 ? "+" : ""}
+                      {(e.total_return_pct ?? 0).toFixed(2)}%
                     </td>
                     <td className="px-4 py-2 text-right text-rose-400">
                       {e.max_drawdown.toFixed(2)}%
