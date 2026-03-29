@@ -1,10 +1,30 @@
 import { API_BASE_URL } from "./api";
 import { getToken } from "./auth";
 
-async function fetchWithAuth<T>(path: string, init?: RequestInit): Promise<T> {
+/**
+ * Browser calls Next.js proxy (same origin) to avoid CORS / mixed-content when
+ * NEXT_PUBLIC_API_BASE_URL points at a different host than the web app.
+ */
+function apiKeysUrl(pathAndQuery: string): string {
+  const p = pathAndQuery.startsWith("/") ? pathAndQuery : `/${pathAndQuery}`;
+  if (typeof window !== "undefined") {
+    return `/api/api-keys${p}`;
+  }
+  return `${API_BASE_URL}/api/v1/api-keys${p}`;
+}
+
+function webhooksUrl(pathAndQuery: string): string {
+  const p = pathAndQuery.startsWith("/") ? pathAndQuery : `/${pathAndQuery}`;
+  if (typeof window !== "undefined") {
+    return `/api/webhooks${p}`;
+  }
+  return `${API_BASE_URL}/api/v1/webhooks${p}`;
+}
+
+async function fetchWithAuth<T>(url: string, init?: RequestInit): Promise<T> {
   const token = getToken();
   if (!token) throw new Error("Not authenticated");
-  const res = await fetch(`${API_BASE_URL}${path}`, {
+  const res = await fetch(url, {
     ...init,
     headers: {
       "Content-Type": "application/json",
@@ -58,7 +78,7 @@ export type CreateKeyBody = {
 };
 
 export async function createApiKey(body: CreateKeyBody = {}): Promise<CreateKeyResponse> {
-  return fetchWithAuth<CreateKeyResponse>(`/api/v1/api-keys/create`, {
+  return fetchWithAuth<CreateKeyResponse>(apiKeysUrl("/create"), {
     method: "POST",
     body: JSON.stringify({
       plan_type: body.plan_type ?? "free",
@@ -76,7 +96,7 @@ export async function createApiKey(body: CreateKeyBody = {}): Promise<CreateKeyR
 }
 
 export async function listApiKeys(): Promise<ApiKeyInfo[]> {
-  const r = await fetchWithAuth<ApiKeyInfo[]>(`/api/v1/api-keys/list`);
+  const r = await fetchWithAuth<ApiKeyInfo[]>(apiKeysUrl("/list"));
   return Array.isArray(r) ? r : [];
 }
 
@@ -89,14 +109,14 @@ export async function updateApiKey(
     rate_limit?: number | null;
   }
 ): Promise<ApiKeyInfo> {
-  return fetchWithAuth<ApiKeyInfo>(`/api/v1/api-keys/${keyId}`, {
+  return fetchWithAuth<ApiKeyInfo>(apiKeysUrl(`/${keyId}`), {
     method: "PATCH",
     body: JSON.stringify(patch),
   });
 }
 
 export async function revokeApiKey(keyId: number): Promise<{ status: string; id: number }> {
-  return fetchWithAuth(`/api/v1/api-keys/${keyId}/revoke`, { method: "POST" });
+  return fetchWithAuth(apiKeysUrl(`/${keyId}/revoke`), { method: "POST" });
 }
 
 export type ApiKeyAnalytics = {
@@ -118,7 +138,7 @@ export type ApiKeyAnalytics = {
 };
 
 export async function getApiKeyAnalytics(days = 7): Promise<ApiKeyAnalytics> {
-  return fetchWithAuth(`/api/v1/api-keys/analytics?days=${days}`);
+  return fetchWithAuth(apiKeysUrl(`/analytics?days=${days}`));
 }
 
 export type WebhookInfo = {
@@ -129,7 +149,7 @@ export type WebhookInfo = {
 };
 
 export async function listWebhooks(): Promise<WebhookInfo[]> {
-  const r = await fetchWithAuth<WebhookInfo[]>(`/api/v1/webhooks/list`);
+  const r = await fetchWithAuth<WebhookInfo[]>(webhooksUrl("/list"));
   return Array.isArray(r) ? r : [];
 }
 
@@ -137,12 +157,12 @@ export async function createWebhook(
   url: string,
   eventType: string
 ): Promise<WebhookInfo & { created_at: string }> {
-  return fetchWithAuth(`/api/v1/webhooks/create`, {
+  return fetchWithAuth(webhooksUrl("/create"), {
     method: "POST",
     body: JSON.stringify({ url, event_type: eventType }),
   });
 }
 
 export async function deleteWebhook(webhookId: number): Promise<{ status: string; id: number }> {
-  return fetchWithAuth(`/api/v1/webhooks/${webhookId}`, { method: "DELETE" });
+  return fetchWithAuth(webhooksUrl(`/${webhookId}`), { method: "DELETE" });
 }
