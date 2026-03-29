@@ -1,6 +1,9 @@
+import { cookies } from "next/headers";
+
 import type { CapitalFlowSummaryDto } from "@/lib/api";
 import { getCapitalFlowSummary } from "@/lib/api";
 import { CapitalFlowDashboardClient } from "@/components/capitalflow/capital-flow-dashboard-client";
+import { isPaidBlock70Plan } from "@/lib/plan-tier";
 import { withTimeout } from "@/lib/with-timeout";
 
 export const dynamic = "force-dynamic";
@@ -24,9 +27,15 @@ const EMPTY: CapitalFlowSummaryDto = {
 };
 
 export default async function CapitalFlowPage() {
+  const plan = cookies().get("block70_plan")?.value ?? "free";
+  const hasPaidPlan = isPaidBlock70Plan(plan);
+
   let initial: CapitalFlowSummaryDto | null = null;
   try {
-    initial = await withTimeout(getCapitalFlowSummary({ hours: 24 }), 8_000);
+    initial = await withTimeout(
+      getCapitalFlowSummary({ hours: 24, subscriberPlan: plan }),
+      8_000,
+    );
   } catch {
     initial = null;
   }
@@ -47,7 +56,11 @@ export default async function CapitalFlowPage() {
         </p>
       </header>
 
-      <CapitalFlowDashboardClient initialSummary={initial ?? EMPTY} defaultHours={24} />
+      <CapitalFlowDashboardClient
+        initialSummary={initial ?? EMPTY}
+        defaultHours={24}
+        hasPaidPlan={hasPaidPlan}
+      />
     </div>
   );
 }

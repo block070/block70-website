@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime, timedelta, timezone
 from typing import List
 
-from fastapi import APIRouter, Depends, Path, Query
+from fastapi import APIRouter, Depends, Header, Path, Query
 from sqlalchemy.orm import Session
 
 from app.db import get_db
@@ -12,6 +12,12 @@ from app.services.flows import CapitalFlowEngine
 
 
 router = APIRouter(prefix="/api/v1/flows", tags=["flows"])
+
+
+def _subscriber_enhanced(x_block70_plan: str | None) -> bool:
+    if not x_block70_plan:
+        return False
+    return x_block70_plan.strip().lower() in ("pro", "elite", "admin")
 
 
 def _flow_to_dict(f: CapitalFlow) -> dict:
@@ -56,16 +62,42 @@ def get_flows_summary(
     db: Session = Depends(get_db),
     hours: int = Query(default=24, ge=1, le=720, description="Look-back hours"),
     chain: str | None = Query(default=None, description="Filter by chain"),
+    x_block70_plan: str | None = Header(default=None, alias="X-Block70-Plan"),
 ) -> dict:
     """Macro snapshot: volume, chain/category/destination breakdowns, hot edges."""
     since = datetime.now(timezone.utc) - timedelta(hours=hours)
     engine = CapitalFlowEngine()
-    out = engine.summary(db, hours=hours, chain=chain)
-    out["recent"] = [_flow_to_dict(f) for f in engine.list_flows(db, chain=chain, since=since, limit=20)]
-    out["disclaimer"] = (
+    enhanced = _subscriber_enhanced(x_block70_plan)
+    if enhanced:
+        out = engine.summary(
+            db,
+            hours=hours,
+            chain=chain,
+            limit_destinations=40,
+            limit_categories=32,
+            limit_edges=72,
+            category_source_limit=320,
+        )
+        recent_limit = 48
+    else:
+        out = engine.summary(db, hours=hours, chain=chain)
+        recent_limit = 20
+    out["recent"] = [
+        _flow_to_dict(f)
+        for f in engine.list_flows(db, chain=chain, since=since, limit=recent_limit)
+    ]
+    base_note = (
         "Category labels map from Block70 coin metadata when symbols match; "
         "unmatched assets count as Unknown. Not exhaustive on-chain coverage."
     )
+    if enhanced:
+        out["data_tier"] = "enhanced"
+        out["disclaimer"] = (
+            base_note + " Subscriber view uses wider aggregates and more recent legs for near–live desk use."
+        )
+    else:
+        out["data_tier"] = "standard"
+        out["disclaimer"] = base_note
     return out
 
 

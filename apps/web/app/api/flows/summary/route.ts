@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
+import { cookies } from "next/headers";
 
 import { getApiBaseUrl } from "@/lib/api";
+import { isPaidBlock70Plan } from "@/lib/plan-tier";
 
 export const dynamic = "force-dynamic";
 
@@ -38,10 +40,16 @@ export async function GET(req: Request) {
   const qs = searchParams.toString();
   const url = `${base}/api/v1/flows/summary${qs ? `?${qs}` : ""}`;
 
+  const plan = cookies().get("block70_plan")?.value ?? "free";
+  const headers: Record<string, string> = { Accept: "application/json" };
+  if (isPaidBlock70Plan(plan)) {
+    headers["X-Block70-Plan"] = plan;
+  }
+
   try {
     const r = await fetch(url, {
       cache: "no-store",
-      headers: { Accept: "application/json" },
+      headers,
     });
     const body = await r.text();
     // #region agent log

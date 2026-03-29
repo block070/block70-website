@@ -13,6 +13,7 @@ import type {
   WalletLeaderboardEntry,
 } from "./types";
 import { fetchRssDirectFallback } from "./news/rss-direct-fallback";
+import { isPaidBlock70Plan } from "./plan-tier";
 
 // Server (SSR): use API_SERVER_URL in Docker so the Next.js container can reach the API.
 // Client (browser): use NEXT_PUBLIC_API_BASE_URL.
@@ -507,6 +508,8 @@ export type CapitalFlowSummaryDto = {
   hot_edges: CapitalFlowTrendingDto[];
   recent: CapitalFlowDto[];
   disclaimer?: string;
+  /** Present when FastAPI applies subscriber aggregates (`X-Block70-Plan`). */
+  data_tier?: "standard" | "enhanced";
 };
 
 export async function getFlows(params?: {
@@ -540,14 +543,21 @@ export async function getFlowsTrending(params?: {
 export async function getCapitalFlowSummary(params?: {
   hours?: number;
   chain?: string | null;
+  /** When set from SSR, forwards `X-Block70-Plan` for subscriber-expanded aggregates. */
+  subscriberPlan?: string | null;
 }): Promise<CapitalFlowSummaryDto> {
   const search = new URLSearchParams();
   if (params?.hours != null) search.set("hours", String(params.hours));
   if (params?.chain) search.set("chain", params.chain);
   const query = search.toString();
-  return fetchJson<CapitalFlowSummaryDto>(
-    `/api/v1/flows/summary${query ? `?${query}` : ""}`,
-  );
+  const path = `/api/v1/flows/summary${query ? `?${query}` : ""}`;
+  const headers: Record<string, string> = {};
+  if (params?.subscriberPlan != null && isPaidBlock70Plan(params.subscriberPlan)) {
+    headers["X-Block70-Plan"] = params.subscriberPlan;
+  }
+  const init: RequestInit =
+    Object.keys(headers).length > 0 ? { headers } : {};
+  return fetchJson<CapitalFlowSummaryDto>(path, init);
 }
 
 export async function getFlowsForToken(

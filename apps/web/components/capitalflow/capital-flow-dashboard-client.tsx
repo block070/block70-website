@@ -10,6 +10,7 @@ import { Card, CardHeader } from "@/components/ui/card";
 import { CapitalFlowChart } from "@/components/flows/capital-flow-chart";
 import { CapitalFlowSankey } from "./capital-flow-sankey";
 import { buildDemoCapitalFlowSummary } from "@/lib/capital-flow-demo";
+import { isPaidBlock70Plan } from "@/lib/plan-tier";
 
 type ViewSummary = CapitalFlowSummaryDto & { demo_mode?: boolean };
 
@@ -113,14 +114,30 @@ function formatTime(ts: number): string {
 type Props = {
   initialSummary: CapitalFlowSummaryDto;
   defaultHours?: number;
+  /** From `block70_plan` cookie on SSR—paid users see live ledger only (no illustrative demo). */
+  hasPaidPlan?: boolean;
 };
+
+function readPlanFromCookie(): string {
+  if (typeof document === "undefined") return "free";
+  const m = document.cookie.match(/(?:^|;\s*)block70_plan=([^;]+)/);
+  return m ? decodeURIComponent(m[1]) : "free";
+}
 
 export function CapitalFlowDashboardClient({
   initialSummary,
   defaultHours = 24,
+  hasPaidPlan: hasPaidPlanProp = false,
 }: Props) {
   const [hours, setHours] = useState<number>(defaultHours);
   const [chain, setChain] = useState<string>("");
+  const [subscriber, setSubscriber] = useState(hasPaidPlanProp);
+
+  useEffect(() => {
+    setSubscriber(isPaidBlock70Plan(readPlanFromCookie()) || hasPaidPlanProp);
+  }, [hasPaidPlanProp]);
+
+  const pollMs = subscriber ? 30_000 : 45_000;
 
   const swrKey = ["/api/flows/summary", hours, chain || "all"] as const;
 
@@ -128,7 +145,7 @@ export function CapitalFlowDashboardClient({
     swrKey,
     () => fetchSummary(hours, chain || undefined),
     {
-      refreshInterval: 45_000,
+      refreshInterval: pollMs,
       revalidateOnFocus: true,
       fallbackData: initialSummary,
     },
@@ -139,6 +156,9 @@ export function CapitalFlowDashboardClient({
   const view: ViewSummary | null = useMemo(() => {
     if (!summary) return null;
     if (!isLedgerEmpty(summary)) return { ...summary, demo_mode: false };
+    if (subscriber) {
+      return { ...summary, demo_mode: false };
+    }
     const demo = buildDemoCapitalFlowSummary(hours, chain || null);
     // #region agent log
     void fetch("http://127.0.0.1:7428/ingest/b2bee36a-3f9b-42a9-b6fb-0dc54bacc543", {
@@ -156,7 +176,7 @@ export function CapitalFlowDashboardClient({
     }).catch(() => {});
     // #endregion
     return { ...demo, demo_mode: true };
-  }, [summary, hours, chain]);
+  }, [summary, hours, chain, subscriber]);
 
   const [lastUpdatedAt, setLastUpdatedAt] = useState<number | null>(null);
   useEffect(() => {
@@ -210,9 +230,10 @@ export function CapitalFlowDashboardClient({
             ))}
           </select>
           <p className="text-[10px] text-[var(--b70-text-muted)]">
-            Auto-refresh ~45s
+            Auto-refresh ~{subscriber ? "30" : "45"}s
             {lastUpdatedAt ? ` · Updated ${formatTime(lastUpdatedAt)}` : null}
             {isValidating ? " · Syncing…" : ""}
+            {view?.data_tier === "enhanced" ? " · Enhanced feed" : ""}
           </p>
         </div>
       </div>
@@ -228,7 +249,17 @@ export function CapitalFlowDashboardClient({
         <p className="rounded-lg border border-[var(--b70-crypto-blue)]/30 bg-[var(--b70-crypto-blue)]/10 px-3 py-2 text-xs text-[var(--b70-text)]">
           <span className="font-semibold text-[var(--b70-crypto-blue)]">Sample data.</span> The
           capital-flow ledger returned no rows for this window—showing illustrative flows so layouts
-          and charts are visible. Replace with production ingest for live macro tracking.
+          and charts are visible. Subscribe for the live ledger view (no sample overlay).
+        </p>
+      ) : null}
+
+      {subscriber && summary && isLedgerEmpty(summary) && !error ? (
+        <p className="rounded-lg border border-emerald-500/25 bg-emerald-500/10 px-3 py-2 text-xs text-[var(--b70-text)]">
+          <span className="font-semibold text-emerald-400/95">Live ledger.</span> No capital-flow
+          rows matched this window yet—figures are{" "}
+          <span className="font-medium text-[var(--b70-text)]">real</span>, not placeholders. The
+          dashboard polls every ~30s; totals appear as swaps, transfers, and bridges are ingested into{" "}
+          <code className="text-[10px] text-[var(--b70-text-muted)]">capital_flows</code>.
         </p>
       ) : null}
 
@@ -236,7 +267,11 @@ export function CapitalFlowDashboardClient({
         <KpiCard
           label="Window volume"
           value={view ? formatVol(view.total_volume) : isLoading ? "…" : "—"}
-          hint="Sum of flow amounts in window"
+          hint={
+            view?.data_tier === "enhanced"
+              ? "Sum of flow amounts (subscriber — expanded window)"
+              : "Sum of flow amounts in window"
+          }
         />
         <KpiCard
           label="Dominant chain"
@@ -279,7 +314,7 @@ export function CapitalFlowDashboardClient({
           <CardHeader title="Hot flows" subtitle="Largest aggregated movements" />
           <div className="p-4">
             {!view?.hot_edges.length ? (
-              <EmptyHint />
+              <EmptyHint subscriber={subscriber} />
             ) : (
               <ul className="space-y-2">
                 {view.hot_edges.slice(0, 12).map((t, i) => (
@@ -313,7 +348,7 @@ export function CapitalFlowDashboardClient({
           />
           <div className="p-4">
             {!summary?.top_destinations.length ? (
-              <EmptyHint />
+              <EmptyHint subscriber={subscriber} />
             ) : (
               <ul className="space-y-2">
                 {summary.top_destinations.map((t) => (
@@ -338,7 +373,7 @@ export function CapitalFlowDashboardClient({
           <CardHeader title="By chain" subtitle="Share of flow amount in window" />
           <div className="p-4">
             {!view?.by_chain.length ? (
-              <EmptyHint />
+              <EmptyHint subscriber={subscriber} />
             ) : (
               <ul className="space-y-2">
                 {view.by_chain.map((r) => (
@@ -372,7 +407,7 @@ export function CapitalFlowDashboardClient({
           />
           <div className="p-4">
             {!filteredCategories.length ? (
-              <EmptyHint />
+              <EmptyHint subscriber={subscriber} />
             ) : (
               <ul className="space-y-2">
                 {filteredCategories.map((r) => (
@@ -410,7 +445,7 @@ export function CapitalFlowDashboardClient({
             <p className="mb-3 text-[10px] text-[var(--b70-text-muted)]">{view.disclaimer}</p>
           ) : null}
           {!view?.recent?.length ? (
-            <EmptyHint />
+            <EmptyHint subscriber={subscriber} />
           ) : (
             <ul className="space-y-2">
               {view.recent.slice(0, 18).map((f) => (
@@ -446,11 +481,12 @@ function KpiCard({ label, value, hint }: { label: string; value: string; hint: s
   );
 }
 
-function EmptyHint() {
+function EmptyHint({ subscriber = false }: { subscriber?: boolean }) {
   return (
     <p className="text-xs text-[var(--b70-text-muted)]">
-      No flows in this window yet. Data fills as the capital-flow engine ingests swaps, transfers, and
-      bridges.
+      {subscriber
+        ? "Live feed is empty for this window—your next refresh may show ingested legs. If this persists, confirm the capital-flow worker is populating the database."
+        : "No flows in this window yet. Data fills as the capital-flow engine ingests swaps, transfers, and bridges."}
     </p>
   );
 }
