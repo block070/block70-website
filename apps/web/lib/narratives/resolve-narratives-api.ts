@@ -58,11 +58,14 @@ function shouldTryHttpAfterCertError(u: URL, hasExplicitHttpFallback: boolean) {
 }
 
 /** GET to FastAPI; if HTTPS fails TLS hostname verification (mis-issued cert for api.block70.com), retry plain HTTP (dev: localhost:8000, or NARRATIVES_HTTP_FALLBACK_BASE). */
-export async function backendGet(urlStr: string): Promise<BackendGetResult> {
+export async function backendGet(
+  urlStr: string,
+  reqHeaders: Record<string, string> = {},
+): Promise<BackendGetResult> {
   const doFetch = (url: string) =>
     fetch(url, {
       cache: "no-store",
-      headers: { Accept: "application/json" },
+      headers: { Accept: "application/json", ...reqHeaders },
       signal: AbortSignal.timeout(FETCH_MS),
     });
 
