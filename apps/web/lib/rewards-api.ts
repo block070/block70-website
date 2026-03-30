@@ -1,5 +1,6 @@
 import { API_BASE_URL } from "./api";
 import { getToken } from "./auth";
+import { leaderboardV1Base } from "./leaderboard-api";
 
 async function fetchWithAuth<T>(path: string, init?: RequestInit): Promise<T> {
   const token = getToken();
@@ -97,7 +98,7 @@ export type LeaderboardEntry = {
 
 export async function getBlocksLeaderboard(limit = 100): Promise<LeaderboardEntry[]> {
   const r = await fetch(
-    `${API_BASE_URL}/api/v1/leaderboard/blocks?limit=${limit}`,
+    `${leaderboardV1Base()}/blocks?limit=${limit}`,
     { cache: "no-store" }
   );
   if (!r.ok) throw new Error("Leaderboard API error");

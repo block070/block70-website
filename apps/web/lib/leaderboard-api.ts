@@ -1,5 +1,12 @@
 import { API_BASE_URL } from "./api";
 
+/** Browser uses same-origin Next proxy; server uses FastAPI base (see trading-strategies-api). */
+export function leaderboardV1Base(): string {
+  return typeof window !== "undefined"
+    ? "/api/v1/leaderboard"
+    : `${API_BASE_URL}/api/v1/leaderboard`;
+}
+
 export type TraderLeaderboardSort = "roi" | "win_rate";
 export type TraderLeaderboardPeriod = "7d" | "30d" | "90d" | "all";
 
@@ -46,7 +53,7 @@ export async function getTradersLeaderboard(opts: {
   });
   if (strategyId != null) q.set("strategy_id", String(strategyId));
   const r = await fetch(
-    `${API_BASE_URL}/api/v1/leaderboard/traders?${q.toString()}`,
+    `${leaderboardV1Base()}/traders?${q.toString()}`,
     { cache: "no-store" }
   );
   if (!r.ok) throw new Error("Traders leaderboard API error");
@@ -58,7 +65,7 @@ export async function getUserTradingStats(
   userId: number
 ): Promise<UserTradingStats> {
   const r = await fetch(
-    `${API_BASE_URL}/api/v1/leaderboard/users/${userId}/trading-stats`,
+    `${leaderboardV1Base()}/users/${userId}/trading-stats`,
     { cache: "no-store" }
   );
   if (!r.ok) throw new Error("User trading stats API error");
