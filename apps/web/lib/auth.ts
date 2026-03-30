@@ -22,8 +22,8 @@ type User = {
   email: string;
   name: string;
   role: "admin" | "user";
-  plan: "free" | "pro" | "admin";
-  plan_type: "free" | "pro" | "elite";
+  plan: "free" | "pro" | "elite" | "quant" | "admin";
+  plan_type: "free" | "pro" | "elite" | "quant";
   is_active: boolean;
   created_at: string;
   updated_at: string;
@@ -75,7 +75,7 @@ export async function login(params: {
     throw new Error(detailFromResponseBody(data) || "Invalid email or password");
   }
   setToken(data.access_token);
-  setPlanCookie(data.user?.plan ?? "free");
+  setPlanCookie(data.user?.plan_type ?? data.user?.plan ?? "free");
 
   return getCurrentUser();
 }
@@ -114,7 +114,7 @@ export async function register(params: {
   }
   if (data.access_token) {
     setToken(data.access_token);
-    setPlanCookie(data.user?.plan ?? "free");
+    setPlanCookie(data.user?.plan_type ?? data.user?.plan ?? "free");
   }
   return getCurrentUser();
 }
@@ -177,7 +177,7 @@ export async function getCurrentUser(): Promise<User> {
   }
 
   const user = (await res.json()) as User;
-  setPlanCookie(user.plan ?? "free");
+  setPlanCookie(user.plan_type ?? user.plan ?? "free");
   return user;
 }
 
@@ -191,7 +191,7 @@ export async function upgradeToPro(): Promise<User> {
   if (!user) {
     throw new Error("Upgrade response missing user");
   }
-  setPlanCookie(user.plan ?? "pro");
+  setPlanCookie(user.plan_type ?? user.plan ?? "pro");
   return user;
 }
 

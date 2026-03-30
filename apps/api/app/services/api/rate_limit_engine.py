@@ -19,6 +19,7 @@ RATE_LIMITS: dict[str, int] = {
     "developer": 1000,
     "pro": 10_000,
     "elite": 50_000,
+    "quant": 0,
     "enterprise": 0,
 }
 

@@ -24,8 +24,10 @@ from fastapi.responses import Response
 from sqlalchemy.orm import Session
 
 from app.core.auth_middleware import get_current_user, get_current_user_optional
+from app.core.plan_access import has_access, has_feature
 from app.db import get_db
 from app.models import Signal, SharedSignal, User
+from app.services.auth.plan_access import resolve_effective_plan
 from app.services.usage.metrics import record_usage_metric
 from app.schemas.signals import SignalRead
 from app.services.social.signal_card_generator import generate_signal_card
@@ -36,6 +38,16 @@ from app.services.analysis.trending_signal_engine import (
 
 
 router = APIRouter(prefix="/api/v1/signals", tags=["signals"])
+
+
+def _signal_feed_policy(db: Session, user: User | None) -> tuple[int, int]:
+    """Returns (delay_minutes, max_rows). delay 0 = real-time."""
+    eff = resolve_effective_plan(db, user)
+    if has_feature(eff, "signals_high"):
+        return 0, 500
+    if has_access(eff, "pro"):
+        return 5, 150
+    return 15, 40
 
 
 def _maybe_record_signals_used(db: Session, user: User | None) -> None:
@@ -84,17 +96,19 @@ def list_signals(
     ),
     tier: Optional[str] = Query(
         default=None,
-        description="free = delayed (15 min); pro/elite = real-time.",
+        description="Deprecated: feed tier is derived from the signed-in user's plan.",
     ),
     current_user: User | None = Depends(get_current_user_optional),
 ) -> List[Signal]:
     """
     List signals with optional filters by chain, signal_type, and token.
-    For tier=free, only signals older than 15 minutes are returned (delayed feed).
+    Feed delay and row caps follow plan (free delayed, pro near-real-time, elite+ quant full).
     """
     q = db.query(Signal)
-    if tier == "free":
-        delay_cutoff = datetime.now(timezone.utc) - timedelta(minutes=15)
+    delay_m, max_rows = _signal_feed_policy(db, current_user)
+    _ = tier  # legacy param ignored
+    if delay_m > 0:
+        delay_cutoff = datetime.now(timezone.utc) - timedelta(minutes=delay_m)
         q = q.filter(Signal.created_at <= delay_cutoff)
     if chain is not None:
         q = q.filter(Signal.chain == chain)
@@ -104,7 +118,8 @@ def list_signals(
         q = q.filter(
             (Signal.token_symbol == token) | (Signal.token_address == token)
         )
-    q = q.order_by(Signal.created_at.desc()).offset(offset).limit(limit)
+    eff_limit = min(limit, max_rows)
+    q = q.order_by(Signal.created_at.desc()).offset(offset).limit(eff_limit)
     rows = list(q.all())
     _maybe_record_signals_used(db, current_user)
     return rows
@@ -129,23 +144,26 @@ def list_latest_signals(
     ),
     tier: Optional[str] = Query(
         default=None,
-        description="free = delayed (15 min); pro/elite = real-time.",
+        description="Deprecated: derived from user plan.",
     ),
     current_user: User | None = Depends(get_current_user_optional),
 ) -> List[Signal]:
     """
-    Return the most recent signals. For tier=free, only delayed (15+ min old).
+    Return the most recent signals. Delay and cap follow subscription tier.
     """
     q = db.query(Signal)
-    if tier == "free":
-        delay_cutoff = datetime.now(timezone.utc) - timedelta(minutes=15)
+    delay_m, max_rows = _signal_feed_policy(db, current_user)
+    _ = tier
+    if delay_m > 0:
+        delay_cutoff = datetime.now(timezone.utc) - timedelta(minutes=delay_m)
         q = q.filter(Signal.created_at <= delay_cutoff)
     q = q.order_by(Signal.created_at.desc())
     if chain is not None:
         q = q.filter(Signal.chain == chain)
     if signal_type is not None:
         q = q.filter(Signal.signal_type == signal_type)
-    rows = list(q.limit(limit).all())
+    eff_limit = min(limit, max_rows)
+    rows = list(q.limit(eff_limit).all())
     _maybe_record_signals_used(db, current_user)
     return rows
 

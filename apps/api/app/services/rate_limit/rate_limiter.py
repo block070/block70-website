@@ -15,6 +15,7 @@ PLAN_LIMITS = {
     "free": 100,
     "pro": 1000,
     "elite": None,  # unlimited
+    "quant": None,
 }
 
 

@@ -7,6 +7,7 @@ from app.core.auth_middleware import get_current_user
 from app.db import get_db
 from app.models import Subscription, User
 from app.services.billing.stripe_service import (
+    CHECKOUT_PLAN_TYPES,
     create_billing_portal_session,
     create_checkout_session,
     handle_webhook,
@@ -33,6 +34,13 @@ def create_checkout(
             detail="Missing Origin/Host header",
         )
 
+    pt = (plan_type or "").lower().strip()
+    if pt not in CHECKOUT_PLAN_TYPES:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="plan_type must be one of: pro, elite, quant",
+        )
+
     scheme = request.url.scheme
     base_url = f"{scheme}://{origin}"
     success_url = f"{base_url}/usage"
@@ -41,7 +49,7 @@ def create_checkout(
     session = create_checkout_session(
         db,
         user=current_user,
-        plan_type=plan_type,
+        plan_type=pt,
         success_url=success_url,
         cancel_url=cancel_url,
     )

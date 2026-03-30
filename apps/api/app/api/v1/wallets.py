@@ -4,12 +4,16 @@ from datetime import datetime, timedelta, timezone
 from typing import Any, List
 
 from fastapi import APIRouter, Depends, HTTPException, Path, Query
+
 from sqlalchemy import func
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
+from app.core.auth_middleware import get_current_user_optional
+from app.core.plan_access import has_access, has_feature
 from app.db import get_db
-from app.models import Opportunity, OpportunityStatus, WalletLedgerEvent, WalletProfile
+from app.models import Opportunity, OpportunityStatus, User, WalletLedgerEvent, WalletProfile
+from app.services.auth.plan_access import resolve_effective_plan
 from app.services.wallets import WalletPerformanceEngine
 
 
@@ -96,15 +100,23 @@ def get_wallet_leaderboard(
 @router.get("/smart")
 def get_smart_wallets(
     db: Session = Depends(get_db),
+    current_user: User | None = Depends(get_current_user_optional),
     chain: str | None = Query(default=None, description="Filter by chain"),
     limit: int = Query(default=100, ge=1, le=200),
 ) -> List[dict]:
     """Return smart wallets ordered by profitability and reputation score."""
+    eff = resolve_effective_plan(db, current_user)
+    if has_feature(eff, "opportunities_full"):
+        eff_limit = min(limit, 200)
+    elif has_access(eff, "pro"):
+        eff_limit = min(limit, 45)
+    else:
+        eff_limit = min(limit, 12)
     engine = WalletPerformanceEngine()
-    wallets = engine.get_smart_wallets(db, chain=chain, limit=limit)
+    wallets = engine.get_smart_wallets(db, chain=chain, limit=eff_limit)
     if not wallets:
         # Fallback: return leaderboard data so UI has something
-        return get_wallet_leaderboard(db)[:limit]
+        return get_wallet_leaderboard(db)[:eff_limit]
     return [
         {
             "id": w.id,

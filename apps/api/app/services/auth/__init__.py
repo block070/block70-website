@@ -238,6 +238,7 @@ def generate_access_token(
     *,
     user_id: int,
     email: str,
+    plan_type: str | None = None,
     expires_in_hours: int = 24,
 ) -> str:
     now = datetime.now(timezone.utc)
@@ -248,6 +249,7 @@ def generate_access_token(
         "exp": exp,
         "iat": now,
         "type": "access",
+        "plan_type": (plan_type or "free").lower().strip(),
     }
     secret = _get_jwt_secret()
     token = jwt.encode(payload, secret, algorithm="HS256")

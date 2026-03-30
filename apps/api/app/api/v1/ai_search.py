@@ -4,15 +4,19 @@ AI Search API: natural language questions → AI-generated answer + related data
 
 from __future__ import annotations
 
+from datetime import datetime, timedelta, timezone
 from typing import Any, List
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
-from app.core.auth_middleware import get_current_user_optional
+from app.core.auth_middleware import get_current_user, get_current_user_optional
 from app.db import get_db
 from app.models import User, AISearchQuery
+from app.services.auth.plan_access import resolve_effective_plan
+from app.services.usage.plan_display import AI_DAILY_LIMITS
 from app.services.ai.ai_query_processor import AIQueryProcessor
 from app.services.ai.data_retrieval_engine import DataRetrievalEngine
 from app.services.ai.response_generator import ResponseGenerator
@@ -91,7 +95,7 @@ class AISearchResponse(BaseModel):
 def ai_search(
     body: AISearchRequest,
     db: Session = Depends(get_db),
-    current_user: User | None = Depends(get_current_user_optional),
+    current_user: User = Depends(get_current_user),
 ) -> dict:
     """
     POST /api/v1/ai-search
@@ -134,6 +138,25 @@ def ai_search(
             "query_id": None,
             "cached": True,
         }
+
+    eff = resolve_effective_plan(db, current_user)
+    daily_cap = AI_DAILY_LIMITS.get(eff, AI_DAILY_LIMITS["free"])
+    if daily_cap is not None:
+        since = datetime.now(timezone.utc) - timedelta(days=1)
+        used_today = int(
+            db.query(func.count(AISearchQuery.id))
+            .filter(
+                AISearchQuery.user_id == current_user.id,
+                AISearchQuery.created_at >= since,
+            )
+            .scalar()
+            or 0,
+        )
+        if used_today >= daily_cap:
+            raise HTTPException(
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                detail="Daily AI query limit reached. Upgrade your plan for more.",
+            )
 
     processor = AIQueryProcessor()
     retrieval = DataRetrievalEngine()
@@ -211,7 +234,7 @@ def get_search_history(
     limit: int = 50,
 ) -> list[dict]:
     """GET /api/v1/ai-search/history — current user's previous AI searches."""
-    if not current_user:
+    if current_user is None:
         return []
     rows = (
         db.query(AISearchQuery)

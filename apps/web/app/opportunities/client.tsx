@@ -11,7 +11,9 @@ import {
   AdvancedFilters,
   type AdvancedFiltersValue,
 } from "@/components/opportunities/advanced-filters";
-import { getPremiumAlerts } from "@/lib/api";
+import { getCurrentUser } from "@/lib/auth";
+import { PaywallSection } from "@/components/paywall/paywall-section";
+import { hasPlanAccess } from "@/lib/plan-tier";
 import {
   confidencePercent,
   matchesShortHorizon,
@@ -27,13 +29,7 @@ type Props = {
 
 const TYPES = ["arbitrage", "mining", "wallet", "airdrop", "node"];
 
-type PlanType = "free" | "pro" | "elite";
-
-const PLAN_RANK: Record<PlanType, number> = {
-  free: 0,
-  pro: 1,
-  elite: 2,
-};
+type PlanType = "free" | "pro" | "elite" | "quant";
 
 export function OpportunitiesListClient({
   initialOpportunities,
@@ -61,31 +57,17 @@ export function OpportunitiesListClient({
   const heroId = heroOpportunity?.id ?? null;
 
   useEffect(() => {
-    const userIdentifier =
-      process.env.NEXT_PUBLIC_USER_IDENTIFIER ?? "demo-user";
-
     let cancelled = false;
 
     async function loadPlan() {
       try {
-        const subs = await getPremiumAlerts();
-        const relevant = subs.filter(
-          (s) => s.user_identifier === userIdentifier,
-        );
-        let best: PlanType = "free";
-        for (const sub of relevant) {
-          const plan = (sub.plan_type ?? "free") as PlanType;
-          if (PLAN_RANK[plan] > PLAN_RANK[best]) {
-            best = plan;
-          }
-        }
-        if (!cancelled) {
-          setPlanType(best);
-        }
+        const u = await getCurrentUser();
+        const pt = (u.plan_type ?? "free").toLowerCase() as PlanType;
+        const next: PlanType =
+          pt === "quant" || pt === "elite" || pt === "pro" ? pt : "free";
+        if (!cancelled) setPlanType(next);
       } catch {
-        if (!cancelled) {
-          setPlanType("free");
-        }
+        if (!cancelled) setPlanType("free");
       }
     }
 
@@ -113,7 +95,7 @@ export function OpportunitiesListClient({
       if (presetLowRisk && normalizedRisk(op) !== "low") return false;
       if (presetShortHorizon && !matchesShortHorizon(op)) return false;
 
-      if (planType !== "free") {
+      if (hasPlanAccess(planType, "pro")) {
         const minRoi = parseFloat(advancedFilters.roi);
         if (!Number.isNaN(minRoi)) {
           const roi = op.estimated_roi_percent ?? 0;
@@ -181,7 +163,13 @@ export function OpportunitiesListClient({
         />
       ) : null}
 
-      <OpportunitiesPerformanceStrip />
+      <PaywallSection
+        feature="opportunities_full"
+        title="Full performance analytics"
+        subtitle="See the full strip with drawdown, Sharpe-style context, and cohort benchmarks on Elite or Quant."
+      >
+        <OpportunitiesPerformanceStrip />
+      </PaywallSection>
 
       <section className="rounded-xl border border-[var(--b70-border)] bg-[var(--b70-card)] p-4 shadow-sm">
         <p className="text-[10px] font-semibold uppercase tracking-wider text-[var(--b70-crypto-blue)]">

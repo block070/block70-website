@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import Link from "next/link";
 import {
   getSignals,
   getSignalsLatest,
@@ -8,6 +9,8 @@ import {
 } from "@/lib/api";
 import type { SignalDto } from "@/lib/types";
 import { SignalCard } from "@/components/signals/signal-card";
+import { getCurrentUser } from "@/lib/auth";
+import { hasFeature } from "@/lib/plan-tier";
 import {
   SignalFilters,
   type SignalFiltersValue,
@@ -53,6 +56,7 @@ export function SignalsFeedClient({ initialSignals }: Props) {
   const [loading, setLoading] = useState(false);
   const [polling, setPolling] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [showTierHint, setShowTierHint] = useState(false);
 
   const fetchSignals = useCallback(async () => {
     setLoading(true);
@@ -83,10 +87,26 @@ export function SignalsFeedClient({ initialSignals }: Props) {
     return () => clearInterval(interval);
   }, [polling, fetchSignals]);
 
+  useEffect(() => {
+    getCurrentUser()
+      .then((u) => setShowTierHint(!hasFeature(u.plan_type, "signals_high")))
+      .catch(() => setShowTierHint(true));
+  }, []);
+
   const filtered = applyFilters(signals, filters);
 
   return (
     <div className="space-y-4">
+      {showTierHint ? (
+        <div className="rounded-lg border border-amber-500/35 bg-amber-500/10 px-4 py-3 text-sm text-amber-100">
+          <span className="font-medium text-amber-50">Feed tier:</span> Free/Pro rows
+          may be delayed or capped.{" "}
+          <Link href="/pricing" className="font-medium underline underline-offset-2 hover:text-white">
+            Upgrade to Elite
+          </Link>{" "}
+          for real-time, high-density signals.
+        </div>
+      ) : null}
       <SignalFilters value={filters} onChange={setFilters} disabled={loading} />
 
       <div className="flex items-center justify-between text-[11px] text-slate-500">

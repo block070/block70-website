@@ -12,9 +12,15 @@ export type UsageSummaryResponse = {
     api_calls: number;
     signals_used: number;
     ai_queries: number;
+    ai_queries_24h?: number;
   };
   limits_display: {
     ai: {
+      limit: number | null;
+      remaining: number | null;
+      unlimited: boolean;
+    };
+    ai_daily?: {
       limit: number | null;
       remaining: number | null;
       unlimited: boolean;
@@ -45,7 +51,7 @@ export type UsageSummaryResponse = {
     note: string;
   };
   actions: {
-    upgrade_plan: "pro" | "elite" | null;
+    upgrade_plan: "pro" | "elite" | "quant" | null;
     pricing_path: string;
     portal_return_path: string;
   };

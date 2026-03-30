@@ -114,6 +114,9 @@ MIGRATIONS = [
     # api_usage: HTTP status per hit for error analytics
     "ALTER TABLE api_usage ADD COLUMN IF NOT EXISTS http_status INTEGER",
     "CREATE INDEX IF NOT EXISTS ix_api_usage_http_status ON api_usage (http_status)",
+    # users: subscription denorm + trials (Block70 monetization tiers)
+    "ALTER TABLE users ADD COLUMN IF NOT EXISTS trial_end TIMESTAMP WITH TIME ZONE",
+    "ALTER TABLE users ADD COLUMN IF NOT EXISTS subscription_status VARCHAR(32)",
 ]
 
 

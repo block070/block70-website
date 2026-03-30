@@ -1,5 +1,5 @@
-import { WhaleDirectoryTable } from "@/components/smartwallets/whale-directory-table";
 import { loadWhaleDirectory } from "@/lib/smartwallets-server";
+import { WhaleDirectoryGate } from "./directory-gate";
 
 export const metadata = {
   title: "Whale intelligence · Block70",
@@ -25,7 +25,7 @@ export default async function SmartwalletsHubPage() {
           implying endorsement of any address.
         </p>
       </header>
-      <WhaleDirectoryTable rows={rows} />
+      <WhaleDirectoryGate rows={rows} />
     </div>
   );
 }

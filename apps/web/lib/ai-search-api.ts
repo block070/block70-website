@@ -110,6 +110,13 @@ export async function postAISearch(
     if (res.status === 401 || detail === "Not authenticated") {
       throw new Error("Please log in and try again.");
     }
+    if (res.status === 429) {
+      throw new Error(
+        typeof detail === "string"
+          ? detail
+          : "Daily AI query limit reached. Upgrade for more.",
+      );
+    }
     throw new Error(detail || "AI search failed");
   }
   return res.json();

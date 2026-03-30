@@ -13,6 +13,7 @@ from app.models import AISearchQuery, ApiKey, ApiUsage, Subscription, UsageMetri
 from app.services.api.rate_limit_engine import RATE_LIMITS, UNLIMITED, get_usage_today
 from app.services.rate_limit.rate_limiter import PLAN_LIMITS
 from app.services.usage.plan_display import (
+    AI_DAILY_LIMITS,
     AI_MONTHLY_LIMITS,
     ESTIMATED_MONTHLY_USD,
     SIGNALS_MONTHLY_LIMITS,
@@ -63,6 +64,8 @@ def _upgrade_target(plan_type: str) -> str | None:
         return "pro"
     if plan_type == "pro":
         return "elite"
+    if plan_type == "elite":
+        return "quant"
     return None
 
 
@@ -168,6 +171,7 @@ def get_usage_summary(
             )
 
     ai_limit = AI_MONTHLY_LIMITS.get(plan_type, AI_MONTHLY_LIMITS["free"])
+    ai_daily_limit = AI_DAILY_LIMITS.get(plan_type, AI_DAILY_LIMITS["free"])
     signals_limit = SIGNALS_MONTHLY_LIMITS.get(
         plan_type,
         SIGNALS_MONTHLY_LIMITS["free"],
@@ -191,9 +195,11 @@ def get_usage_summary(
             "api_calls": api_calls,
             "signals_used": signals_used,
             "ai_queries": ai_queries,
+            "ai_queries_24h": ai_queries_24h,
         },
         "limits_display": {
             "ai": _monthly_remaining_display(ai_queries, ai_limit),
+            "ai_daily": _monthly_remaining_display(ai_queries_24h, ai_daily_limit),
             "signals": _monthly_remaining_display(signals_used, signals_limit),
         },
         "quotas": {

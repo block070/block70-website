@@ -25,6 +25,7 @@ class PlanType(str, enum.Enum):
     FREE = "free"
     PRO = "pro"
     ELITE = "elite"
+    QUANT = "quant"
 
 
 class User(Base):
@@ -64,6 +65,16 @@ class User(Base):
         nullable=True,
     )
 
+    trial_end: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+    )
+    subscription_status: Mapped[Optional[str]] = mapped_column(
+        String(32),
+        nullable=True,
+        index=True,
+    )
+
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         server_default=func.now(),
@@ -96,12 +107,18 @@ class User(Base):
 
     @property
     def plan(self) -> str:
-        # Backward-compatible canonical plan: admin > pro > free
+        """JWT/frontend-facing tier: admin, or exact plan_type (free/pro/elite/quant)."""
         if self.role == UserRole.ADMIN.value:
             return "admin"
-        if self.plan_type in (PlanType.PRO.value, PlanType.ELITE.value):
-            return "pro"
-        return "free"
+        pt = (self.plan_type or PlanType.FREE.value).lower().strip()
+        if pt in (
+            PlanType.PRO.value,
+            PlanType.ELITE.value,
+            PlanType.QUANT.value,
+            PlanType.FREE.value,
+        ):
+            return pt
+        return PlanType.FREE.value
 
     @plan.setter
     def plan(self, value: str) -> None:
@@ -109,6 +126,12 @@ class User(Base):
         if normalized == "admin":
             self.role = UserRole.ADMIN.value
             self.plan_type = PlanType.PRO.value
+            return
+        if normalized == "quant":
+            self.plan_type = PlanType.QUANT.value
+            return
+        if normalized == "elite":
+            self.plan_type = PlanType.ELITE.value
             return
         if normalized == "pro":
             self.plan_type = PlanType.PRO.value

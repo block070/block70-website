@@ -8,11 +8,11 @@ import { SubscriptionStatus } from "@/components/account/subscription-status";
 
 type User = {
   email: string;
-  plan_type: "free" | "pro" | "elite";
+  plan_type: "free" | "pro" | "elite" | "quant";
 };
 
 type Subscription = {
-  plan_type: "free" | "pro" | "elite";
+  plan_type: "free" | "pro" | "elite" | "quant";
   status: string;
   current_period_end?: string | null;
 };

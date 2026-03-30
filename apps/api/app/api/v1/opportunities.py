@@ -3,17 +3,25 @@ from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
+from app.core.auth_middleware import get_current_user_optional
+from app.core.plan_access import has_feature
 from app.db import get_db
-from app.models import Opportunity, OpportunityStatus
-from app.schemas.opportunity_db import OpportunityRead
+from app.models import Opportunity, OpportunityStatus, User
+from app.services.access.opportunity_serialization import serialize_opportunity
+from app.services.auth.plan_access import resolve_effective_plan
 
 
 router = APIRouter(prefix="/api/v1/opportunities", tags=["opportunities"])
 
 
+def _opp_full_access(db: Session, user: User | None) -> bool:
+    return has_feature(resolve_effective_plan(db, user), "opportunities_full")
+
+
 @router.get("/top")
 def get_top_opportunities(
     db: Session = Depends(get_db),
+    current_user: User | None = Depends(get_current_user_optional),
     limit: int = Query(default=20, ge=1, le=100),
     min_alpha: float = Query(default=0.0, ge=0.0, le=1.0),
     min_confidence: float = Query(default=0.0, ge=0.0, le=1.0),
@@ -26,32 +34,40 @@ def get_top_opportunities(
     - opportunity_type -> type
     - token_symbol -> asset_symbol
     """
+    eff_limit = limit if _opp_full_access(db, current_user) else min(limit, 12)
     q = (
         db.query(Opportunity)
         .filter(Opportunity.status == OpportunityStatus.ACTIVE.value)
         .filter(Opportunity.total_score >= min_alpha)
         .filter(Opportunity.confidence_score >= min_confidence)
         .order_by(Opportunity.total_score.desc(), Opportunity.confidence_score.desc())
-        .limit(limit)
+        .limit(eff_limit)
     )
     rows = list(q.all())
-    return [
-        {
+    full = _opp_full_access(db, current_user)
+    out: List[dict] = []
+    for o in rows:
+        base = {
             "id": o.id,
             "token_symbol": o.asset_symbol,
             "opportunity_type": o.type,
             "alpha_score": o.total_score,
             "confidence_score": o.confidence_score,
-            "created_at": o.detected_at.isoformat() if o.detected_at else (o.created_at.isoformat() if getattr(o, "created_at", None) else None),
+            "created_at": o.detected_at.isoformat()
+            if o.detected_at
+            else (
+                o.created_at.isoformat()
+                if getattr(o, "created_at", None)
+                else None
+            ),
         }
-        for o in rows
-    ]
+        if full:
+            base["summary"] = o.summary
+        out.append(base)
+    return out
 
 
-@router.get(
-    "",
-    response_model=List[OpportunityRead],
-)
+@router.get("")
 def list_opportunities(
     type: Optional[str] = Query(
         default=None,
@@ -103,30 +119,12 @@ def list_opportunities(
         description="Filter by difficulty_level (e.g. easy, medium, hard).",
     ),
     db: Session = Depends(get_db),
-) -> List[Opportunity]:
-    """
-    List opportunities with advanced filtering.
-
-    Supported filters include:
-    - minimum_roi          -> estimated_roi_percent >= minimum_roi
-    - minimum_score        -> total_score >= minimum_score
-    - chain                -> exact match on chain
-    - opportunity_type     -> exact match on type
-    - confidence_score     -> minimum confidence_score
-    - liquidity_score      -> minimum liquidity_score
-    - risk_level           -> exact match on risk_level
-    - difficulty_level     -> exact match on difficulty_level
-
-    `type` and `min_score` are kept for backwards compatibility but are
-    considered deprecated in favor of `opportunity_type` and `minimum_score`.
-
-    Results are sorted by total_score descending.
-    """
+    current_user: User | None = Depends(get_current_user_optional),
+) -> List[dict]:
     query = db.query(Opportunity).filter(
         Opportunity.status == OpportunityStatus.ACTIVE.value,
     )
 
-    # Backward-compatible aliases
     effective_type = opportunity_type or type
     effective_min_score = minimum_score if minimum_score is not None else min_score
 
@@ -150,37 +148,35 @@ def list_opportunities(
     if difficulty_level:
         query = query.filter(Opportunity.difficulty_level == difficulty_level)
 
-    return query.order_by(Opportunity.total_score.desc()).all()
+    cap = 500 if _opp_full_access(db, current_user) else 40
+    rows = query.order_by(Opportunity.total_score.desc()).limit(cap).all()
+    full = _opp_full_access(db, current_user)
+    return [serialize_opportunity(o, full=full) for o in rows]
 
 
-@router.get("/{id}", response_model=OpportunityRead)
-def get_opportunity(
-    id: int,
-    db: Session = Depends(get_db),
-) -> Opportunity:
-    """
-    Retrieve a single opportunity by ID.
-    """
-    opportunity = db.get(Opportunity, id)
-    if opportunity is None:
-        raise HTTPException(status_code=404, detail="Opportunity not found")
-    return opportunity
-
-
-@router.get("/slug/{slug}", response_model=OpportunityRead)
+@router.get("/slug/{slug}")
 def get_opportunity_by_slug(
     slug: str,
     db: Session = Depends(get_db),
-) -> Opportunity:
-    """
-    Retrieve a single opportunity by slug.
-    """
+    current_user: User | None = Depends(get_current_user_optional),
+) -> dict:
     opportunity = (
-        db.query(Opportunity)
-        .filter(Opportunity.slug == slug)
-        .first()
+        db.query(Opportunity).filter(Opportunity.slug == slug).first()
     )
     if opportunity is None:
         raise HTTPException(status_code=404, detail="Opportunity not found")
-    return opportunity
+    full = _opp_full_access(db, current_user)
+    return serialize_opportunity(opportunity, full=full)
 
+
+@router.get("/{id}")
+def get_opportunity(
+    id: int,
+    db: Session = Depends(get_db),
+    current_user: User | None = Depends(get_current_user_optional),
+) -> dict:
+    opportunity = db.get(Opportunity, id)
+    if opportunity is None:
+        raise HTTPException(status_code=404, detail="Opportunity not found")
+    full = _opp_full_access(db, current_user)
+    return serialize_opportunity(opportunity, full=full)

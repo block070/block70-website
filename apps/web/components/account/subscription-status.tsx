@@ -1,5 +1,5 @@
 type Props = {
-  planType: "free" | "pro" | "elite";
+  planType: "free" | "pro" | "elite" | "quant";
   status: string;
   nextBillingDate?: string | null;
 };

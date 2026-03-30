@@ -24,7 +24,7 @@ export default function StorePage() {
       .catch(() => setPlanType(null));
   }, []);
 
-  async function handleUpgrade(plan: "pro" | "elite") {
+  async function handleUpgrade(plan: "pro" | "elite" | "quant") {
     if (!getToken()) {
       router.push("/register");
       return;
@@ -64,7 +64,7 @@ export default function StorePage() {
         <h2 id="bundles-heading" className="mb-6 text-lg font-semibold text-[var(--b70-text)]">
           Bundles
         </h2>
-        <div className="grid gap-6 md:grid-cols-3">
+        <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-4">
           <PlanCard
             name="Starter"
             badge="Free"
@@ -73,8 +73,8 @@ export default function StorePage() {
             features={[
               "Basic coin and market data",
               "Limited / delayed Block70 score on select surfaces",
-              "AI search (rate-limited)",
-              "No price or score alerts",
+              "AI: 5 questions / day",
+              "Shallow signals & opportunities lists",
             ]}
             ctaLabel="Get started"
             onClick={() => router.push("/register")}
@@ -82,13 +82,13 @@ export default function StorePage() {
           <PlanCard
             name="Pro"
             badge="Most popular"
-            price="$19/mo"
+            price="$29/mo"
             description="Act on real-time scoring, full chart stack, and actionable alerts."
             features={[
-              "Real-time Block70 score + Buy / Sell / Hold labels",
+              "Near-real-time Block70 scoring",
               "Full charts (RSI, MACD, SMAs, volume & momentum)",
               "Trending and category insights",
-              "Alerts: score crosses, volume & momentum spikes (email + Telegram)",
+              "AI: 50 questions / day",
             ]}
             highlighted
             ctaLabel={loadingPlan === "pro" ? "Redirecting…" : "Upgrade to Pro"}
@@ -98,17 +98,32 @@ export default function StorePage() {
           <PlanCard
             name="Elite"
             badge="Desk"
-            price="$49/mo"
+            price="$99/mo"
             description="Everything in Pro with whale-style signals, sharper feeds, and custom routing."
             features={[
               "Everything in Pro",
-              "Whale-tracking style signals (where data allows)",
-              "Early trend and top-opportunity style feeds",
-              "Custom alert routing and higher-frequency checks",
+              "Full opportunities & smart-wallet depth",
+              "High-density real-time signals",
+              "Unlimited AI (fair use)",
             ]}
             ctaLabel={loadingPlan === "elite" ? "Redirecting…" : "Upgrade to Elite"}
             disabled={loadingPlan !== null}
             onClick={() => handleUpgrade("elite")}
+          />
+          <PlanCard
+            name="Quant"
+            badge="API"
+            price="$299/mo"
+            description="Everything in Elite plus REST API keys and automation-grade limits."
+            features={[
+              "Everything in Elite",
+              "Developer API keys & analytics",
+              "Highest daily API limits",
+              "Built for systematic workflows",
+            ]}
+            ctaLabel={loadingPlan === "quant" ? "Redirecting…" : "Upgrade to Quant"}
+            disabled={loadingPlan !== null}
+            onClick={() => handleUpgrade("quant")}
           />
         </div>
         <p className="mt-4 text-center text-xs text-[var(--b70-text-muted)] md:text-left">

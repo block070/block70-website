@@ -17,12 +17,14 @@ import {
 } from "@/lib/developers-api";
 import { Card, CardHeader } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { PaywallSection } from "@/components/paywall/paywall-section";
 
 const PLAN_LABELS: Record<string, string> = {
   free: "Free — 100 req/day",
   developer: "Developer — 1,000/day",
   pro: "Pro — 10,000/day",
   elite: "Elite — 50,000/day",
+  quant: "Quant — unlimited (API access)",
   enterprise: "Enterprise — unlimited",
 };
 
@@ -72,7 +74,6 @@ export default function DevelopersPage() {
   const [error, setError] = useState<string | null>(null);
 
   const [createLabel, setCreateLabel] = useState("");
-  const [createPlan, setCreatePlan] = useState("free");
   const [createScopes, setCreateScopes] = useState<ApiKeyScopes>({ ...DEFAULT_NEW_SCOPES });
   const [createIps, setCreateIps] = useState("");
 
@@ -141,7 +142,7 @@ export default function DevelopersPage() {
         .map((s) => s.trim())
         .filter(Boolean);
       const res = await createApiKey({
-        plan_type: createPlan,
+        plan_type: "quant",
         label: createLabel.trim() || null,
         scopes: { ...createScopes },
         ip_allowlist: lines.length ? lines : null,
@@ -262,10 +263,15 @@ export default function DevelopersPage() {
         </Card>
       )}
 
+      <PaywallSection
+        feature="api_access"
+        title="Developer API keys"
+        subtitle="Create and manage REST API keys on the Quant plan. Unlock programmatic market, signals, and wallet data."
+      >
       <Card>
         <CardHeader
           title="Create a key"
-          subtitle={PLAN_LABELS[createPlan] ?? ""}
+          subtitle={PLAN_LABELS.quant}
         />
         <div className="space-y-4 p-4">
           <div className="grid gap-3 sm:grid-cols-2">
@@ -279,18 +285,10 @@ export default function DevelopersPage() {
               />
             </div>
             <div>
-              <label className="mb-1 block text-xs font-medium text-slate-400">Plan</label>
-              <select
-                className="w-full rounded-md border border-[var(--b70-border)] bg-slate-950 px-3 py-2 text-sm text-slate-100"
-                value={createPlan}
-                onChange={(e) => setCreatePlan(e.target.value)}
-              >
-                {Object.keys(PLAN_LABELS).map((p) => (
-                  <option key={p} value={p}>
-                    {PLAN_LABELS[p]}
-                  </option>
-                ))}
-              </select>
+              <label className="mb-1 block text-xs font-medium text-slate-400">Rate tier</label>
+              <p className="rounded-md border border-[var(--b70-border)] bg-slate-950/80 px-3 py-2 text-sm text-slate-300">
+                {PLAN_LABELS.quant}
+              </p>
             </div>
           </div>
 
@@ -356,6 +354,7 @@ export default function DevelopersPage() {
           )}
         </div>
       </Card>
+      </PaywallSection>
 
       <Card>
         <CardHeader title="Active keys" subtitle="Prefix, usage today, and restrictions" />

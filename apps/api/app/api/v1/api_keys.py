@@ -14,6 +14,7 @@ from sqlalchemy.orm import Session
 from app.core.auth_middleware import get_current_user
 from app.db import get_db
 from app.models import ApiKey, ApiUsage, User
+from app.services.auth.plan_access import require_feature
 from app.services.api.api_key_generator import generate_api_key
 from app.services.api.api_key_policies import DEFAULT_SCOPES
 from app.services.api.rate_limit_engine import RATE_LIMITS, get_usage_today
@@ -76,7 +77,7 @@ def _key_to_dict(db: Session, k: ApiKey) -> dict:
 
 @router.post("/create")
 def create_key(
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_feature("api_access")),
     db: Session = Depends(get_db),
     body: ApiKeyCreateBody | None = Body(default=None),
     plan_type: str | None = Query(None, description="Deprecated: use JSON body"),
@@ -85,7 +86,8 @@ def create_key(
     Create a new API key. Returns the raw key once; store it securely.
     """
     payload = body or ApiKeyCreateBody()
-    pt = plan_type or payload.plan_type
+    _ = plan_type or payload.plan_type  # legacy; Quant tier uses quant rate bucket
+    pt = "quant"
     rate_limit = RATE_LIMITS.get(pt, 100)
     scopes_dict = _scopes_to_json(payload.scopes)
     api_key, raw_key = generate_api_key(

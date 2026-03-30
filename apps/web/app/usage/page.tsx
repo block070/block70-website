@@ -207,7 +207,14 @@ export default function UsagePage() {
             subtitle="Monthly display caps; enforcement may differ by endpoint."
           />
           <div className="space-y-3 p-4">
-            <LimitRow label="AI queries" used={data.metrics.ai_queries} lim={data.limits_display.ai} />
+            <LimitRow label="AI queries (billing period)" used={data.metrics.ai_queries} lim={data.limits_display.ai} />
+            {data.limits_display.ai_daily ? (
+              <LimitRow
+                label="AI queries (last 24h)"
+                used={data.metrics.ai_queries_24h ?? 0}
+                lim={data.limits_display.ai_daily}
+              />
+            ) : null}
             <LimitRow
               label="Signals (period)"
               used={data.metrics.signals_used}
@@ -311,7 +318,9 @@ export default function UsagePage() {
                     ? "Redirecting…"
                     : upgrade === "pro"
                       ? "Upgrade to Pro"
-                      : "Upgrade to Elite"}
+                      : upgrade === "elite"
+                        ? "Upgrade to Elite"
+                        : "Upgrade to Quant"}
                 </Button>
               ) : null}
               <Button

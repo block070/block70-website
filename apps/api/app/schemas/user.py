@@ -7,8 +7,8 @@ from pydantic import BaseModel, ConfigDict, EmailStr
 
 
 RoleLiteral = Literal["admin", "user"]
-PlanTypeLiteral = Literal["free", "pro", "elite"]
-PlanLiteral = Literal["free", "pro", "admin"]
+PlanTypeLiteral = Literal["free", "pro", "elite", "quant"]
+PlanLiteral = Literal["free", "pro", "elite", "quant", "admin"]
 
 
 class UserBase(BaseModel):

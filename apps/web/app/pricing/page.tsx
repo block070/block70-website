@@ -11,7 +11,7 @@ export default function PricingPage() {
   const router = useRouter();
   const [loadingPlan, setLoadingPlan] = useState<string | null>(null);
 
-  async function handleUpgrade(plan: "pro" | "elite") {
+  async function handleUpgrade(plan: "pro" | "elite" | "quant") {
     if (!getToken()) {
       router.push("/register");
       return;
@@ -26,13 +26,13 @@ export default function PricingPage() {
   }
 
   return (
-    <div className="mx-auto max-w-4xl py-16">
+    <div className="mx-auto max-w-6xl py-16">
       <h1 className="mb-4 text-3xl font-semibold tracking-tight">Pricing</h1>
       <p className="mb-10 text-sm text-slate-400">
-        Free for discovery and SEO; Pro and Elite add real-time Block70 scoring, full chart
-        indicators, and actionable alerts when the market moves.
+        Free for discovery; Pro, Elite, and Quant add real-time data, full AI quotas,
+        deeper signals, and programmatic API access on Quant.
       </p>
-      <div className="grid gap-6 md:grid-cols-3">
+      <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-4">
         <PlanCard
           name="Free"
           badge="Traffic engine"
@@ -41,22 +41,22 @@ export default function PricingPage() {
           features={[
             "Basic coin and market data",
             "Limited / delayed Block70 score on select surfaces",
-            "AI search (rate-limited)",
-            "No price or score alerts",
+            "AI search: 5 questions / day",
+            "Delayed signals & shallow opportunity lists",
           ]}
           ctaLabel="Get started"
           onClick={() => router.push("/register")}
         />
         <PlanCard
           name="Pro"
-          badge="Main revenue tier"
-          price="$19/mo"
+          badge="Growth"
+          price="$29/mo"
           description="For operators who act on signals, not just headlines."
           features={[
-            "Real-time Block70 score + Buy / Sell / Hold labels",
-            "Full charts with RSI, MACD, SMAs, volume trend & momentum readouts",
-            "Trending and category insights",
-            "Alerts: score crosses 80 (Strong Buy) or below 40 (Sell), volume spike, momentum spike (email + Telegram where configured)",
+            "Near-real-time feeds & richer opportunities",
+            "Charts and category insights",
+            "AI search: 50 questions / day",
+            "Alert-ready scoring surfaces",
           ]}
           highlighted
           ctaLabel={loadingPlan === "pro" ? "Redirecting..." : "Upgrade to Pro"}
@@ -65,19 +65,33 @@ export default function PricingPage() {
         />
         <PlanCard
           name="Elite"
-          badge="Desk tier"
-          price="$49/mo"
-          description="Everything in Pro plus deeper edge and customization."
+          badge="Desk"
+          price="$99/mo"
+          description="Deeper edge, whale-style context, and full opportunity intel."
           features={[
             "Everything in Pro",
-            "Whale-tracking style signals (where data is available)",
-            "Early trend detection helpers and “top opportunities” style feeds",
-            "Portfolio tracking hooks",
-            "Custom alert routing and higher-frequency checks (per environment)",
+            "Full opportunities & smart-wallet directory depth",
+            "Real-time, high-density signals",
+            "Unlimited AI (fair use)",
           ]}
           ctaLabel={loadingPlan === "elite" ? "Redirecting..." : "Upgrade to Elite"}
           disabled={loadingPlan !== null}
           onClick={() => handleUpgrade("elite")}
+        />
+        <PlanCard
+          name="Quant"
+          badge="API & automation"
+          price="$299/mo"
+          description="Institutional-style access: REST API keys and highest limits."
+          features={[
+            "Everything in Elite",
+            "Developer API keys & usage dashboard",
+            "Highest rate limits for automation",
+            "Priority for data-heavy workflows",
+          ]}
+          ctaLabel={loadingPlan === "quant" ? "Redirecting..." : "Upgrade to Quant"}
+          disabled={loadingPlan !== null}
+          onClick={() => handleUpgrade("quant")}
         />
       </div>
     </div>

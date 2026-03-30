@@ -3,13 +3,13 @@ import { getToken } from "./auth";
 
 type Subscription = {
   id?: number;
-  plan_type: "free" | "pro" | "elite";
+  plan_type: "free" | "pro" | "elite" | "quant";
   status: string;
   current_period_start?: string | null;
   current_period_end?: string | null;
 };
 
-export async function createCheckoutSession(planType: "pro" | "elite") {
+export async function createCheckoutSession(planType: "pro" | "elite" | "quant") {
   const token = getToken();
   if (!token) {
     throw new Error("Not authenticated");
