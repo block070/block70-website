@@ -1,8 +1,9 @@
 import { IntelligenceDashboard } from "@/components/home/intelligence-dashboard";
 
 export const metadata = {
-  title: "Command center · Block70",
-  description: "Real-time crypto intelligence — market pulse, narratives, smart money, signals, and news.",
+  title: "Trading terminal · Block70",
+  description:
+    "Block70 Score, live signals, narratives, smart-money flow, and market snapshot — one intelligence surface for opportunity discovery.",
 };
 
 export default function HomePage() {
