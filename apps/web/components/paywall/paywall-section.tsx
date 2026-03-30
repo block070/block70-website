@@ -4,7 +4,11 @@ import { useEffect, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { Lock } from "lucide-react";
 import { getCurrentUser } from "@/lib/auth";
-import { hasFeature, hasPlanAccess } from "@/lib/plan-tier";
+import {
+  effectivePlanForGating,
+  hasFeature,
+  hasPlanAccess,
+} from "@/lib/plan-tier";
 import { Button } from "@/components/ui/button";
 
 type FeatureKey =
@@ -35,7 +39,7 @@ export function PaywallSection({
     let cancelled = false;
     getCurrentUser()
       .then((u) => {
-        const tier = u.plan_type;
+        const tier = effectivePlanForGating(u.plan_type, u.trial_end);
         let ok = true;
         if (minPlan) ok = ok && hasPlanAccess(tier, minPlan);
         if (feature) ok = ok && hasFeature(tier, feature);

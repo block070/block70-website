@@ -16,8 +16,8 @@ from app.models import (
     PortfolioTokenBalance,
     TokenWatch,
     RadarEvent,
-    UserNotification,
 )
+from app.services.notifications.notification_engine import notify_user
 from app.services.ai.portfolio_analyzer import PortfolioAnalyzer, PortfolioAnalysisResult
 from app.services.ai.opportunity_analyzer import OpportunityAnalyzer, DetectedOpportunity
 from app.services.ai.narrative_copilot import NarrativeCopilot, NarrativeAlert
@@ -227,11 +227,6 @@ def _notify_copilot(
     title: str,
     summary: Optional[str] = None,
 ) -> None:
-    """Create a UserNotification for Copilot alert (high-confidence opportunity, risk, whale)."""
+    """Retention ping for high-value Copilot events (uses central notification engine)."""
     content = f"{title}. {summary or ''}"[:2000]
-    n = UserNotification(
-        user_id=user_id,
-        notification_type=f"copilot_{notification_type}",
-        content=content,
-    )
-    db.add(n)
+    notify_user(db, user_id, f"copilot_{notification_type}", content)

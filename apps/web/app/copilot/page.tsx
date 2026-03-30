@@ -17,6 +17,7 @@ import { CopilotDailyBriefing } from "@/components/copilot/copilot-daily-briefin
 import { CopilotTradeIdeaCard } from "@/components/copilot/copilot-trade-idea-card";
 import { CopilotPersonalizationPanel } from "@/components/copilot/copilot-personalization-panel";
 import { CopilotAlertsStrip } from "@/components/copilot/copilot-alerts-strip";
+import { PaywallSection } from "@/components/paywall/paywall-section";
 import { LayoutTemplate, MessageSquare, Newspaper, RefreshCw, Rss } from "lucide-react";
 
 function isWhaleInsight(i: CopilotInsightDto): boolean {
@@ -157,7 +158,12 @@ export default function CopilotPage() {
   }
 
   return (
-    <div className="mx-auto w-full max-w-6xl space-y-10 px-4 py-8">
+    <PaywallSection
+      feature="ai_full"
+      title="Unlock Copilot desk"
+      subtitle="Upgrade to Pro or higher for AI briefing, trade ideas, portfolio context, and alerts. Trial Elite access counts toward this unlock."
+    >
+      <div className="mx-auto w-full max-w-6xl space-y-10 px-4 py-8">
       <section className="flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-start sm:justify-between">
         <div>
           <div className="flex items-center gap-2 text-xs font-medium text-crypto-blue">
@@ -256,6 +262,7 @@ export default function CopilotPage() {
           <CopilotAlertsStrip narrativeAlerts={narrativeAlerts} whaleAlerts={whaleAlerts} />
         </>
       )}
-    </div>
+      </div>
+    </PaywallSection>
   );
 }

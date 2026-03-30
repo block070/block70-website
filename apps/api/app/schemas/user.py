@@ -28,6 +28,18 @@ class UserCreate(UserBase):
     accept_disclaimer: bool = False
 
 
+class LeadRegisterRequest(BaseModel):
+    """Passwordless lead capture: creates account with random password + emails set-password link."""
+
+    email: EmailStr
+    name: str | None = None
+    accept_terms: bool = False
+    accept_privacy: bool = False
+    accept_disclaimer: bool = False
+    ref_code: str | None = None
+    ref_source: str | None = None
+
+
 class LoginRequest(BaseModel):
     email: EmailStr
     password: str
@@ -54,4 +66,6 @@ class UserRead(BaseModel):
     is_active: bool
     created_at: datetime
     updated_at: datetime
+    trial_end: datetime | None = None
+    subscription_status: str | None = None
 

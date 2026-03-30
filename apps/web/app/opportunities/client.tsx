@@ -11,9 +11,12 @@ import {
   AdvancedFilters,
   type AdvancedFiltersValue,
 } from "@/components/opportunities/advanced-filters";
-import { getCurrentUser } from "@/lib/auth";
+import { getCurrentUser, getToken, registerLead } from "@/lib/auth";
+import { PaywallBlock } from "@/components/paywall/paywall-block";
 import { PaywallSection } from "@/components/paywall/paywall-section";
-import { hasPlanAccess } from "@/lib/plan-tier";
+import { setFunnelStep } from "@/lib/onboarding-funnel";
+import { PAYWALL_COPY } from "@/lib/paywall-copy";
+import { effectivePlanForGating, hasFeature, hasPlanAccess } from "@/lib/plan-tier";
 import {
   confidencePercent,
   matchesShortHorizon,
@@ -28,8 +31,6 @@ type Props = {
 };
 
 const TYPES = ["arbitrage", "mining", "wallet", "airdrop", "node"];
-
-type PlanType = "free" | "pro" | "elite" | "quant";
 
 export function OpportunitiesListClient({
   initialOpportunities,
@@ -51,23 +52,30 @@ export function OpportunitiesListClient({
     riskLevel: "",
     difficulty: "",
   });
-  const [planType, setPlanType] = useState<PlanType>("free");
+  const [gatingPlan, setGatingPlan] = useState("free");
+  const [hasJwt, setHasJwt] = useState(false);
 
   const heroOpportunity = initialOpportunities[0] ?? null;
   const heroId = heroOpportunity?.id ?? null;
 
   useEffect(() => {
+    setHasJwt(!!getToken());
+  }, []);
+
+  useEffect(() => {
     let cancelled = false;
 
     async function loadPlan() {
+      if (!getToken()) {
+        if (!cancelled) setGatingPlan("free");
+        return;
+      }
       try {
         const u = await getCurrentUser();
-        const pt = (u.plan_type ?? "free").toLowerCase() as PlanType;
-        const next: PlanType =
-          pt === "quant" || pt === "elite" || pt === "pro" ? pt : "free";
-        if (!cancelled) setPlanType(next);
+        if (cancelled) return;
+        setGatingPlan(effectivePlanForGating(u.plan_type, u.trial_end));
       } catch {
-        if (!cancelled) setPlanType("free");
+        if (!cancelled) setGatingPlan("free");
       }
     }
 
@@ -76,7 +84,7 @@ export function OpportunitiesListClient({
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [hasJwt]);
 
   const filtered = useMemo(() => {
     return initialOpportunities.filter((op) => {
@@ -95,7 +103,7 @@ export function OpportunitiesListClient({
       if (presetLowRisk && normalizedRisk(op) !== "low") return false;
       if (presetShortHorizon && !matchesShortHorizon(op)) return false;
 
-      if (hasPlanAccess(planType, "elite")) {
+      if (hasPlanAccess(gatingPlan, "elite")) {
         const minRoi = parseFloat(advancedFilters.roi);
         if (!Number.isNaN(minRoi)) {
           const roi = op.estimated_roi_percent ?? 0;
@@ -140,7 +148,7 @@ export function OpportunitiesListClient({
     presetHighConfidence,
     presetLowRisk,
     presetShortHorizon,
-    planType,
+    gatingPlan,
     advancedFilters,
   ]);
 
@@ -170,6 +178,58 @@ export function OpportunitiesListClient({
       >
         <OpportunitiesPerformanceStrip />
       </PaywallSection>
+
+      {!backendError && !hasJwt ? (
+        <div className="mb-4">
+          <PaywallBlock
+            variant="soft"
+            score={
+              heroOpportunity
+                ? Math.round((heroOpportunity.total_score ?? 0) * 100)
+                : undefined
+            }
+            showEmailCapture
+            onEmailSubmit={async (email) => {
+              await registerLead({
+                email,
+                accept_terms: true,
+                accept_privacy: true,
+                accept_disclaimer: true,
+              });
+              setFunnelStep("partial_unlock");
+              setHasJwt(true);
+            }}
+          >
+            {heroOpportunity ? (
+              <p className="text-sm text-slate-400">
+                {heroOpportunity.title ?? "Featured opportunity"}
+              </p>
+            ) : null}
+          </PaywallBlock>
+        </div>
+      ) : null}
+
+      {!backendError &&
+      hasJwt &&
+      !hasFeature(gatingPlan, "opportunities_full") ? (
+        <div className="mb-4">
+          <PaywallBlock
+            variant="hard"
+            urgencyLabel="Elite access"
+            score={
+              heroOpportunity
+                ? Math.round((heroOpportunity.total_score ?? 0) * 100)
+                : undefined
+            }
+            subhead={PAYWALL_COPY.subUpgrade}
+            bullets={[
+              "Full Block70 Score breakdown",
+              "Live cohort and liquidity context",
+              "Execution-grade filters and analytics strip",
+            ]}
+          />
+        </div>
+      ) : null}
 
       <section className="rounded-xl border border-[var(--b70-border)] bg-[var(--b70-card)] p-4 shadow-sm">
         <p className="text-[10px] font-semibold uppercase tracking-wider text-[var(--b70-crypto-blue)]">
@@ -276,7 +336,7 @@ export function OpportunitiesListClient({
         ) : null}
       </section>
 
-      {hasPlanAccess(planType, "elite") && !backendError ? (
+      {hasPlanAccess(gatingPlan, "elite") && !backendError ? (
         <div className="mt-3">
           <AdvancedFilters
             value={advancedFilters}

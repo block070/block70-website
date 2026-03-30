@@ -4,6 +4,7 @@ Plan hierarchy, feature matrix, and effective subscription tier resolution.
 
 from __future__ import annotations
 
+from datetime import datetime, timezone
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -66,11 +67,17 @@ def has_feature(effective_plan: str, feature: str) -> bool:
 
 
 def effective_plan(user: User, subscription: Subscription | None) -> str:
-    """Authoritative tier for gating: subscription when active, else user.plan_type."""
+    """Authoritative tier: active subscription, else app-level Elite trial window, else user.plan_type."""
     if getattr(user, "role", None) == UserRole.ADMIN.value:
         return "admin"
     if subscription is not None:
         st = (subscription.status or "").lower()
         if st in _ACTIVE_SUB_STATUSES and subscription.plan_type:
             return normalize_plan(subscription.plan_type)
+    te = getattr(user, "trial_end", None)
+    if te is not None:
+        now = datetime.now(timezone.utc)
+        end = te if getattr(te, "tzinfo", None) else te.replace(tzinfo=timezone.utc)
+        if end > now:
+            return "elite"
     return normalize_plan(getattr(user, "plan_type", None))

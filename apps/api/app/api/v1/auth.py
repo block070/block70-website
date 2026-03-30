@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import secrets
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.exc import OperationalError, ProgrammingError
@@ -13,6 +14,7 @@ from app.db import get_db
 from app.models import User
 from app.schemas.user import (
     ForgotPasswordRequest,
+    LeadRegisterRequest,
     LoginRequest,
     ResetPasswordRequest,
     UserCreate,
@@ -23,6 +25,8 @@ from app.services.auth import (
     complete_password_reset,
     create_user,
     generate_access_token,
+    get_user_by_email_ci,
+    normalize_email,
     request_password_reset,
 )
 
@@ -51,6 +55,67 @@ def register(payload: UserCreate, db: Session = Depends(get_db)) -> User:
             status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)
         ) from exc
     return user
+
+
+@router.post("/register-lead")
+def register_lead(
+    payload: LeadRegisterRequest,
+    db: Session = Depends(get_db),
+) -> dict:
+    """
+    Email-only onboarding: create a free account with a random password, return JWT,
+    and email a password-set link (same as forgot-password flow).
+    If the email already exists, only the password-reset email is sent (no user enum).
+    """
+    if not (
+        payload.accept_terms
+        and payload.accept_privacy
+        and payload.accept_disclaimer
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="You must accept Terms of Service, Privacy Policy, and Risk Disclaimer",
+        )
+    canon = normalize_email(payload.email)
+    existing = get_user_by_email_ci(db, canon)
+    if existing:
+        request_password_reset(db, email=canon)
+        return {"detail": _FORGOT_PW_OK_MSG, "access_token": None, "user": None}
+
+    raw_password = secrets.token_urlsafe(32)
+    display_name = (payload.name or (canon.split("@")[0] or "trader")).strip()[:255]
+    try:
+        user = create_user(
+            db,
+            email=canon,
+            password=raw_password,
+            name=display_name or "Trader",
+            role="user",
+            plan_type="free",
+            referrer_code=payload.ref_code,
+            referrer_source=payload.ref_source,
+            accept_terms=True,
+            accept_privacy=True,
+            accept_disclaimer=True,
+        )
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(exc),
+        ) from exc
+
+    request_password_reset(db, email=canon)
+    access_token = generate_access_token(
+        user_id=user.id,
+        email=user.email,
+        plan_type=user.plan_type,
+    )
+    return {
+        "detail": "Account created. Check your email to set a password.",
+        "access_token": access_token,
+        "token_type": "bearer",
+        "user": UserRead.model_validate(user).model_dump(),
+    }
 
 
 @router.post("/login")

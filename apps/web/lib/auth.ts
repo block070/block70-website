@@ -27,6 +27,8 @@ type User = {
   is_active: boolean;
   created_at: string;
   updated_at: string;
+  trial_end?: string | null;
+  subscription_status?: string | null;
 };
 
 type LoginResponse = {
@@ -79,6 +81,58 @@ export async function login(params: {
 
   return getCurrentUser();
 }
+
+/** Passwordless lead: creates account, returns JWT; check email for password link. */
+export async function registerLead(params: {
+  email: string;
+  name?: string;
+  accept_terms?: boolean;
+  accept_privacy?: boolean;
+  accept_disclaimer?: boolean;
+  ref_code?: string | null;
+  ref_source?: string | null;
+}): Promise<{
+  access_token: string | null;
+  user?: User;
+  detail?: string;
+}> {
+  const res = await fetch(`/api/auth/register-lead`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      email: params.email.trim(),
+      name: params.name,
+      accept_terms: params.accept_terms ?? true,
+      accept_privacy: params.accept_privacy ?? true,
+      accept_disclaimer: params.accept_disclaimer ?? true,
+      ref_code: params.ref_code,
+      ref_source: params.ref_source,
+    }),
+  });
+  const data = (await res.json().catch(() => ({}))) as LeadRegisterResponse & {
+    detail?: unknown;
+  };
+  if (!res.ok) {
+    throw new Error(detailFromResponseBody(data) || "Could not create account");
+  }
+  const token =
+    typeof data.access_token === "string" ? data.access_token : null;
+  if (token) {
+    setToken(token);
+    setPlanCookie(data.user?.plan_type ?? data.user?.plan ?? "free");
+  }
+  return {
+    access_token: token,
+    user: data.user,
+    detail: typeof data.detail === "string" ? data.detail : undefined,
+  };
+}
+
+type LeadRegisterResponse = {
+  access_token?: string | null;
+  user?: User;
+  detail?: string;
+};
 
 export async function register(params: {
   email: string;

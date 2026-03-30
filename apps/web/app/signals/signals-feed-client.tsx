@@ -9,8 +9,14 @@ import {
 } from "@/lib/api";
 import type { SignalDto } from "@/lib/types";
 import { SignalCard } from "@/components/signals/signal-card";
-import { getCurrentUser } from "@/lib/auth";
-import { signalsFeedTier, type SignalsFeedTier } from "@/lib/plan-tier";
+import { getCurrentUser, getToken, registerLead } from "@/lib/auth";
+import { PaywallBlock } from "@/components/paywall/paywall-block";
+import { setFunnelStep } from "@/lib/onboarding-funnel";
+import {
+  effectivePlanForGating,
+  signalsFeedTier,
+  type SignalsFeedTier,
+} from "@/lib/plan-tier";
 import {
   SignalFilters,
   type SignalFiltersValue,
@@ -59,6 +65,11 @@ export function SignalsFeedClient({ initialSignals }: Props) {
   const [feedTier, setFeedTier] = useState<
     "loading" | SignalsFeedTier
   >("loading");
+  const [hasJwt, setHasJwt] = useState(false);
+
+  useEffect(() => {
+    setHasJwt(!!getToken());
+  }, []);
 
   const fetchSignals = useCallback(async () => {
     setLoading(true);
@@ -90,15 +101,40 @@ export function SignalsFeedClient({ initialSignals }: Props) {
   }, [polling, fetchSignals]);
 
   useEffect(() => {
+    if (!getToken()) {
+      setFeedTier("low");
+      return;
+    }
     getCurrentUser()
-      .then((u) => setFeedTier(signalsFeedTier(u.plan_type)))
+      .then((u) =>
+        setFeedTier(
+          signalsFeedTier(effectivePlanForGating(u.plan_type, u.trial_end)),
+        ),
+      )
       .catch(() => setFeedTier("low"));
-  }, []);
+  }, [hasJwt]);
 
   const filtered = applyFilters(signals, filters);
 
   return (
     <div className="space-y-4">
+      {!hasJwt ? (
+        <PaywallBlock
+          variant="soft"
+          subhead="Create a free account with email to align your feed tier and unlock deeper signal context."
+          showEmailCapture
+          onEmailSubmit={async (email) => {
+            await registerLead({
+              email,
+              accept_terms: true,
+              accept_privacy: true,
+              accept_disclaimer: true,
+            });
+            setFunnelStep("partial_unlock");
+            setHasJwt(true);
+          }}
+        />
+      ) : null}
       {feedTier === "low" ? (
         <div className="rounded-lg border border-amber-500/35 bg-amber-500/10 px-4 py-3 text-sm text-amber-100">
           <span className="font-medium text-amber-50">Feed tier: low.</span>{" "}

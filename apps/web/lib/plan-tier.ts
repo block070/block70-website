@@ -15,6 +15,20 @@ export function normalizePlan(plan: string | undefined | null): string {
   return "free";
 }
 
+/** Mirrors backend `effective_plan` trial window for client-side paywalls. */
+export function effectivePlanForGating(
+  planType: string | undefined | null,
+  trialEndIso: string | null | undefined,
+): string {
+  const base = normalizePlan(planType);
+  if (base === "admin") return "admin";
+  if (trialEndIso) {
+    const t = Date.parse(trialEndIso);
+    if (!Number.isNaN(t) && t > Date.now()) return "elite";
+  }
+  return base;
+}
+
 export function hasPlanAccess(
   userPlan: string | undefined | null,
   minPlan: string,

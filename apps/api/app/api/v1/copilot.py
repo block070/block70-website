@@ -5,11 +5,10 @@ from typing import Any, List
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
-from app.core.auth_middleware import get_current_user
 from app.db import get_db
 from app.models import User, AICopilotInsight
-from app.schemas.copilot import CopilotInsightRead, PortfolioInsightSection, OpportunityItem
 from app.services.ai.copilot_engine import CopilotEngine
+from app.services.auth.plan_access import require_feature
 
 
 router = APIRouter(prefix="/api/v1/copilot", tags=["copilot"])
@@ -31,7 +30,7 @@ def _insight_to_read(i: AICopilotInsight) -> dict[str, Any]:
 
 @router.get("/insights", response_model=List[dict])
 def get_insights(
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_feature("ai_full")),
     db: Session = Depends(get_db),
     insight_type: str | None = Query(default=None),
     limit: int = Query(default=50, ge=1, le=100),
@@ -90,7 +89,7 @@ def get_portfolio(
 
 @router.get("/opportunities", response_model=List[dict])
 def get_opportunities(
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_feature("ai_full")),
     db: Session = Depends(get_db),
     limit: int = Query(default=20, ge=1, le=50),
     min_confidence: float = Query(default=0.3, ge=0.0, le=1.0),
@@ -115,7 +114,7 @@ def get_opportunities(
 
 @router.post("/insights/generate", response_model=List[dict])
 def generate_insights(
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_feature("ai_full")),
     db: Session = Depends(get_db),
     max_insights: int = Query(default=25, ge=1, le=50),
     min_confidence: float = Query(default=0.35, ge=0.0, le=1.0),

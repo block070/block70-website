@@ -94,6 +94,17 @@ def create_checkout_session(
 
     price_id = _get_price_for_plan(pt)
 
+    subscription_data: dict = {
+        "metadata": {"user_id": str(user.id), "plan_type": pt},
+    }
+    if pt == "elite":
+        try:
+            trial_days = int(os.getenv("STRIPE_ELITE_TRIAL_DAYS", "7"))
+        except ValueError:
+            trial_days = 7
+        if trial_days > 0:
+            subscription_data["trial_period_days"] = trial_days
+
     session = stripe.checkout.Session.create(
         mode="subscription",
         customer_email=user.email,
@@ -105,9 +116,7 @@ def create_checkout_session(
         ],
         success_url=success_url,
         cancel_url=cancel_url,
-        subscription_data=(
-            {"metadata": {"user_id": str(user.id), "plan_type": pt}}
-        ),
+        subscription_data=subscription_data,
         metadata={
             "user_id": str(user.id),
             "plan_type": pt,

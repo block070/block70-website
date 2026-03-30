@@ -7,6 +7,7 @@ import { ServiceHealthBanner } from "./service-health-banner";
 import { Sidebar } from "./sidebar";
 import { LegalFooter } from "@/components/legal/legal-footer";
 import { CookieConsentBanner } from "@/components/legal/cookie-consent-banner";
+import { StickyUpgradePill } from "@/components/paywall/sticky-upgrade-pill";
 import { isDemoMode } from "@/lib/demo";
 
 type AppLayoutProps = {
@@ -61,6 +62,7 @@ export function AppLayout({ children, rightPanel }: AppLayoutProps) {
 
       <LegalFooter />
       <CookieConsentBanner />
+      <StickyUpgradePill />
     </div>
   );
 }
