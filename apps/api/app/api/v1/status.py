@@ -19,6 +19,9 @@ from app.services.scrapers.news_scraper import run_news_scraper
 
 router = APIRouter(prefix="/api/v1/status", tags=["status"])
 
+# Some production nginx configs proxy `/api/status` to the API (not Next.js). Mirror v1 routes here.
+status_public_router = APIRouter(prefix="/api/status", tags=["status-public"])
+
 
 @router.get("")
 def get_status() -> dict:
@@ -52,8 +55,7 @@ def get_status() -> dict:
     }
 
 
-@router.get("/platform")
-def get_platform_status(db: Session = Depends(get_db)) -> dict:
+def _platform_status_payload(db: Session) -> dict:
     """
     Public-facing component health for the status page: API/DB, signals pipeline, AI config.
     Does not expose secrets. Safe to poll from the marketing site.
@@ -128,6 +130,23 @@ def get_platform_status(db: Session = Depends(get_db)) -> dict:
             },
         },
     }
+
+
+@router.get("/platform")
+def get_platform_status(db: Session = Depends(get_db)) -> dict:
+    return _platform_status_payload(db)
+
+
+@status_public_router.get("/platform")
+def get_platform_status_public_path(db: Session = Depends(get_db)) -> dict:
+    """Alias for /api/v1/status/platform when `/api/status` is routed to this API."""
+    return _platform_status_payload(db)
+
+
+@status_public_router.get("")
+def get_status_public_path() -> dict:
+    """Alias for /api/v1/status when `/api/status` is routed to this API."""
+    return get_status()
 
 
 @router.post("/news/trigger")
