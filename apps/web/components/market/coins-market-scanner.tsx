@@ -29,6 +29,7 @@ import {
   type TraderSortMode,
 } from "@/lib/coins-scanner";
 import { getApiBaseUrl } from "@/lib/api";
+import { getToken } from "@/lib/auth";
 import type { SignalDto } from "@/lib/types";
 import { formatChangePct, formatCompactUsd, formatPrice } from "@/lib/format";
 
@@ -266,7 +267,10 @@ function ScannerSlideOut({
     const base = getApiBaseUrl().replace(/\/$/, "");
     const path = `/api/v1/signals/${encodeURIComponent(row.symbol)}?limit=20`;
     const url = base ? `${base}${path}` : path;
-    fetch(url, { signal: ac.signal })
+    const tok = getToken();
+    const headers: HeadersInit = { Accept: "application/json" };
+    if (tok) (headers as Record<string, string>).Authorization = `Bearer ${tok}`;
+    fetch(url, { signal: ac.signal, headers })
       .then((r) => (r.ok ? r.json() : Promise.reject()))
       .then((data: unknown) => {
         setSignals(Array.isArray(data) ? (data as SignalDto[]) : []);

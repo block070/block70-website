@@ -12,8 +12,14 @@ import type {
   TrendingSignalTokenDto,
   WalletLeaderboardEntry,
 } from "./types";
+import { getToken } from "./auth";
 import { fetchRssDirectFallback } from "./news/rss-direct-fallback";
 import { isPaidBlock70Plan } from "./plan-tier";
+
+function optionalAuthHeaders(): Record<string, string> {
+  const token = typeof window !== "undefined" ? getToken() : null;
+  return token ? { Authorization: `Bearer ${token}` } : {};
+}
 
 // Server (SSR): use API_SERVER_URL in Docker so the Next.js container can reach the API.
 // Client (browser): use NEXT_PUBLIC_API_BASE_URL.
@@ -1074,7 +1080,9 @@ export async function getSignals(params?: SignalsFilter): Promise<SignalDto[]> {
   if (params?.limit != null) search.set("limit", String(params.limit));
   if (params?.offset != null) search.set("offset", String(params.offset));
   const query = search.toString();
-  return fetchJson<SignalDto[]>(`/api/v1/signals${query ? `?${query}` : ""}`);
+  return fetchJson<SignalDto[]>(`/api/v1/signals${query ? `?${query}` : ""}`, {
+    headers: optionalAuthHeaders(),
+  });
 }
 
 export async function getSignalsLatest(params?: {
@@ -1087,7 +1095,9 @@ export async function getSignalsLatest(params?: {
   if (params?.chain) search.set("chain", params.chain);
   if (params?.signal_type) search.set("signal_type", params.signal_type);
   const query = search.toString();
-  return fetchJson<SignalDto[]>(`/api/v1/signals/latest${query ? `?${query}` : ""}`);
+  return fetchJson<SignalDto[]>(`/api/v1/signals/latest${query ? `?${query}` : ""}`, {
+    headers: optionalAuthHeaders(),
+  });
 }
 
 export async function getSignalsForToken(
@@ -1101,6 +1111,7 @@ export async function getSignalsForToken(
   const query = search.toString();
   return fetchJson<SignalDto[]>(
     `/api/v1/signals/${encodeURIComponent(token)}${query ? `?${query}` : ""}`,
+    { headers: optionalAuthHeaders() },
   );
 }
 
@@ -1114,6 +1125,7 @@ export async function getSignalsTrending(params?: {
   const query = search.toString();
   return fetchJson<TrendingSignalTokenDto[]>(
     `/api/v1/signals/trending${query ? `?${query}` : ""}`,
+    { headers: optionalAuthHeaders() },
   );
 }
 
@@ -1277,5 +1289,6 @@ export async function getSignalsLeaderboard(params?: {
   const query = search.toString();
   return fetchJson<TrendingSignalTokenDto[]>(
     `/api/v1/signals/leaderboard${query ? `?${query}` : ""}`,
+    { headers: optionalAuthHeaders() },
   );
 }

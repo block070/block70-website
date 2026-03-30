@@ -35,7 +35,7 @@ def create_checkout(
 
     scheme = request.url.scheme
     base_url = f"{scheme}://{origin}"
-    success_url = f"{base_url}/account"
+    success_url = f"{base_url}/usage"
     cancel_url = f"{base_url}/pricing"
 
     session = create_checkout_session(
@@ -65,7 +65,7 @@ def create_billing_portal(
 
     session = create_billing_portal_session(
         current_user,
-        return_url=f"{base_url}/account",
+        return_url=f"{base_url}/usage",
     )
     return {"portal_url": session.url}
 

@@ -23,9 +23,10 @@ from fastapi import APIRouter, Depends, HTTPException, Path, Query
 from fastapi.responses import Response
 from sqlalchemy.orm import Session
 
-from app.core.auth_middleware import get_current_user
+from app.core.auth_middleware import get_current_user, get_current_user_optional
 from app.db import get_db
 from app.models import Signal, SharedSignal, User
+from app.services.usage.metrics import record_usage_metric
 from app.schemas.signals import SignalRead
 from app.services.social.signal_card_generator import generate_signal_card
 from app.services.analysis.trending_signal_engine import (
@@ -35,6 +36,11 @@ from app.services.analysis.trending_signal_engine import (
 
 
 router = APIRouter(prefix="/api/v1/signals", tags=["signals"])
+
+
+def _maybe_record_signals_used(db: Session, user: User | None) -> None:
+    if user is not None:
+        record_usage_metric(db, user.id, "signals_used", 1)
 
 
 def _serialize_trending(t: TrendingSignalToken) -> dict:
@@ -80,6 +86,7 @@ def list_signals(
         default=None,
         description="free = delayed (15 min); pro/elite = real-time.",
     ),
+    current_user: User | None = Depends(get_current_user_optional),
 ) -> List[Signal]:
     """
     List signals with optional filters by chain, signal_type, and token.
@@ -98,7 +105,9 @@ def list_signals(
             (Signal.token_symbol == token) | (Signal.token_address == token)
         )
     q = q.order_by(Signal.created_at.desc()).offset(offset).limit(limit)
-    return list(q.all())
+    rows = list(q.all())
+    _maybe_record_signals_used(db, current_user)
+    return rows
 
 
 @router.get("/latest", response_model=List[SignalRead])
@@ -122,6 +131,7 @@ def list_latest_signals(
         default=None,
         description="free = delayed (15 min); pro/elite = real-time.",
     ),
+    current_user: User | None = Depends(get_current_user_optional),
 ) -> List[Signal]:
     """
     Return the most recent signals. For tier=free, only delayed (15+ min old).
@@ -135,7 +145,9 @@ def list_latest_signals(
         q = q.filter(Signal.chain == chain)
     if signal_type is not None:
         q = q.filter(Signal.signal_type == signal_type)
-    return list(q.limit(limit).all())
+    rows = list(q.limit(limit).all())
+    _maybe_record_signals_used(db, current_user)
+    return rows
 
 
 @router.get("/trending")
@@ -184,6 +196,7 @@ def list_signals_leaderboard(
         default="signal_strength",
         description="Sort by: signal_strength, signal_count, confidence_score.",
     ),
+    current_user: User | None = Depends(get_current_user_optional),
 ) -> List[dict]:
     """
     Rank tokens by signal strength, number of signals, or confidence score.
@@ -193,7 +206,9 @@ def list_signals_leaderboard(
     since = datetime.now(timezone.utc) - timedelta(hours=hours)
     engine = TrendingSignalEngine(lookback_hours=float(hours))
     results = engine.get_leaderboard(db, since=since, limit=limit, sort_by=sort_by or "signal_strength")
-    return [_serialize_trending(t) for t in results]
+    out = [_serialize_trending(t) for t in results]
+    _maybe_record_signals_used(db, current_user)
+    return out
 
 
 @router.get("/share-card/{signal_id}")
@@ -260,6 +275,7 @@ def get_signals_for_token(
         le=500,
         description="Maximum number of signals to return.",
     ),
+    current_user: User | None = Depends(get_current_user_optional),
 ) -> List[Signal]:
     """
     Return all signals for the given token (symbol or address).
@@ -272,4 +288,6 @@ def get_signals_for_token(
     if signal_type is not None:
         q = q.filter(Signal.signal_type == signal_type)
     q = q.order_by(Signal.created_at.desc()).limit(limit)
-    return list(q.all())
+    rows = list(q.all())
+    _maybe_record_signals_used(db, current_user)
+    return rows

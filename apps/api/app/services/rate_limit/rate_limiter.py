@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 from app.core.auth_middleware import get_current_user
 from app.db import get_db
 from app.models import UsageMetric, User
+from app.services.usage.metrics import record_usage_metric
 
 
 PLAN_LIMITS = {
@@ -31,7 +32,7 @@ def rate_limit_dependency(
     limit = _get_limit_for_user(current_user)
     if limit is None:
         # Unlimited
-        _record_usage(db, current_user.id, "api_calls", 1)
+        record_usage_metric(db, current_user.id, "api_calls", 1)
         return
 
     now = datetime.now(timezone.utc)
@@ -55,20 +56,5 @@ def rate_limit_dependency(
             detail="Daily API limit exceeded for your plan",
         )
 
-    _record_usage(db, current_user.id, "api_calls", 1)
-
-
-def _record_usage(
-    db: Session,
-    user_id: int,
-    metric_type: str,
-    metric_value: int,
-) -> None:
-    metric = UsageMetric(
-        user_id=user_id,
-        metric_type=metric_type,
-        metric_value=metric_value,
-    )
-    db.add(metric)
-    db.commit()
+    record_usage_metric(db, current_user.id, "api_calls", 1)
 

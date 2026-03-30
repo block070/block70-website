@@ -45,6 +45,13 @@ const SECTIONS: { title: string; items: NavItem[] }[] = [
     ],
   },
   {
+    title: "Account",
+    items: [
+      { href: "/account", label: "Account settings" },
+      { href: "/usage", label: "Billing & usage" },
+    ],
+  },
+  {
     title: "Developer",
     items: [
       { href: "/developers", label: "API & keys" },
