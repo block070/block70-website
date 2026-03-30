@@ -58,7 +58,7 @@ from app.api.v1.exchange_affiliate_public import router as exchange_affiliate_pu
 from app.api.v1.dev_api import router as dev_api_router
 from app.api.v1.api_keys import router as api_keys_router
 from app.api.v1.webhooks import router as webhooks_router
-from app.api.v1.bots import router as bots_router
+from app.api.v1.bots import router as bots_router, bots_public_router
 from app.api.v1.blocks import router as blocks_router
 from app.api.v1.rewards import router as rewards_router
 from app.api.v1.leaderboard import router as leaderboard_router
@@ -183,6 +183,7 @@ app.include_router(dev_api_router)
 app.include_router(api_keys_router)
 app.include_router(webhooks_router)
 app.include_router(bots_router)
+app.include_router(bots_public_router)
 app.include_router(blocks_router)
 app.include_router(rewards_router)
 app.include_router(leaderboard_router)

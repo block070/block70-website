@@ -1,10 +1,25 @@
 import { API_BASE_URL } from "./api";
 import { getToken } from "./auth";
 
-async function fetchWithAuth<T>(path: string, init?: RequestInit): Promise<T> {
+/** Browser: same-origin `/api/bots` proxy (CORS + mixed-content safe). Server: direct FastAPI URL. */
+function botsRequestUrl(suffix: string): string {
+  const p =
+    suffix === "" || suffix === "/"
+      ? ""
+      : suffix.startsWith("/")
+        ? suffix
+        : `/${suffix}`;
+  if (typeof window !== "undefined") {
+    return `/api/bots${p}`;
+  }
+  return `${API_BASE_URL.replace(/\/$/, "")}/api/v1/bots${p}`;
+}
+
+async function fetchWithAuth<T>(suffix: string, init?: RequestInit): Promise<T> {
   const token = getToken();
   if (!token) throw new Error("Not authenticated");
-  const res = await fetch(`${API_BASE_URL}${path}`, {
+  const url = botsRequestUrl(suffix);
+  const res = await fetch(url, {
     ...init,
     headers: {
       "Content-Type": "application/json",
@@ -46,7 +61,7 @@ export type BotInfo = {
 };
 
 export async function listBots(): Promise<BotInfo[]> {
-  const r = await fetchWithAuth<BotInfo[]>("/api/v1/bots");
+  const r = await fetchWithAuth<BotInfo[]>("");
   return Array.isArray(r) ? r : [];
 }
 
@@ -57,14 +72,14 @@ export async function createBot(payload: {
   config_json?: BotConfig | null;
   strategy_id?: number | null;
 }): Promise<BotInfo> {
-  return fetchWithAuth<BotInfo>("/api/v1/bots", {
+  return fetchWithAuth<BotInfo>("", {
     method: "POST",
     body: JSON.stringify(payload),
   });
 }
 
 export async function getBot(botId: number): Promise<BotInfo> {
-  return fetchWithAuth<BotInfo>(`/api/v1/bots/${botId}`);
+  return fetchWithAuth<BotInfo>(`/${botId}`);
 }
 
 export async function updateBot(
@@ -75,12 +90,12 @@ export async function updateBot(
     strategy_id?: number | null;
   }
 ): Promise<BotInfo> {
-  return fetchWithAuth<BotInfo>(`/api/v1/bots/${botId}`, {
+  return fetchWithAuth<BotInfo>(`/${botId}`, {
     method: "PATCH",
     body: JSON.stringify(payload),
   });
 }
 
 export async function deleteBot(botId: number): Promise<{ status: string; id: number }> {
-  return fetchWithAuth(`/api/v1/bots/${botId}`, { method: "DELETE" });
+  return fetchWithAuth(`/${botId}`, { method: "DELETE" });
 }

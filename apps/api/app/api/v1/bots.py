@@ -18,6 +18,9 @@ from app.models import BotSignalEvent, SignalBot, TradingStrategy, User
 
 router = APIRouter(prefix="/api/v1/bots", tags=["bots"])
 
+# When nginx sends `/api/bots` to the API (not Next.js), these aliases match the web app proxy paths.
+bots_public_router = APIRouter(prefix="/api/bots", tags=["bots-public"])
+
 
 class BotCreate(BaseModel):
     platform: str
@@ -207,3 +210,48 @@ def delete_bot(
     db.delete(bot)
     db.commit()
     return {"status": "deleted", "id": bot_id}
+
+
+@bots_public_router.get("", response_model=List[dict])
+def list_bots_public(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> List[dict]:
+    return list_bots(current_user, db)
+
+
+@bots_public_router.post("", status_code=201)
+def create_bot_public(
+    payload: BotCreate,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> dict:
+    return create_bot(payload, current_user, db)
+
+
+@bots_public_router.get("/{bot_id}")
+def get_bot_public(
+    bot_id: int = Path(...),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> dict:
+    return get_bot(bot_id, current_user, db)
+
+
+@bots_public_router.patch("/{bot_id}")
+def update_bot_public(
+    bot_id: int = Path(...),
+    payload: BotUpdate = ...,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> dict:
+    return update_bot(bot_id, payload, current_user, db)
+
+
+@bots_public_router.delete("/{bot_id}")
+def delete_bot_public(
+    bot_id: int = Path(...),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> dict:
+    return delete_bot(bot_id, current_user, db)
