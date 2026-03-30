@@ -19,6 +19,7 @@ from typing import Any, Dict, List, Optional
 from sqlalchemy.orm import Session
 
 from app.models import RadarSignal, Signal, OpportunitySignal, Opportunity
+from app.services.notifications.signal_fanout import fanout_after_signals_persisted
 from app.services.signals.wallet_signals import WalletSignal
 from app.services.signals.social_signals import SocialActivitySignal
 
@@ -173,6 +174,7 @@ class SignalDetectionEngine:
             db.commit()
             for s in out:
                 db.refresh(s)
+            fanout_after_signals_persisted(db, out)
         return out
 
     def from_wallet_signals(
@@ -258,6 +260,7 @@ class SignalDetectionEngine:
             db.commit()
             for s in out:
                 db.refresh(s)
+            fanout_after_signals_persisted(db, out)
         return out
 
     def from_market_data(
@@ -294,6 +297,7 @@ class SignalDetectionEngine:
             db.add(sig)
             db.commit()
             db.refresh(sig)
+            fanout_after_signals_persisted(db, [sig])
         return sig
 
     def run_from_radar(
@@ -369,4 +373,5 @@ class SignalDetectionEngine:
             db.commit()
             for s in out:
                 db.refresh(s)
+            fanout_after_signals_persisted(db, out)
         return out

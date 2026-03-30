@@ -54,6 +54,9 @@ from .shared_signal import SharedSignal
 from .referral import Referral
 from .creator_reward import CreatorReward
 from .user_notification import UserNotification
+from .notification_preference import NotificationPreference
+from .email_send_log import EmailSendLog
+from .notification_delivery_daily import NotificationDeliveryDaily
 from .user_activity import UserActivity
 from .api_key import ApiKey
 from .api_usage import ApiUsage
@@ -152,6 +155,9 @@ __all__ = [
     "Referral",
     "CreatorReward",
     "UserNotification",
+    "NotificationPreference",
+    "EmailSendLog",
+    "NotificationDeliveryDaily",
     "UserActivity",
     "ApiKey",
     "ApiUsage",

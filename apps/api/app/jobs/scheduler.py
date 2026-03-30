@@ -419,6 +419,15 @@ def _run_category_coingecko_refresh_job() -> None:
     _with_db_session(_job)
 
 
+def _run_notification_cron_job() -> None:
+    def _job(db: Session) -> None:
+        from app.services.notifications.notification_jobs import run_all_notification_cron_jobs
+
+        run_all_notification_cron_jobs(db)
+
+    _with_db_session(_job)
+
+
 def _run_crypto_alerts_job() -> None:
     def _job(db: Session) -> None:
         from app.services.alerts.crypto_alert_runner import run_crypto_alerts
@@ -731,6 +740,15 @@ def create_scheduler() -> BackgroundScheduler:
             replace_existing=True,
             max_instances=1,
             coalesce=True,
+        )
+
+    if os.getenv("ENABLE_NOTIFICATION_EMAIL_JOBS", "").lower() in ("1", "true", "yes", "on"):
+        scheduler.add_job(
+            _run_notification_cron_job,
+            CronTrigger(hour=12, minute=0),
+            id="notification_email_cron",
+            replace_existing=True,
+            max_instances=1,
         )
 
     _scheduler_instance = scheduler

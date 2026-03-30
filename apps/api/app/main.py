@@ -52,6 +52,9 @@ from app.api.v1.trading_strategies import router as trading_strategies_router
 from app.api.v1.alpha_community import router as alpha_community_router
 from app.api.v1.referrals import router as referrals_router
 from app.api.v1.notifications import router as notifications_router
+from app.api.v1.notification_preferences import router as notification_preferences_router
+from app.api.v1.me import router as me_router
+from app.api.v1.internal_cron import router as internal_cron_router
 from app.api.v1.admin_analytics import router as admin_analytics_router
 from app.api.v1.admin_exchange_affiliates import router as admin_exchange_affiliates_router
 from app.api.v1.exchange_affiliate_public import router as exchange_affiliate_public_router
@@ -176,6 +179,9 @@ app.include_router(trading_strategies_router)
 app.include_router(alpha_community_router)
 app.include_router(referrals_router)
 app.include_router(notifications_router)
+app.include_router(notification_preferences_router)
+app.include_router(me_router)
+app.include_router(internal_cron_router)
 app.include_router(admin_analytics_router)
 app.include_router(admin_exchange_affiliates_router)
 app.include_router(exchange_affiliate_public_router)

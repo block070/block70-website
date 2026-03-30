@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { getCurrentUser } from "@/lib/auth";
 import { createBillingPortalSession, getSubscription } from "@/lib/billing";
 import { SubscriptionStatus } from "@/components/account/subscription-status";
+import { NotificationPreferencesPanel } from "@/components/account/notification-preferences-panel";
 
 type User = {
   email: string;
@@ -84,6 +85,8 @@ export default function AccountPage() {
         status={subscription.status}
         nextBillingDate={subscription.current_period_end ?? undefined}
       />
+
+      <NotificationPreferencesPanel />
 
       <div className="space-y-3 text-xs">
         <button

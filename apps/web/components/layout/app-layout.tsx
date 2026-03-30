@@ -8,6 +8,7 @@ import { Sidebar } from "./sidebar";
 import { LegalFooter } from "@/components/legal/legal-footer";
 import { CookieConsentBanner } from "@/components/legal/cookie-consent-banner";
 import { StickyUpgradePill } from "@/components/paywall/sticky-upgrade-pill";
+import { ActivityPing } from "@/components/layout/activity-ping";
 import { PricingModalProvider } from "@/contexts/pricing-modal-context";
 import { isDemoMode } from "@/lib/demo";
 
@@ -64,6 +65,7 @@ export function AppLayout({ children, rightPanel }: AppLayoutProps) {
 
       <LegalFooter />
       <CookieConsentBanner />
+      <ActivityPing />
       <StickyUpgradePill />
     </div>
     </PricingModalProvider>

@@ -48,6 +48,7 @@ const SECTIONS: { title: string; items: NavItem[] }[] = [
     title: "Account",
     items: [
       { href: "/account", label: "Account settings" },
+      { href: "/notifications", label: "Notifications" },
       { href: "/usage", label: "Billing & usage" },
       { href: "/product", label: "Why Block70" },
       { href: "/pricing", label: "Pricing" },

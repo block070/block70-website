@@ -86,6 +86,11 @@ class User(Base):
         onupdate=func.now(),
         nullable=False,
     )
+    last_seen_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+        index=True,
+    )
 
     dashboard_layout: Mapped[Optional["UserDashboardLayout"]] = relationship(
         "UserDashboardLayout",

@@ -117,6 +117,49 @@ MIGRATIONS = [
     # users: subscription denorm + trials (Block70 monetization tiers)
     "ALTER TABLE users ADD COLUMN IF NOT EXISTS trial_end TIMESTAMP WITH TIME ZONE",
     "ALTER TABLE users ADD COLUMN IF NOT EXISTS subscription_status VARCHAR(32)",
+    "ALTER TABLE users ADD COLUMN IF NOT EXISTS last_seen_at TIMESTAMP WITH TIME ZONE",
+    "CREATE INDEX IF NOT EXISTS ix_users_last_seen_at ON users (last_seen_at)",
+    "ALTER TABLE user_notifications ADD COLUMN IF NOT EXISTS read_at TIMESTAMP WITH TIME ZONE",
+    """CREATE TABLE IF NOT EXISTS notification_preferences (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER NOT NULL UNIQUE REFERENCES users(id) ON DELETE CASCADE,
+        email_digest BOOLEAN NOT NULL DEFAULT TRUE,
+        email_realtime BOOLEAN NOT NULL DEFAULT TRUE,
+        email_marketing BOOLEAN NOT NULL DEFAULT TRUE,
+        push_enabled BOOLEAN NOT NULL DEFAULT FALSE,
+        notify_opportunity BOOLEAN NOT NULL DEFAULT TRUE,
+        notify_whale BOOLEAN NOT NULL DEFAULT TRUE,
+        notify_narrative BOOLEAN NOT NULL DEFAULT TRUE,
+        notify_signal BOOLEAN NOT NULL DEFAULT TRUE,
+        notify_trial BOOLEAN NOT NULL DEFAULT TRUE,
+        notify_reengage BOOLEAN NOT NULL DEFAULT TRUE,
+        updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
+    )""",
+    "CREATE INDEX IF NOT EXISTS ix_notification_preferences_user_id ON notification_preferences (user_id)",
+    """CREATE TABLE IF NOT EXISTS email_send_logs (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+        template_key VARCHAR(64) NOT NULL,
+        subject VARCHAR(512) NOT NULL,
+        status VARCHAR(32) NOT NULL,
+        dedupe_key VARCHAR(128) UNIQUE,
+        error TEXT,
+        metadata_json JSONB,
+        digest_utc_date DATE,
+        created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+        sent_at TIMESTAMP WITH TIME ZONE
+    )""",
+    "CREATE INDEX IF NOT EXISTS ix_email_send_logs_user_id ON email_send_logs (user_id)",
+    "CREATE INDEX IF NOT EXISTS ix_email_send_logs_template ON email_send_logs (template_key)",
+    """CREATE TABLE IF NOT EXISTS notification_delivery_daily (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        day_utc DATE NOT NULL,
+        channel VARCHAR(32) NOT NULL,
+        count INTEGER NOT NULL DEFAULT 0,
+        updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
+    )""",
+    "CREATE UNIQUE INDEX IF NOT EXISTS uq_notification_delivery_user_day_ch ON notification_delivery_daily (user_id, day_utc, channel)",
 ]
 
 
