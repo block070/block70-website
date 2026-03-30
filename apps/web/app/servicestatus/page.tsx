@@ -214,8 +214,7 @@ export default function ServiceStatusPage() {
           </div>
           <Button
             variant="outline"
-            size="sm"
-            className="gap-2"
+            className="gap-2 px-3 py-1.5 text-xs"
             onClick={() => {
               void fetchPlatform();
               void fetchJobs();
@@ -435,10 +434,20 @@ export default function ServiceStatusPage() {
               <p className="text-sm text-rose-400">{jobsErr}</p>
             ) : null}
             <div className="flex flex-wrap gap-2">
-              <Button variant="outline" size="sm" disabled={newsTriggering} onClick={onTriggerNews}>
+              <Button
+                variant="outline"
+                className="px-3 py-1.5 text-xs"
+                disabled={newsTriggering}
+                onClick={onTriggerNews}
+              >
                 {newsTriggering ? "Running…" : "Trigger news scraper"}
               </Button>
-              <Button variant="outline" size="sm" disabled={coinsTriggering} onClick={onTriggerAllCoins}>
+              <Button
+                variant="outline"
+                className="px-3 py-1.5 text-xs"
+                disabled={coinsTriggering}
+                onClick={onTriggerAllCoins}
+              >
                 {coinsTriggering ? "Running…" : "Update all coins job"}
               </Button>
             </div>

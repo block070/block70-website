@@ -1,6 +1,9 @@
+import { mustUseSameOriginApiProxy } from "./browser-api-proxy";
+
 /**
  * Status API - fetches directly from the backend when NEXT_PUBLIC_API_BASE_URL is set
  * (bypasses Next.js proxy to avoid Docker networking issues). Falls back to /api/status proxy.
+ * On HTTPS pages, never uses an http:// apiBase in the browser (mixed content); uses /api/status instead.
  */
 export type JobStatus = {
   id: string;
@@ -29,7 +32,8 @@ export async function getStatus(): Promise<StatusResponse> {
       apiBase = `${window.location.protocol}//${window.location.hostname}:8000`;
     }
   }
-  const url = apiBase ? `${apiBase}/api/v1/status` : "/api/status";
+  const useProxy = !apiBase.trim() || mustUseSameOriginApiProxy(apiBase);
+  const url = useProxy ? "/api/status" : `${apiBase.replace(/\/$/, "")}/api/v1/status`;
   const res = await fetch(url, { cache: "no-store" });
   const data = (await res.json()) as StatusResponse;
   if (!res.ok) throw new Error(data.error || "Status API error: " + res.status);

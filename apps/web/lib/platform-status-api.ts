@@ -7,6 +7,8 @@ export type PlatformComponent = {
   latency_ms?: number | null;
 };
 
+import { mustUseSameOriginApiProxy } from "./browser-api-proxy";
+
 export type PlatformStatusResponse = {
   checked_at: string;
   overall: ComponentStatus;
@@ -33,7 +35,10 @@ async function resolveApiBase(): Promise<string> {
 
 export async function getPlatformStatus(): Promise<PlatformStatusResponse> {
   const apiBase = await resolveApiBase();
-  const url = apiBase ? `${apiBase}/api/v1/status/platform` : "/api/status/platform";
+  const useProxy = !apiBase.trim() || mustUseSameOriginApiProxy(apiBase);
+  const url = useProxy
+    ? "/api/status/platform"
+    : `${apiBase.replace(/\/$/, "")}/api/v1/status/platform`;
   const res = await fetch(url, { cache: "no-store" });
   if (!res.ok) {
     throw new Error(`Platform status failed: ${res.status}`);
