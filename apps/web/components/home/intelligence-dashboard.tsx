@@ -417,6 +417,9 @@ export function IntelligenceDashboard() {
                 variant="hard"
                 urgencyLabel="Full thesis"
                 headline={PAYWALL_COPY.headlineDetected}
+                checkoutViaModal
+                defaultCheckoutPlan="elite"
+                primaryCtaLabel={PAYWALL_COPY.ctaUnlockTrade}
                 subhead="Unlock full Block70 Score breakdown, entry/exit framing, and Elite filters across the app."
                 bullets={[
                   "Factor-level score drivers",

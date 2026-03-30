@@ -216,6 +216,9 @@ export function OpportunitiesListClient({
           <PaywallBlock
             variant="hard"
             urgencyLabel="Elite access"
+            checkoutViaModal
+            defaultCheckoutPlan="elite"
+            primaryCtaLabel={PAYWALL_COPY.ctaUnlockTrade}
             score={
               heroOpportunity
                 ? Math.round((heroOpportunity.total_score ?? 0) * 100)

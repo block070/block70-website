@@ -11,6 +11,7 @@ export function RegisterForm() {
   const searchParams = useSearchParams();
   const refCode = searchParams.get("ref") ?? undefined;
   const refSource = searchParams.get("source") ?? undefined;
+  const nextPath = searchParams.get("next")?.trim() ?? null;
   const [email, setEmail] = useState("");
   const [name, setName] = useState("");
   const [password, setPassword] = useState("");
@@ -39,7 +40,11 @@ export function RegisterForm() {
         accept_privacy: acceptPrivacy,
         accept_disclaimer: acceptDisclaimer,
       });
-      router.push("/wallets/dashboard");
+      const safeNext =
+        nextPath && nextPath.startsWith("/") && !nextPath.startsWith("//")
+          ? nextPath
+          : "/wallets/dashboard";
+      router.push(safeNext);
     } catch (err) {
       setError((err as Error).message || "Registration failed");
     } finally {

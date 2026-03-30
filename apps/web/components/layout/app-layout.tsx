@@ -8,6 +8,7 @@ import { Sidebar } from "./sidebar";
 import { LegalFooter } from "@/components/legal/legal-footer";
 import { CookieConsentBanner } from "@/components/legal/cookie-consent-banner";
 import { StickyUpgradePill } from "@/components/paywall/sticky-upgrade-pill";
+import { PricingModalProvider } from "@/contexts/pricing-modal-context";
 import { isDemoMode } from "@/lib/demo";
 
 type AppLayoutProps = {
@@ -20,6 +21,7 @@ export function AppLayout({ children, rightPanel }: AppLayoutProps) {
   const demo = isDemoMode();
 
   return (
+    <PricingModalProvider>
     <div className="flex min-h-screen flex-col bg-[var(--b70-bg)]">
       <TopNav />
       <div className="flex min-h-0 flex-1 flex-col pt-14 print:pt-0">
@@ -64,6 +66,7 @@ export function AppLayout({ children, rightPanel }: AppLayoutProps) {
       <CookieConsentBanner />
       <StickyUpgradePill />
     </div>
+    </PricingModalProvider>
   );
 }
 

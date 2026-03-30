@@ -43,7 +43,7 @@ def create_checkout(
 
     scheme = request.url.scheme
     base_url = f"{scheme}://{origin}"
-    success_url = f"{base_url}/usage"
+    success_url = f"{base_url}/checkout/success?session_id={{CHECKOUT_SESSION_ID}}"
     cancel_url = f"{base_url}/pricing"
 
     session = create_checkout_session(

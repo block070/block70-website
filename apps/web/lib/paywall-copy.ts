@@ -10,5 +10,7 @@ export const PAYWALL_COPY = {
     "Cohort and liquidity-backed validation",
   ],
   ctaElite: "Upgrade to Elite",
+  /** Hard paywall / opportunity-style CTA */
+  ctaUnlockTrade: "Unlock this trade",
   emailCaptureHint: "Enter your email to unlock a preview — no password required to start.",
 } as const;

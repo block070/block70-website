@@ -2,10 +2,13 @@
 
 import { useState, type FormEvent, type ReactNode } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { Lock, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { PAYWALL_COPY } from "@/lib/paywall-copy";
 import { clsx } from "clsx";
+import { useOptionalPricingModal } from "@/contexts/pricing-modal-context";
+import type { CheckoutPlanKey } from "@/lib/checkout-plan";
 
 export type PaywallBlockVariant = "soft" | "hard";
 
@@ -23,6 +26,9 @@ type Props = {
   /** Email capture (passwordless lead). */
   showEmailCapture?: boolean;
   onEmailSubmit?: (email: string) => Promise<void>;
+  /** Opens global pricing modal instead of navigating to `href`. */
+  checkoutViaModal?: boolean;
+  defaultCheckoutPlan?: CheckoutPlanKey;
   className?: string;
 };
 
@@ -39,8 +45,12 @@ export function PaywallBlock({
   socialProof,
   showEmailCapture = false,
   onEmailSubmit,
+  checkoutViaModal = false,
+  defaultCheckoutPlan = "elite",
   className,
 }: Props) {
+  const router = useRouter();
+  const pricingModal = useOptionalPricingModal();
   const [email, setEmail] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -146,11 +156,27 @@ export function PaywallBlock({
             </form>
           ) : (
             <div className="flex flex-wrap gap-2 pt-1">
-              <Link href={href}>
-                <Button className="bg-amber-500 text-slate-950 hover:bg-amber-400">
+              {checkoutViaModal ? (
+                <Button
+                  type="button"
+                  className="bg-amber-500 text-slate-950 hover:bg-amber-400"
+                  onClick={() => {
+                    if (pricingModal) {
+                      pricingModal.openModal(defaultCheckoutPlan);
+                    } else {
+                      router.push(href);
+                    }
+                  }}
+                >
                   {primaryCtaLabel}
                 </Button>
-              </Link>
+              ) : (
+                <Link href={href}>
+                  <Button className="bg-amber-500 text-slate-950 hover:bg-amber-400">
+                    {primaryCtaLabel}
+                  </Button>
+                </Link>
+              )}
               <Link href="/store">
                 <Button variant="outline">Marketplace</Button>
               </Link>
