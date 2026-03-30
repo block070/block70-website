@@ -108,7 +108,7 @@ export function ServiceHealthBanner() {
             {expanded ? "Hide" : "Show"} how to fix
           </button>
           <Link
-            href="/status"
+            href="/servicestatus"
             className="text-[11px] font-medium text-amber-200 underline decoration-amber-400/50 hover:text-amber-50"
           >
             System status

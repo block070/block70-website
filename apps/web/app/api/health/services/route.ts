@@ -15,7 +15,7 @@ const RUNBOOK = {
   dockerLogs: "docker compose logs -f api --tail 100",
   uvicorn:
     "Local dev: cd apps/api then uvicorn app.main:app --reload --host 0.0.0.0 --port 8000",
-  statusPage: "/status",
+  statusPage: "/servicestatus",
   docs: "See docs/DEPLOY.md (recovery) and docs/REAL_DATA_LOCALLY.md. Optional cron: scripts/restart-api-if-unhealthy.sh",
 };
 
