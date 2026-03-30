@@ -29,10 +29,15 @@ export default function DevelopersAnalyticsPage() {
   return (
     <div className="mx-auto max-w-5xl space-y-8">
       <div className="flex flex-wrap items-center justify-between gap-4">
-        <div className="flex items-center gap-4">
+        <div className="flex flex-wrap items-center gap-2">
           <Link href="/developers">
             <Button variant="outline" className="px-3 py-1.5 text-xs">
               ← API keys
+            </Button>
+          </Link>
+          <Link href="/apidocs">
+            <Button variant="outline" className="px-3 py-1.5 text-xs">
+              API reference
             </Button>
           </Link>
           <div>

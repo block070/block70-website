@@ -219,9 +219,9 @@ export default function DevelopersPage() {
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
-          <Link href="/developers/docs">
+          <Link href="/apidocs">
             <Button variant="outline" className="px-3 py-1.5 text-xs">
-              Documentation
+              API reference
             </Button>
           </Link>
           <Link href="/developers/analytics">
