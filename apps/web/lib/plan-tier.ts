@@ -26,6 +26,7 @@ export function hasPlanAccess(
 
 const FEATURES: Record<string, string[]> = {
   opportunities_full: ["elite", "quant"],
+  signals_medium: ["pro", "elite", "quant"],
   signals_high: ["elite", "quant"],
   ai_full: ["pro", "elite", "quant"],
   api_access: ["quant"],
@@ -38,6 +39,17 @@ export function hasFeature(
   const u = normalizePlan(userPlan);
   if (u === "admin") return true;
   return FEATURES[feature]?.includes(u) ?? false;
+}
+
+export type SignalsFeedTier = "low" | "medium" | "high";
+
+/** Aligns with API feed policy: free=low, pro=medium, elite/quant=high. */
+export function signalsFeedTier(
+  userPlan: string | undefined | null,
+): SignalsFeedTier {
+  if (hasFeature(userPlan, "signals_high")) return "high";
+  if (hasFeature(userPlan, "signals_medium")) return "medium";
+  return "low";
 }
 
 /** `block70_plan` cookie / auth values that unlock paid market data UX. */

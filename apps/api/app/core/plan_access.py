@@ -22,6 +22,7 @@ PLAN_ORDER: dict[str, int] = {
 # feature key -> plans that may use the capability
 FEATURE_MATRIX: dict[str, frozenset[str]] = {
     "opportunities_full": frozenset({"elite", "quant"}),
+    "signals_medium": frozenset({"pro", "elite", "quant"}),
     "signals_high": frozenset({"elite", "quant"}),
     "ai_full": frozenset({"pro", "elite", "quant"}),
     "api_access": frozenset({"quant"}),

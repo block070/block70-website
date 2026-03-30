@@ -95,7 +95,7 @@ export function OpportunitiesListClient({
       if (presetLowRisk && normalizedRisk(op) !== "low") return false;
       if (presetShortHorizon && !matchesShortHorizon(op)) return false;
 
-      if (hasPlanAccess(planType, "pro")) {
+      if (hasPlanAccess(planType, "elite")) {
         const minRoi = parseFloat(advancedFilters.roi);
         if (!Number.isNaN(minRoi)) {
           const roi = op.estimated_roi_percent ?? 0;
@@ -276,7 +276,7 @@ export function OpportunitiesListClient({
         ) : null}
       </section>
 
-      {planType !== "free" && !backendError ? (
+      {hasPlanAccess(planType, "elite") && !backendError ? (
         <div className="mt-3">
           <AdvancedFilters
             value={advancedFilters}

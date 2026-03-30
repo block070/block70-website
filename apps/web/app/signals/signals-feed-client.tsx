@@ -10,7 +10,7 @@ import {
 import type { SignalDto } from "@/lib/types";
 import { SignalCard } from "@/components/signals/signal-card";
 import { getCurrentUser } from "@/lib/auth";
-import { hasFeature } from "@/lib/plan-tier";
+import { signalsFeedTier, type SignalsFeedTier } from "@/lib/plan-tier";
 import {
   SignalFilters,
   type SignalFiltersValue,
@@ -56,7 +56,9 @@ export function SignalsFeedClient({ initialSignals }: Props) {
   const [loading, setLoading] = useState(false);
   const [polling, setPolling] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [showTierHint, setShowTierHint] = useState(false);
+  const [feedTier, setFeedTier] = useState<
+    "loading" | SignalsFeedTier
+  >("loading");
 
   const fetchSignals = useCallback(async () => {
     setLoading(true);
@@ -89,22 +91,38 @@ export function SignalsFeedClient({ initialSignals }: Props) {
 
   useEffect(() => {
     getCurrentUser()
-      .then((u) => setShowTierHint(!hasFeature(u.plan_type, "signals_high")))
-      .catch(() => setShowTierHint(true));
+      .then((u) => setFeedTier(signalsFeedTier(u.plan_type)))
+      .catch(() => setFeedTier("low"));
   }, []);
 
   const filtered = applyFilters(signals, filters);
 
   return (
     <div className="space-y-4">
-      {showTierHint ? (
+      {feedTier === "low" ? (
         <div className="rounded-lg border border-amber-500/35 bg-amber-500/10 px-4 py-3 text-sm text-amber-100">
-          <span className="font-medium text-amber-50">Feed tier:</span> Free/Pro rows
-          may be delayed or capped.{" "}
-          <Link href="/pricing" className="font-medium underline underline-offset-2 hover:text-white">
+          <span className="font-medium text-amber-50">Feed tier: low.</span>{" "}
+          Signals are delayed (~15m) and capped.{" "}
+          <Link
+            href="/pricing"
+            className="font-medium underline underline-offset-2 hover:text-white"
+          >
+            Upgrade to Pro
+          </Link>{" "}
+          for a medium tier, or Elite for real-time, high-density.
+        </div>
+      ) : null}
+      {feedTier === "medium" ? (
+        <div className="rounded-lg border border-cyan-500/30 bg-cyan-500/10 px-4 py-3 text-sm text-cyan-50">
+          <span className="font-medium text-cyan-100">Feed tier: medium (Pro).</span>{" "}
+          Near real-time with a short delay and expanded rows.{" "}
+          <Link
+            href="/pricing"
+            className="font-medium underline underline-offset-2 hover:text-white"
+          >
             Upgrade to Elite
           </Link>{" "}
-          for real-time, high-density signals.
+          for full real-time, high-density signals.
         </div>
       ) : null}
       <SignalFilters value={filters} onChange={setFilters} disabled={loading} />

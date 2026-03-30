@@ -8,6 +8,7 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.core.auth_middleware import get_current_user
+from app.core.plan_access import effective_plan
 from app.db import get_db
 from app.models import AISearchQuery, ApiKey, ApiUsage, Subscription, UsageMetric, User
 from app.services.api.rate_limit_engine import RATE_LIMITS, UNLIMITED, get_usage_today
@@ -54,9 +55,7 @@ def _resolve_billing_period(
 
 
 def _effective_plan_type(user: User, sub: Subscription | None) -> str:
-    if sub and getattr(sub, "plan_type", None):
-        return sub.plan_type
-    return user.plan_type
+    return effective_plan(user, sub)
 
 
 def _upgrade_target(plan_type: str) -> str | None:
@@ -127,6 +126,15 @@ def get_usage_summary(
 
     now = datetime.now(timezone.utc)
     since_24h = now - timedelta(days=1)
+    ai_queries_24h = int(
+        db.query(func.count(AISearchQuery.id))
+        .filter(
+            AISearchQuery.user_id == current_user.id,
+            AISearchQuery.created_at >= since_24h,
+        )
+        .scalar()
+        or 0,
+    )
     premium_api_calls_24h = int(
         db.query(func.coalesce(func.sum(UsageMetric.metric_value), 0))
         .filter(

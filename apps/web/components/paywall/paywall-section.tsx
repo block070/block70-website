@@ -7,7 +7,12 @@ import { getCurrentUser } from "@/lib/auth";
 import { hasFeature, hasPlanAccess } from "@/lib/plan-tier";
 import { Button } from "@/components/ui/button";
 
-type FeatureKey = "opportunities_full" | "signals_high" | "ai_full" | "api_access";
+type FeatureKey =
+  | "opportunities_full"
+  | "signals_medium"
+  | "signals_high"
+  | "ai_full"
+  | "api_access";
 
 type Props = {
   children: ReactNode;

@@ -8,10 +8,10 @@ Endpoints:
 - GET /api/v1/signals/leaderboard — leaderboard by strength/count/confidence
 - GET /api/v1/signals/{token} — signals for a given token
 
-Premium signal features (tier query param):
-- free: delayed signals (only signals older than 15 minutes)
-- pro: real-time signals
-- elite: real-time + signal_alert subscriptions and advanced analytics
+Feed policy (from signed-in user; anonymous users get free tier):
+- free: low tier — ~15m delay, smaller row cap
+- pro: medium — short delay (~5m), larger cap
+- elite / quant: high — real-time (no delay), largest cap (see _signal_feed_policy)
 """
 
 from __future__ import annotations
@@ -298,14 +298,19 @@ def get_signals_for_token(
     """
     Return all signals for the given token (symbol or address).
     """
+    delay_m, max_rows = _signal_feed_policy(db, current_user)
     q = db.query(Signal).filter(
         (Signal.token_symbol == token) | (Signal.token_address == token)
     )
+    if delay_m > 0:
+        delay_cutoff = datetime.now(timezone.utc) - timedelta(minutes=delay_m)
+        q = q.filter(Signal.created_at <= delay_cutoff)
     if chain is not None:
         q = q.filter(Signal.chain == chain)
     if signal_type is not None:
         q = q.filter(Signal.signal_type == signal_type)
-    q = q.order_by(Signal.created_at.desc()).limit(limit)
+    eff_limit = min(limit, max_rows)
+    q = q.order_by(Signal.created_at.desc()).limit(eff_limit)
     rows = list(q.all())
     _maybe_record_signals_used(db, current_user)
     return rows
