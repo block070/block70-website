@@ -63,7 +63,7 @@ const SECTIONS: { title: string; items: NavItem[] }[] = [
   {
     title: "Bots",
     items: [
-      { href: "/bots", label: "Signal bots" },
+      { href: "/bots", label: "Automation" },
     ],
   },
   {

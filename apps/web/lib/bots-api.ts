@@ -21,6 +21,16 @@ export type BotConfig = {
   min_confidence?: number;
   signal_types?: string[];
   token_filter?: string[];
+  /** Stop loss per position, percent (0–100). Stored for automation; execution may be manual or future engine. */
+  stop_loss_pct?: number;
+  /** Max notional per trade (USD). */
+  max_position_usd?: number;
+  /** Hard cap on entries per UTC day. */
+  max_daily_trades?: number;
+  /** Max fraction of equity to risk per signal (0–100). */
+  risk_per_trade_pct?: number;
+  /** When true, prefer paper / simulated fills (future execution engine). */
+  paper_trading?: boolean;
 };
 
 export type BotInfo = {
@@ -29,6 +39,7 @@ export type BotInfo = {
   channel_id: string;
   is_active: boolean;
   config_json: BotConfig | null;
+  strategy_id?: number | null;
   created_at: string;
   updated_at: string;
   signals_sent_24h?: number;
@@ -44,6 +55,7 @@ export async function createBot(payload: {
   bot_token: string;
   channel_id: string;
   config_json?: BotConfig | null;
+  strategy_id?: number | null;
 }): Promise<BotInfo> {
   return fetchWithAuth<BotInfo>("/api/v1/bots", {
     method: "POST",
@@ -57,7 +69,11 @@ export async function getBot(botId: number): Promise<BotInfo> {
 
 export async function updateBot(
   botId: number,
-  payload: { is_active?: boolean; config_json?: BotConfig | null }
+  payload: {
+    is_active?: boolean;
+    config_json?: BotConfig | null;
+    strategy_id?: number | null;
+  }
 ): Promise<BotInfo> {
   return fetchWithAuth<BotInfo>(`/api/v1/bots/${botId}`, {
     method: "PATCH",

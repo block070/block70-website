@@ -24,6 +24,7 @@ class BotCreate(BaseModel):
     bot_token: str
     channel_id: str
     config_json: dict[str, Any] | None = None
+    strategy_id: int | None = None
 
 
 class BotUpdate(BaseModel):
