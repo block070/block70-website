@@ -74,6 +74,13 @@ export default function RewardsStorePage() {
 
   return (
     <div className="space-y-8">
+      <p className="text-sm text-slate-400">
+        <Link href="/store" className="text-crypto-blue hover:underline">
+          Subscriptions &amp; plans
+        </Link>
+        <span className="text-slate-600"> · </span>
+        Blocks catalog below
+      </p>
       <div className="flex flex-wrap items-center justify-between gap-4">
         <h1 className="text-2xl font-bold text-slate-50">Rewards store</h1>
         <div className="flex items-center gap-4">
