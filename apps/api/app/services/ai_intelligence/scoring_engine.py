@@ -16,6 +16,34 @@ WEIGHTS: dict[str, float] = {
     "risk": 0.10,
 }
 
+# Extended hedge-fund composite (Phase C–E); sum should be 1.0
+COMPOSITE_FACTOR_KEYS = (
+    "momentum",
+    "volume",
+    "narrative",
+    "breakout",
+    "whale",
+    "velocity",
+    "relative_strength",
+)
+
+
+def compute_weighted_composite(
+    components: dict[str, float],
+    weights: dict[str, float],
+) -> float:
+    """Weighted 0–100 blend for extended alpha factors."""
+    total = 0.0
+    wsum = 0.0
+    for k in COMPOSITE_FACTOR_KEYS:
+        w = max(0.0, float(weights.get(k, 0.0)))
+        c = _clamp(float(components.get(k, 50.0)))
+        total += w * c
+        wsum += w
+    if wsum <= 0:
+        return 50.0
+    return _clamp(total / wsum)
+
 PLACEHOLDER = 50.0
 
 

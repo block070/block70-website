@@ -16,7 +16,16 @@ from app.services.ai_intelligence.hour_intel_client import (
     hour_summary_lines,
 )
 from app.services.ai_intelligence.news_signals import get_news_intel_aggregate_cached
-from app.services.ai_intelligence.opportunity_pipeline import fetch_ranked_opportunities
+from app.services.ai_intelligence.opportunity_pipeline import (
+    fetch_intelligence_bundle,
+)
+from app.services.ai_intelligence.query_sector_hints import sector_symbols_for_query
+from app.services.ai_intelligence.report_builder import (
+    build_formatted_report,
+    portfolio_buckets,
+    prediction_strings,
+    recent_shift_strings,
+)
 from app.services.connectors.market_cache import market_cache_get, market_cache_set
 
 logger = logging.getLogger(__name__)
@@ -51,17 +60,17 @@ def get_opportunities(
     timeframe: Literal["24h", "7d"] = "24h",
     min_mcap: float | None = None,
     risk: Literal["low", "medium", "high"] | None = None,
-) -> list[dict[str, Any]]:
+) -> dict[str, Any]:
     if min_mcap is not None and min_mcap < 0:
         raise HTTPException(status_code=400, detail="min_mcap must be non-negative")
     params = _cache_key_params(limit, timeframe, min_mcap, risk)
-    cached = market_cache_get("ai_intel_opps", _CACHE_TTL, **params)
-    if cached is not None:
+    cached = market_cache_get("ai_intel_bundle", _CACHE_TTL, **params)
+    if isinstance(cached, dict) and isinstance(cached.get("opportunities"), list):
         return cached
 
     news_agg = get_news_intel_aggregate_cached(db, hours=48)
     hour_pl = fetch_hour_intelligence_payload_cached()
-    rows = fetch_ranked_opportunities(
+    bundle = fetch_intelligence_bundle(
         limit=limit,
         timeframe=timeframe,
         min_mcap=min_mcap,
@@ -69,9 +78,11 @@ def get_opportunities(
         news_scores=news_agg.scores,
         news_mentions_24h=news_agg.mentions_24h,
         hour_payload=hour_pl,
+        query_boost_symbols=frozenset(),
     )
-    market_cache_set("ai_intel_opps", _CACHE_TTL, rows, **params)
-    return rows
+    public = {k: v for k, v in bundle.items() if k != "_batch_context"}
+    market_cache_set("ai_intel_bundle", _CACHE_TTL, public, **params)
+    return public
 
 
 def _analyze_stub(
@@ -79,16 +90,25 @@ def _analyze_stub(
     opportunities: list[dict[str, Any]],
     *,
     context: dict[str, Any] | None = None,
+    bundle_meta: dict[str, Any] | None = None,
+    batch_ctx: Any | None = None,
 ) -> dict[str, Any]:
     syms = [o.get("asset_symbol") for o in opportunities[:5] if o.get("asset_symbol")]
     top_line = ", ".join(syms) if syms else "no ranked assets"
     qlow = query.strip().lower()
     trends: list[str] = []
     ctx = context or {}
+    regime = str((bundle_meta or {}).get("market_regime") or "TRANSITION")
+    rot = (bundle_meta or {}).get("capital_rotation") or []
     for bullet in (ctx.get("recent_news") or [])[:3]:
         trends.append(str(bullet))
     for line in (ctx.get("crypto_hour_summary") or [])[:2]:
         trends.append(f"Crypto hour (Chicago): {line}")
+    if rot:
+        inf = [x.get("narrative_id") for x in rot[:2] if isinstance(x, dict)]
+        if inf:
+            trends.append(f"Capital rotation telemetry favors {' / '.join(inf)} sleeves vs the batch median.")
+    trends.append(f"Market regime label: {regime} (composite weights already adjusted in-engine).")
     if "defi" in qlow or "dex" in qlow:
         trends.append("DeFi liquidity and yield narratives remain active.")
     if "btc" in qlow or "bitcoin" in qlow:
@@ -98,17 +118,43 @@ def _analyze_stub(
     risks = [
         "Rankings use market proxies only—not on-chain or order-book execution data.",
         "Past momentum does not guarantee future returns.",
+        "Probability and confidence are distinct: confidence reflects input agreement; probability reflects pattern/confluence stack.",
     ]
     summary = (
-        f"Query: «{query[:200]}». Top symbols by alpha score: {top_line}. "
-        "Scores blend momentum, liquidity, and risk-adjusted calm; treat as exploratory, not advice."
+        f"Query: «{query[:200]}». Top symbols by predictive stack: {top_line}. "
+        f"Regime {regime}; prioritize Δrank and confluence ≥3 before size. Exploratory only—not advice."
     )
+    formatted_report = ""
+    portfolio: dict[str, list[str]] = {}
+    predictions: list[str] = []
+    shifts: list[str] = []
+    if batch_ctx is not None:
+        portfolio = portfolio_buckets(opportunities)
+        predictions = prediction_strings(batch_ctx, batch_ctx.market_regime)
+        shifts = recent_shift_strings(opportunities)
+        insights = list((bundle_meta or {}).get("model_insights") or [])
+        formatted_report = build_formatted_report(
+            query=query,
+            rows=opportunities,
+            ctx=batch_ctx,
+            portfolio=portfolio,
+            predictions=predictions,
+            shifts=shifts,
+            model_insights=insights,
+        )
     return {
         "query": query,
-        "top_opportunities": opportunities[:8],
+        "top_opportunities": opportunities[:12],
         "key_trends": trends,
         "risks": risks,
         "summary": summary,
+        "market_regime": regime,
+        "capital_rotation": rot,
+        "portfolio_positioning": portfolio,
+        "predictions": predictions,
+        "recent_shifts": shifts,
+        "formatted_report": formatted_report,
+        "model_insights": list((bundle_meta or {}).get("model_insights") or []),
     }
 
 
@@ -117,6 +163,8 @@ def _analyze_openai(
     opportunities: list[dict[str, Any]],
     *,
     context: dict[str, Any] | None = None,
+    bundle_meta: dict[str, Any] | None = None,
+    batch_ctx: Any | None = None,
 ) -> dict[str, Any] | None:
     api_key = os.getenv("OPENAI_API_KEY")
     if not api_key:
@@ -130,14 +178,20 @@ def _analyze_openai(
     model = os.getenv("OPENAI_MODEL", "gpt-4.1-mini")
     client = OpenAI(api_key=api_key)
     ctx = context or {}
+    meta = bundle_meta or {}
     payload = {
         "query": query,
         "recent_news": (ctx.get("recent_news") or [])[:4],
         "crypto_on_the_hour": (ctx.get("crypto_hour_summary") or [])[:4],
+        "market_regime": meta.get("market_regime"),
+        "capital_rotation": (meta.get("capital_rotation") or [])[:6],
         "candidates": [
             {
                 "symbol": o.get("asset_symbol"),
                 "score": o.get("score"),
+                "confidence": o.get("confidence_score"),
+                "probability": o.get("probability_of_move"),
+                "cycle_stage": o.get("cycle_stage"),
                 "risk_tier": o.get("risk_tier"),
             }
             for o in opportunities[:12]
@@ -145,10 +199,11 @@ def _analyze_openai(
     }
     prompt = (
         "You are a crypto research assistant. Given the user query, optional recent_news and "
-        "crypto_on_the_hour strings from Block70 ingestion (ground truth for narratives), and ranked candidates, "
+        "crypto_on_the_hour strings from Block70 ingestion (ground truth for narratives), market_regime, "
+        "capital_rotation phases, and ranked candidates, "
         "reply with a single JSON object only, keys: key_trends (array of 2-4 short strings), "
         "risks (array of 2-4 short strings), summary (one concise paragraph, not financial advice). "
-        "Prefer citing themes from recent_news / crypto_on_the_hour when present."
+        "Use only symbols present in candidates; cite regime and rotation labels when relevant."
     )
     try:
         resp = client.chat.completions.create(
@@ -174,13 +229,17 @@ def _analyze_openai(
             risks = []
         if not isinstance(summary, str):
             summary = ""
-        return {
-            "query": query,
-            "top_opportunities": opportunities[:8],
-            "key_trends": [str(x) for x in trends][:8],
-            "risks": [str(x) for x in risks][:8],
-            "summary": summary[:2000],
-        }
+        base = _analyze_stub(
+            query,
+            opportunities,
+            context=context,
+            bundle_meta=bundle_meta,
+            batch_ctx=batch_ctx,
+        )
+        base["key_trends"] = [str(x) for x in trends][:8] or base["key_trends"]
+        base["risks"] = [str(x) for x in risks][:8] or base["risks"]
+        base["summary"] = summary[:2000] or base["summary"]
+        return base
     except Exception as e:
         logger.warning("ai-intelligence analyze OpenAI failed: %s", e)
         return None
@@ -194,7 +253,8 @@ def post_analyze(body: AnalyzeRequest, db: Session = Depends(get_db)) -> dict[st
 
     news_agg = get_news_intel_aggregate_cached(db, hours=48)
     hour_pl = fetch_hour_intelligence_payload_cached()
-    opportunities = fetch_ranked_opportunities(
+    boost = sector_symbols_for_query(query)
+    bundle = fetch_intelligence_bundle(
         limit=24,
         timeframe="24h",
         min_mcap=None,
@@ -202,12 +262,33 @@ def post_analyze(body: AnalyzeRequest, db: Session = Depends(get_db)) -> dict[st
         news_scores=news_agg.scores,
         news_mentions_24h=news_agg.mentions_24h,
         hour_payload=hour_pl,
+        query_boost_symbols=boost,
     )
+    opportunities = list(bundle.get("opportunities") or [])
+    batch_ctx = bundle.get("_batch_context")
+    meta = {
+        "market_regime": bundle.get("market_regime"),
+        "capital_rotation": bundle.get("capital_rotation"),
+        "synthetic_fallback": bundle.get("synthetic_fallback"),
+        "model_insights": bundle.get("model_insights"),
+    }
     context = {
         "recent_news": news_agg.bullets,
         "crypto_hour_summary": hour_summary_lines(hour_pl),
     }
-    ai = _analyze_openai(query, opportunities, context=context)
+    ai = _analyze_openai(
+        query,
+        opportunities,
+        context=context,
+        bundle_meta=meta,
+        batch_ctx=batch_ctx,
+    )
     if ai is not None:
         return ai
-    return _analyze_stub(query, opportunities, context=context)
+    return _analyze_stub(
+        query,
+        opportunities,
+        context=context,
+        bundle_meta=meta,
+        batch_ctx=batch_ctx,
+    )

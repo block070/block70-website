@@ -26,8 +26,34 @@ export type AIIntelligenceOpportunity = {
   volume_24h?: number | null;
   price_change_24h?: number | null;
   price_change_7d?: number | null;
+  price_change_1h?: number | null;
   volatility_index?: number | null;
   risk_tier?: string | null;
+  confidence_score?: number | null;
+  probability_of_move?: number | null;
+  confluence_score?: number | null;
+  cycle_stage?: string | null;
+  entry_signal?: string | null;
+  time_horizon?: string | null;
+  signal_freshness?: string | null;
+  rank_delta?: number | null;
+  rank_reasons?: string[] | null;
+  low_conviction_move?: boolean | null;
+  narrative_flow_boost?: number | null;
+};
+
+export type CapitalRotationRow = {
+  narrative_id: string;
+  label?: string;
+  phase: string;
+};
+
+export type AIIntelligenceOpportunitiesResponse = {
+  opportunities: AIIntelligenceOpportunity[];
+  market_regime: string;
+  capital_rotation: CapitalRotationRow[];
+  synthetic_fallback: boolean;
+  model_insights: string[];
 };
 
 export type GetOpportunitiesParams = {
@@ -37,9 +63,29 @@ export type GetOpportunitiesParams = {
   risk?: AIIntelligenceRisk | "";
 };
 
+function normalizeOpportunitiesPayload(data: unknown): AIIntelligenceOpportunitiesResponse {
+  if (Array.isArray(data)) {
+    return {
+      opportunities: data as AIIntelligenceOpportunity[],
+      market_regime: "TRANSITION",
+      capital_rotation: [],
+      synthetic_fallback: false,
+      model_insights: [],
+    };
+  }
+  const o = data as Record<string, unknown>;
+  return {
+    opportunities: (Array.isArray(o.opportunities) ? o.opportunities : []) as AIIntelligenceOpportunity[],
+    market_regime: typeof o.market_regime === "string" ? o.market_regime : "TRANSITION",
+    capital_rotation: Array.isArray(o.capital_rotation) ? (o.capital_rotation as CapitalRotationRow[]) : [],
+    synthetic_fallback: Boolean(o.synthetic_fallback),
+    model_insights: Array.isArray(o.model_insights) ? (o.model_insights as string[]) : [],
+  };
+}
+
 export async function getAIIntelligenceOpportunities(
   params: GetOpportunitiesParams = {},
-): Promise<AIIntelligenceOpportunity[]> {
+): Promise<AIIntelligenceOpportunitiesResponse> {
   const sp = new URLSearchParams();
   if (params.limit != null) sp.set("limit", String(params.limit));
   if (params.timeframe) sp.set("timeframe", params.timeframe);
@@ -60,7 +106,8 @@ export async function getAIIntelligenceOpportunities(
     const detail = (body as { detail?: string })?.detail;
     throw new Error(typeof detail === "string" ? detail : "Failed to load opportunities");
   }
-  return res.json();
+  const raw: unknown = await res.json();
+  return normalizeOpportunitiesPayload(raw);
 }
 
 export type AIIntelligenceAnalyzeResult = {
@@ -69,6 +116,13 @@ export type AIIntelligenceAnalyzeResult = {
   key_trends: string[];
   risks: string[];
   summary: string;
+  market_regime?: string;
+  capital_rotation?: CapitalRotationRow[];
+  portfolio_positioning?: Record<string, string[]>;
+  predictions?: string[];
+  recent_shifts?: string[];
+  formatted_report?: string;
+  model_insights?: string[];
 };
 
 export async function postAIIntelligenceAnalyze(query: string): Promise<AIIntelligenceAnalyzeResult> {

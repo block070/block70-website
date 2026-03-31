@@ -98,7 +98,7 @@ def fetch_all_coins(vs_currency: str = "usd", per_page: int = 250, page: int = 1
             "per_page": per_page,
             "page": page,
             "sparkline": "false",
-            "price_change_percentage": "24h,7d",
+            "price_change_percentage": "1h,24h,7d",
         },
     )
     return [normalize_market_coin(item) for item in data]
@@ -248,6 +248,9 @@ def normalize_market_coin(raw: Dict[str, Any]) -> Dict[str, Any]:
         "volume_24h": raw.get("total_volume"),
         "circulating_supply": raw.get("circulating_supply"),
         "total_supply": raw.get("total_supply"),
+        "price_change_1h": raw.get("price_change_percentage_1h_in_currency")
+        if raw.get("price_change_percentage_1h_in_currency") is not None
+        else raw.get("price_change_percentage_1h"),
         "price_change_24h": raw.get("price_change_percentage_24h"),
         "price_change_7d": raw.get("price_change_percentage_7d_in_currency"),
     }

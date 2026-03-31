@@ -6,6 +6,7 @@ import { Card } from "@/components/ui/card";
 import {
   getAIIntelligenceOpportunities,
   postAIIntelligenceAnalyze,
+  type AIIntelligenceOpportunitiesResponse,
   type AIIntelligenceOpportunity,
   type AIIntelligenceRisk,
   type AIIntelligenceTimeframe,
@@ -74,6 +75,12 @@ export function AIIntelligenceDashboard() {
   const [risk, setRisk] = useState<AIIntelligenceRisk | "">("");
   const [limit] = useState(12);
   const [rows, setRows] = useState<AIIntelligenceOpportunity[]>([]);
+  const [intelMeta, setIntelMeta] = useState<
+    Pick<
+      AIIntelligenceOpportunitiesResponse,
+      "market_regime" | "capital_rotation" | "synthetic_fallback" | "model_insights"
+    > | null
+  >(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [query, setQuery] = useState("");
@@ -81,6 +88,9 @@ export function AIIntelligenceDashboard() {
     summary: string;
     key_trends: string[];
     risks: string[];
+    formatted_report?: string;
+    market_regime?: string;
+    predictions?: string[];
   } | null>(null);
   const [analyzeLoading, setAnalyzeLoading] = useState(false);
 
@@ -99,7 +109,13 @@ export function AIIntelligenceDashboard() {
         minMcap: minMcapNum,
         risk: risk || undefined,
       });
-      setRows(data);
+      setRows(data.opportunities);
+      setIntelMeta({
+        market_regime: data.market_regime,
+        capital_rotation: data.capital_rotation,
+        synthetic_fallback: data.synthetic_fallback,
+        model_insights: data.model_insights,
+      });
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to load");
       setRows([]);
@@ -123,6 +139,9 @@ export function AIIntelligenceDashboard() {
         summary: res.summary,
         key_trends: res.key_trends ?? [],
         risks: res.risks ?? [],
+        formatted_report: res.formatted_report,
+        market_regime: res.market_regime,
+        predictions: res.predictions,
       });
     } catch {
       setAnalysis(null);
@@ -140,6 +159,26 @@ export function AIIntelligenceDashboard() {
           market data only—exploratory, not financial advice.
         </p>
       </header>
+
+      {intelMeta ? (
+        <div className="flex flex-wrap gap-3 rounded-b70-lg border border-[var(--b70-border)] bg-[var(--b70-card)]/50 px-4 py-3 text-sm">
+          <span className="font-medium text-[var(--b70-fg)]">
+            Regime: <span className="text-[var(--b70-muted)]">{intelMeta.market_regime}</span>
+          </span>
+          {intelMeta.synthetic_fallback ? (
+            <span className="text-amber-600 dark:text-amber-400">Demo data (CoinGecko unavailable)</span>
+          ) : null}
+          {intelMeta.capital_rotation.length > 0 ? (
+            <span className="text-[var(--b70-muted)]">
+              Rotation top:{" "}
+              {intelMeta.capital_rotation
+                .slice(0, 3)
+                .map((r) => `${r.narrative_id} (${r.phase})`)
+                .join(" · ")}
+            </span>
+          ) : null}
+        </div>
+      ) : null}
 
       <section className="flex flex-wrap items-end gap-4 rounded-b70-lg border border-[var(--b70-border)] bg-[var(--b70-card)]/60 p-4">
         <div className="space-y-1">
@@ -228,7 +267,19 @@ export function AIIntelligenceDashboard() {
         </div>
         {analysis ? (
           <div className="mt-3 space-y-3 text-sm">
+            {analysis.market_regime ? (
+              <p className="text-xs uppercase tracking-wide text-[var(--b70-muted)]">
+                Query context · {analysis.market_regime}
+              </p>
+            ) : null}
             <p className="text-[var(--b70-fg)]">{analysis.summary}</p>
+            {analysis.predictions && analysis.predictions.length > 0 ? (
+              <ul className="list-inside list-disc text-[var(--b70-fg)]">
+                {analysis.predictions.map((t) => (
+                  <li key={t}>{t}</li>
+                ))}
+              </ul>
+            ) : null}
             {analysis.key_trends.length > 0 ? (
               <ul className="list-inside list-disc text-[var(--b70-muted)]">
                 {analysis.key_trends.map((t) => (
@@ -242,6 +293,11 @@ export function AIIntelligenceDashboard() {
                   <li key={t}>{t}</li>
                 ))}
               </ul>
+            ) : null}
+            {analysis.formatted_report ? (
+              <pre className="max-h-72 overflow-auto whitespace-pre-wrap rounded-lg border border-[var(--b70-border)] bg-[var(--b70-bg)]/80 p-3 text-xs text-[var(--b70-muted)]">
+                {analysis.formatted_report}
+              </pre>
             ) : null}
           </div>
         ) : null}
@@ -275,6 +331,16 @@ export function AIIntelligenceDashboard() {
                     <span>7d {formatChangePct(o.price_change_7d)}</span>
                   ) : null}
                   {o.risk_tier ? <span className="capitalize">Vol: {o.risk_tier}</span> : null}
+                  {o.confidence_score != null ? (
+                    <span>Conf {Math.round(o.confidence_score)}</span>
+                  ) : null}
+                  {o.probability_of_move != null ? (
+                    <span>Prob {Math.round(o.probability_of_move)}</span>
+                  ) : null}
+                  {o.cycle_stage ? <span>Stage {o.cycle_stage}</span> : null}
+                  {o.entry_signal && o.entry_signal !== "none" ? (
+                    <span>Entry {o.entry_signal}</span>
+                  ) : null}
                 </div>
               </div>
             </div>

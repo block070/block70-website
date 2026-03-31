@@ -428,6 +428,18 @@ def _run_notification_cron_job() -> None:
     _with_db_session(_job)
 
 
+def _run_ai_intel_outcomes_job() -> None:
+    """Resolve Phase F prediction records (prices at horizon) when Redis is up."""
+    try:
+        from app.services.ai_intelligence.adaptive_model import resolve_pending_outcomes
+
+        n = resolve_pending_outcomes()
+        if n:
+            logging.getLogger(__name__).info("ai_intel_outcomes resolved=%s", n)
+    except Exception:
+        logging.getLogger(__name__).debug("ai_intel_outcomes tick failed", exc_info=True)
+
+
 def _run_crypto_alerts_job() -> None:
     def _job(db: Session) -> None:
         from app.services.alerts.crypto_alert_runner import run_crypto_alerts
@@ -719,6 +731,16 @@ def create_scheduler() -> BackgroundScheduler:
         id="crypto_block70_alerts",
         replace_existing=True,
         max_instances=1,
+    )
+
+    _ai_out_min = max(5, int(os.getenv("AI_INTEL_OUTCOMES_INTERVAL_MINUTES", "20")))
+    scheduler.add_job(
+        _run_ai_intel_outcomes_job,
+        IntervalTrigger(minutes=_ai_out_min),
+        id="ai_intel_prediction_outcomes",
+        replace_existing=True,
+        max_instances=1,
+        coalesce=True,
     )
 
     _snap_min = max(5, int(os.getenv("CATEGORY_SNAPSHOT_INTERVAL_MINUTES", "12")))
