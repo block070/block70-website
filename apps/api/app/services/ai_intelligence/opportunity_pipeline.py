@@ -1,6 +1,9 @@
 from __future__ import annotations
 
+import logging
 from typing import Any, Literal
+
+logger = logging.getLogger(__name__)
 
 from app.services.ai_intelligence.hour_intel_client import (
     hour_sentiment_to_0_100,
@@ -98,7 +101,16 @@ def _fetch_market_rows(max_rows: int = 750) -> list[dict[str, Any]]:
     per_page = 250
     max_pages = min(10, max(1, (max_rows + per_page - 1) // per_page))
     while len(rows) < max_rows and page <= max_pages:
-        chunk = fetch_all_coins(per_page=per_page, page=page)
+        try:
+            chunk = fetch_all_coins(per_page=per_page, page=page)
+        except Exception as e:
+            logger.warning(
+                "CoinGecko fetch_all_coins failed (page=%s): %s",
+                page,
+                e,
+                exc_info=True,
+            )
+            break
         if not chunk:
             break
         rows.extend(chunk)

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import math
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
@@ -12,6 +13,8 @@ from sqlalchemy.orm import Session
 
 from app.models.news_article import NewsArticle
 from app.services.connectors.market_cache import market_cache_get, market_cache_set
+
+logger = logging.getLogger(__name__)
 
 _NEWS_AGG_TTL = 90
 _NEWS_AGG_TYP = "ai_intel_news_scores"
@@ -163,24 +166,41 @@ def build_news_intel_aggregate(db: Session, *, hours: int = 48) -> NewsIntelAggr
 
 
 def get_news_intel_aggregate_cached(db: Session, *, hours: int = 48) -> NewsIntelAggregate:
-    cached = market_cache_get(_NEWS_AGG_TYP, _NEWS_AGG_TTL, hours=hours)
-    if isinstance(cached, dict) and "scores" in cached and "mentions_24h" in cached:
-        b = cached.get("bullets") or []
-        if isinstance(b, list):
-            return NewsIntelAggregate(
-                scores={str(k): float(v) for k, v in (cached.get("scores") or {}).items()},
-                mentions_24h={str(k): int(v) for k, v in (cached.get("mentions_24h") or {}).items()},
-                bullets=[str(x) for x in b],
-            )
-    agg = build_news_intel_aggregate(db, hours=hours)
-    market_cache_set(
-        _NEWS_AGG_TYP,
-        _NEWS_AGG_TTL,
-        {
-            "scores": agg.scores,
-            "mentions_24h": agg.mentions_24h,
-            "bullets": agg.bullets,
-        },
-        hours=hours,
-    )
-    return agg
+    """Never raises: returns empty aggregate on cache/DB/build errors so ranking still works."""
+    try:
+        cached = market_cache_get(_NEWS_AGG_TYP, _NEWS_AGG_TTL, hours=hours)
+        if isinstance(cached, dict) and "scores" in cached and "mentions_24h" in cached:
+            b = cached.get("bullets") or []
+            if isinstance(b, list):
+                scores: dict[str, float] = {}
+                for k, v in (cached.get("scores") or {}).items():
+                    try:
+                        scores[str(k)] = float(v)
+                    except (TypeError, ValueError):
+                        continue
+                mentions_24h: dict[str, int] = {}
+                for k, v in (cached.get("mentions_24h") or {}).items():
+                    try:
+                        mentions_24h[str(k)] = int(v)
+                    except (TypeError, ValueError):
+                        continue
+                return NewsIntelAggregate(
+                    scores=scores,
+                    mentions_24h=mentions_24h,
+                    bullets=[str(x) for x in b],
+                )
+        agg = build_news_intel_aggregate(db, hours=hours)
+        market_cache_set(
+            _NEWS_AGG_TYP,
+            _NEWS_AGG_TTL,
+            {
+                "scores": agg.scores,
+                "mentions_24h": agg.mentions_24h,
+                "bullets": agg.bullets,
+            },
+            hours=hours,
+        )
+        return agg
+    except Exception as e:
+        logger.warning("get_news_intel_aggregate_cached failed: %s", e, exc_info=True)
+        return NewsIntelAggregate(scores={}, mentions_24h={}, bullets=[])
