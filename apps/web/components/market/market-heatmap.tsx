@@ -82,6 +82,7 @@ const FILL_MIN_CHART_H = 280;
 export function MarketHeatmap({ coins = [], maxTiles = 50, fillHeight = false }: MarketHeatmapProps) {
   const router = useRouter();
   const containerRef = useRef<HTMLDivElement | null>(null);
+  const lastSizeRef = useRef<{ w: number; h: number }>({ w: 0, h: 0 });
   const [containerWidth, setContainerWidth] = useState(0);
   const [chartHeight, setChartHeight] = useState(fillHeight ? FILL_MIN_CHART_H : DEFAULT_CHART_H);
   const [filter, setFilter] = useState<HeatmapFilter>("all");
@@ -92,18 +93,21 @@ export function MarketHeatmap({ coins = [], maxTiles = 50, fillHeight = false }:
 
     const update = () => {
       const rect = node.getBoundingClientRect();
-      const width = Math.floor(rect.width);
+      const width = Math.max(0, Math.floor(rect.width));
+      const h = Math.max(0, Math.floor(rect.height));
+      const nextChartH = !fillHeight
+        ? DEFAULT_CHART_H
+        : h > 0
+          ? Math.max(FILL_MIN_CHART_H, h)
+          : FILL_MIN_CHART_H;
+      if (width === lastSizeRef.current.w && nextChartH === lastSizeRef.current.h) return;
+      lastSizeRef.current = { w: width, h: nextChartH };
       setContainerWidth(width > 0 ? width : 0);
-      const h = Math.floor(rect.height);
-      if (fillHeight && h > 0) {
-        setChartHeight(Math.max(FILL_MIN_CHART_H, h));
-      } else if (!fillHeight) {
-        setChartHeight(DEFAULT_CHART_H);
-      }
+      setChartHeight(nextChartH);
     };
 
     update();
-    const observer = new ResizeObserver(update);
+    const observer = new ResizeObserver(() => requestAnimationFrame(update));
     observer.observe(node);
     return () => observer.disconnect();
   }, [fillHeight]);
@@ -138,6 +142,7 @@ export function MarketHeatmap({ coins = [], maxTiles = 50, fillHeight = false }:
   return (
     <section
       className={`rounded-xl border border-[var(--b70-border)] bg-[var(--b70-card)] p-4 shadow-sm ${
+        /* min-h-0: let flex children shrink; avoids content-sized height fighting the grid row */
         fillHeight ? "flex h-full min-h-0 flex-col max-lg:h-auto" : ""
       }`}
     >
@@ -189,14 +194,20 @@ export function MarketHeatmap({ coins = [], maxTiles = 50, fillHeight = false }:
       ) : (
         <div
           ref={containerRef}
-          className={`mt-3 w-full overflow-hidden rounded-lg border border-[var(--b70-border)] bg-[var(--b70-bg)] dark:border-slate-800 dark:bg-slate-900/50 ${
+          className={`relative mt-3 w-full overflow-hidden rounded-lg border border-[var(--b70-border)] bg-[var(--b70-bg)] dark:border-slate-800 dark:bg-slate-900/50 ${
             fillHeight
-              ? "min-h-[280px] flex-1 max-lg:h-[560px] max-lg:min-h-0 max-lg:flex-none"
+              ? /* basis-0 + min-h-0: stable flex slice; SVG absolute must not set this box’s content height */
+                "min-h-0 flex-1 basis-0 max-lg:h-[560px] max-lg:flex-none max-lg:basis-auto"
               : "h-[560px]"
           }`}
         >
           {containerWidth > 0 ? (
-            <svg width={containerWidth} height={chartHeight} viewBox={`0 0 ${containerWidth} ${chartHeight}`}>
+            <svg
+              className={fillHeight ? "pointer-events-auto absolute left-0 top-0 max-lg:static" : ""}
+              width={containerWidth}
+              height={chartHeight}
+              viewBox={`0 0 ${containerWidth} ${chartHeight}`}
+            >
               {positioned.map((leaf) => {
                 const d = leaf.data;
                 if (!isTreemapNode(d)) return null;
