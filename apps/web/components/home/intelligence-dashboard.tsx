@@ -530,9 +530,11 @@ export function IntelligenceDashboard() {
               <MoverTable title="Top losers" rows={show.market.losers} positive={false} />
             </div>
             <div className="mt-4 grid gap-4 lg:grid-cols-3 lg:items-stretch">
-              <div className="flex min-h-0 flex-col lg:col-span-2">
+              <div className="flex h-full min-h-0 flex-col lg:col-span-2">
                 <h3 className="mb-2 shrink-0 text-xs font-semibold text-[var(--b70-text-muted)]">Heatmap</h3>
-                <MarketHeatmap coins={show.market.heatmap} maxTiles={10} />
+                <div className="flex min-h-0 flex-1 flex-col">
+                  <MarketHeatmap coins={show.market.heatmap} maxTiles={10} fillHeight />
+                </div>
               </div>
               <div className="flex h-full min-h-0 flex-col">
                 <h3 className="mb-2 shrink-0 text-xs font-semibold text-[var(--b70-text-muted)]">Volume spikes</h3>

@@ -22,6 +22,11 @@ type MarketHeatmapProps = {
   coins?: HeatmapCoin[];
   /** Cap tiles (homepage uses 10: five gainers + five losers). */
   maxTiles?: number;
+  /**
+   * Grow with parent (e.g. homepage grid next to volume spikes). Chart height follows
+   * the container instead of a fixed 560px.
+   */
+  fillHeight?: boolean;
 };
 
 type HeatmapFilter = "all" | "gainers" | "losers";
@@ -71,27 +76,37 @@ function colorForChange(change: number): string {
   return "#64748b";
 }
 
-export function MarketHeatmap({ coins = [], maxTiles = 50 }: MarketHeatmapProps) {
+const DEFAULT_CHART_H = 560;
+const FILL_MIN_CHART_H = 280;
+
+export function MarketHeatmap({ coins = [], maxTiles = 50, fillHeight = false }: MarketHeatmapProps) {
   const router = useRouter();
   const containerRef = useRef<HTMLDivElement | null>(null);
   const [containerWidth, setContainerWidth] = useState(0);
+  const [chartHeight, setChartHeight] = useState(fillHeight ? FILL_MIN_CHART_H : DEFAULT_CHART_H);
   const [filter, setFilter] = useState<HeatmapFilter>("all");
-  const chartHeight = 560;
 
   useEffect(() => {
     const node = containerRef.current;
     if (!node) return;
 
     const update = () => {
-      const width = Math.floor(node.getBoundingClientRect().width);
+      const rect = node.getBoundingClientRect();
+      const width = Math.floor(rect.width);
       setContainerWidth(width > 0 ? width : 0);
+      const h = Math.floor(rect.height);
+      if (fillHeight && h > 0) {
+        setChartHeight(Math.max(FILL_MIN_CHART_H, h));
+      } else if (!fillHeight) {
+        setChartHeight(DEFAULT_CHART_H);
+      }
     };
 
     update();
     const observer = new ResizeObserver(update);
     observer.observe(node);
     return () => observer.disconnect();
-  }, []);
+  }, [fillHeight]);
 
   const filteredCoins = useMemo(() => {
     if (filter === "gainers") return coins.filter((c) => c.change24h > 0);
@@ -118,12 +133,16 @@ export function MarketHeatmap({ coins = [], maxTiles = 50 }: MarketHeatmapProps)
       .paddingInner(2)
       .round(true)(root);
     return root.leaves() as unknown as HierarchyRectangularNode<TreemapNode>[];
-  }, [containerWidth, data]);
+  }, [containerWidth, chartHeight, data]);
 
   return (
-    <section className="rounded-xl border border-[var(--b70-border)] bg-[var(--b70-card)] p-4 shadow-sm">
-      <h3 className="text-sm font-semibold text-[var(--b70-text)]">Crypto market heatmap</h3>
-      <div className="mt-0.5 flex flex-wrap items-center justify-between gap-2">
+    <section
+      className={`rounded-xl border border-[var(--b70-border)] bg-[var(--b70-card)] p-4 shadow-sm ${
+        fillHeight ? "flex h-full min-h-0 flex-col max-lg:h-auto" : ""
+      }`}
+    >
+      <h3 className="shrink-0 text-sm font-semibold text-[var(--b70-text)]">Crypto market heatmap</h3>
+      <div className="mt-0.5 flex shrink-0 flex-wrap items-center justify-between gap-2">
         <p className="text-[11px] text-[var(--b70-text-muted)]">
           Treemap sized by 24h move magnitude, colored by 24h price change
         </p>
@@ -170,7 +189,11 @@ export function MarketHeatmap({ coins = [], maxTiles = 50 }: MarketHeatmapProps)
       ) : (
         <div
           ref={containerRef}
-          className="mt-3 h-[560px] w-full overflow-hidden rounded-lg border border-[var(--b70-border)] bg-[var(--b70-bg)] dark:border-slate-800 dark:bg-slate-900/50"
+          className={`mt-3 w-full overflow-hidden rounded-lg border border-[var(--b70-border)] bg-[var(--b70-bg)] dark:border-slate-800 dark:bg-slate-900/50 ${
+            fillHeight
+              ? "min-h-[280px] flex-1 max-lg:h-[560px] max-lg:min-h-0 max-lg:flex-none"
+              : "h-[560px]"
+          }`}
         >
           {containerWidth > 0 ? (
             <svg width={containerWidth} height={chartHeight} viewBox={`0 0 ${containerWidth} ${chartHeight}`}>
