@@ -50,7 +50,7 @@ def get_insights(
 
 @router.get("/portfolio", response_model=dict)
 def get_portfolio(
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_feature("ai_full")),
     db: Session = Depends(get_db),
 ):
     """GET /api/v1/copilot/portfolio — portfolio analysis (risk, opportunities, whale overlap)."""

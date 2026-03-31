@@ -1,5 +1,9 @@
 # Block70 Deploy Checklist
 
+## TLS for `https://api.block70.com`
+
+The API container only speaks HTTP on port `8000`. For a public HTTPS API hostname, terminate TLS with Caddy, nginx+certbot, or a cloud load balancer. Step-by-step options and a Docker Caddy snippet live in **[API_TLS.md](./API_TLS.md)**.
+
 ## Push & restart (your flow)
 
 1. **Push to server**

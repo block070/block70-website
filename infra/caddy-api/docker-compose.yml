@@ -1,0 +1,26 @@
+# TLS front for api.block70.com — run from repo root:
+#   docker compose -f docker-compose.yml -f infra/caddy-api/docker-compose.yml up -d
+# Or copy this service into docker-compose.override.yml.
+#
+# Before first start: ensure main stack is up (`docker compose up -d api`) so `api:8000` resolves.
+# Publish Caddy on 80/443; consider removing the API port publish from the root compose for production
+# (firewall 8000) so traffic only enters via HTTPS.
+
+services:
+  caddy-api:
+    image: caddy:2-alpine
+    container_name: block70-caddy-api
+    restart: always
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    networks:
+      - default
+
+volumes:
+  caddy_data:
+  caddy_config:

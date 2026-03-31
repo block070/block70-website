@@ -1,8 +1,53 @@
 import { NextResponse } from "next/server";
 
-import { backendGet, getBackendApiBase } from "@/lib/narratives/resolve-narratives-api";
+import {
+  backendGet,
+  getBackendApiBase,
+  type BackendGetResult,
+} from "@/lib/narratives/resolve-narratives-api";
 
 export const dynamic = "force-dynamic";
+
+/**
+ * Set on Vercel/host when the marketing site is deployed without a reachable FastAPI
+ * (homepage uses CoinGecko fallback). Hides the yellow banner; does not fix the API.
+ */
+const SKIP_BACKEND_HEALTH =
+  process.env.HIDE_BACKEND_HEALTH_BANNER === "1" ||
+  process.env.SKIP_BACKEND_HEALTH_CHECK === "1";
+
+function formatNetworkErrorMessage(err: unknown, tried: string[]): string {
+  const raw = err instanceof Error ? err.message : String(err);
+  const joined = tried.join(" · ");
+  const lower = raw.toLowerCase();
+  if (
+    lower.includes("fetch failed") ||
+    lower.includes("econnrefused") ||
+    lower.includes("enotfound") ||
+    lower.includes("network") ||
+    lower.includes("undici")
+  ) {
+    return `Could not reach the Block70 API (${joined}). The server may be down, the URL may be wrong, or a firewall may block server-side requests. The homepage can still show public market data without the API.`;
+  }
+  return raw.length > 320 ? `${raw.slice(0, 317)}…` : raw;
+}
+
+async function probeHealthPaths(
+  base: string,
+): Promise<{ r: BackendGetResult; healthUrl: string }> {
+  const urls = [`${base}/health`, `${base}/api/v1/health`];
+  let lastErr: unknown;
+  for (const healthUrl of urls) {
+    try {
+      const r = await backendGet(healthUrl);
+      if (r.ok) return { r, healthUrl };
+      lastErr = new Error(`HTTP ${r.status} for ${healthUrl}`);
+    } catch (e) {
+      lastErr = e;
+    }
+  }
+  throw lastErr;
+}
 
 /** Minimal instructions shown in the UI when the API is unreachable (no secrets). */
 const RUNBOOK = {
@@ -24,6 +69,16 @@ const RUNBOOK = {
  */
 export async function GET() {
   const started = Date.now();
+
+  if (SKIP_BACKEND_HEALTH) {
+    return NextResponse.json({
+      ok: true as const,
+      skipped: true as const,
+      message: "Backend health probe disabled (HIDE_BACKEND_HEALTH_BANNER or SKIP_BACKEND_HEALTH_CHECK).",
+      latencyMs: Date.now() - started,
+    });
+  }
+
   const base = getBackendApiBase().replace(/\/$/, "");
 
   if (!base) {
@@ -39,9 +94,9 @@ export async function GET() {
     );
   }
 
-  const healthUrl = `${base}/health`;
+  const triedUrls = [`${base}/health`, `${base}/api/v1/health`];
   try {
-    const r = await backendGet(healthUrl);
+    const { r, healthUrl } = await probeHealthPaths(base);
     const elapsed = Date.now() - started;
     if (!r.ok) {
       const body = (await r.text().catch(() => "")).slice(0, 200);
@@ -50,9 +105,9 @@ export async function GET() {
           ok: false as const,
           reason: "bad_status",
           status: r.status,
-          message: `Backend returned HTTP ${r.status} for /health.`,
+          message: `Backend returned HTTP ${r.status} for health.`,
           detail: body || undefined,
-          tried: healthUrl,
+          tried: triedUrls.join(" · "),
           latencyMs: elapsed,
           runbook: RUNBOOK,
         },
@@ -71,7 +126,7 @@ export async function GET() {
           ok: false as const,
           reason: "unhealthy_payload",
           message: `Backend health body status is not ok: ${String(payload.status)}`,
-          tried: healthUrl,
+          tried: triedUrls.join(" · "),
           latencyMs: elapsed,
           runbook: RUNBOOK,
         },
@@ -85,13 +140,12 @@ export async function GET() {
     });
   } catch (err) {
     const elapsed = Date.now() - started;
-    const msg = err instanceof Error ? err.message : String(err);
     return NextResponse.json(
       {
         ok: false as const,
         reason: "network_error",
-        message: msg,
-        tried: healthUrl,
+        message: formatNetworkErrorMessage(err, triedUrls),
+        tried: triedUrls.join(" · "),
         latencyMs: elapsed,
         runbook: RUNBOOK,
       },

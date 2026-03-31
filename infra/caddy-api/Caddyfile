@@ -1,0 +1,9 @@
+# Terminate HTTPS for api.block70.com and proxy to Block70 FastAPI (Docker service `api` on port 8000).
+# Requires: DNS A record for api.block70.com → this host; ports 80/443 reachable from the internet
+# for Let's Encrypt (HTTP-01). Use with docker compose in this directory from the block70 repo root
+# so the stack joins the default project network (see README in this folder).
+
+api.block70.com {
+	encode gzip
+	reverse_proxy api:8000
+}
