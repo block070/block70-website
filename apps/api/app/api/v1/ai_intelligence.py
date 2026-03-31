@@ -20,6 +20,7 @@ from app.services.ai_intelligence.opportunity_pipeline import (
     fetch_intelligence_bundle,
 )
 from app.services.ai_intelligence.query_sector_hints import sector_symbols_for_query
+from app.services.ai_intelligence.query_intent import parse_query_intent
 from app.services.ai_intelligence.report_builder import (
     build_formatted_report,
     portfolio_buckets,
@@ -120,9 +121,23 @@ def _analyze_stub(
         "Past momentum does not guarantee future returns.",
         "Probability and confidence are distinct: confidence reflects input agreement; probability reflects pattern/confluence stack.",
     ]
+    qid = (bundle_meta or {}).get("query_intent") or {}
+    intent_l = str(qid.get("intent") or "DISCOVERY")
+    om = str(qid.get("output_mode") or "")
+    lens = ""
+    if intent_l == "PREDICTION":
+        lens = "Anticipatory lens—ranking favors early-cycle and implied velocity, not tape leaders alone. "
+    elif intent_l == "RISK":
+        lens = "Defensive lens—confidence-weighted, volatility-aware ordering. "
+    elif intent_l == "SECTOR":
+        lens = "Sector-filtered book—only names tagged to your narrative bucket, plus soft backfill if thin. "
+    elif intent_l == "SPECIFIC_ASSET":
+        lens = "Symbol-centric book—primary tickers and narrative peers surfaced first. "
+    elif intent_l == "ANALYSIS":
+        lens = "Single-name diagnostic—focus asset and peer sleeve in front. "
     summary = (
-        f"Query: «{query[:200]}». Top symbols by predictive stack: {top_line}. "
-        f"Regime {regime}; prioritize Δrank and confluence ≥3 before size. Exploratory only—not advice."
+        f"Query: «{query[:200]}». {lens}Top symbols: {top_line}. "
+        f"Regime {regime}; mode={om} intent={intent_l}. Exploratory only—not advice."
     )
     formatted_report = ""
     portfolio: dict[str, list[str]] = {}
@@ -155,6 +170,8 @@ def _analyze_stub(
         "recent_shifts": shifts,
         "formatted_report": formatted_report,
         "model_insights": list((bundle_meta or {}).get("model_insights") or []),
+        "query_intent": (bundle_meta or {}).get("query_intent"),
+        "output_mode": ((bundle_meta or {}).get("query_intent") or {}).get("output_mode"),
     }
 
 
@@ -185,6 +202,7 @@ def _analyze_openai(
         "crypto_on_the_hour": (ctx.get("crypto_hour_summary") or [])[:4],
         "market_regime": meta.get("market_regime"),
         "capital_rotation": (meta.get("capital_rotation") or [])[:6],
+        "query_intent": meta.get("query_intent"),
         "candidates": [
             {
                 "symbol": o.get("asset_symbol"),
@@ -253,6 +271,7 @@ def post_analyze(body: AnalyzeRequest, db: Session = Depends(get_db)) -> dict[st
 
     news_agg = get_news_intel_aggregate_cached(db, hours=48)
     hour_pl = fetch_hour_intelligence_payload_cached()
+    qi = parse_query_intent(query)
     boost = sector_symbols_for_query(query)
     bundle = fetch_intelligence_bundle(
         limit=24,
@@ -263,6 +282,7 @@ def post_analyze(body: AnalyzeRequest, db: Session = Depends(get_db)) -> dict[st
         news_mentions_24h=news_agg.mentions_24h,
         hour_payload=hour_pl,
         query_boost_symbols=boost,
+        query_intent=qi,
     )
     opportunities = list(bundle.get("opportunities") or [])
     batch_ctx = bundle.get("_batch_context")
@@ -271,6 +291,7 @@ def post_analyze(body: AnalyzeRequest, db: Session = Depends(get_db)) -> dict[st
         "capital_rotation": bundle.get("capital_rotation"),
         "synthetic_fallback": bundle.get("synthetic_fallback"),
         "model_insights": bundle.get("model_insights"),
+        "query_intent": bundle.get("query_intent"),
     }
     context = {
         "recent_news": news_agg.bullets,

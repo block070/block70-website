@@ -8,6 +8,7 @@ import {
   postAIIntelligenceAnalyze,
   type AIIntelligenceOpportunitiesResponse,
   type AIIntelligenceOpportunity,
+  type QueryIntentDebug,
   type AIIntelligenceRisk,
   type AIIntelligenceTimeframe,
 } from "@/lib/ai-intelligence-api";
@@ -91,6 +92,8 @@ export function AIIntelligenceDashboard() {
     formatted_report?: string;
     market_regime?: string;
     predictions?: string[];
+    query_intent?: QueryIntentDebug;
+    output_mode?: string;
   } | null>(null);
   const [analyzeLoading, setAnalyzeLoading] = useState(false);
 
@@ -142,6 +145,8 @@ export function AIIntelligenceDashboard() {
         formatted_report: res.formatted_report,
         market_regime: res.market_regime,
         predictions: res.predictions,
+        query_intent: res.query_intent,
+        output_mode: res.output_mode,
       });
     } catch {
       setAnalysis(null);
@@ -267,6 +272,12 @@ export function AIIntelligenceDashboard() {
         </div>
         {analysis ? (
           <div className="mt-3 space-y-3 text-sm">
+            {analysis.query_intent?.intent ? (
+              <p className="text-xs font-medium text-[var(--b70-crypto-blue)]">
+                Query intent: {analysis.query_intent.intent}
+                {analysis.output_mode ? ` · ${analysis.output_mode}` : ""}
+              </p>
+            ) : null}
             {analysis.market_regime ? (
               <p className="text-xs uppercase tracking-wide text-[var(--b70-muted)]">
                 Query context · {analysis.market_regime}

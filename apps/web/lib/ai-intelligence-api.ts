@@ -40,6 +40,8 @@ export type AIIntelligenceOpportunity = {
   rank_reasons?: string[] | null;
   low_conviction_move?: boolean | null;
   narrative_flow_boost?: number | null;
+  narrative_tags?: string[] | null;
+  intent_primary_match?: boolean | null;
 };
 
 export type CapitalRotationRow = {
@@ -48,12 +50,22 @@ export type CapitalRotationRow = {
   phase: string;
 };
 
+export type QueryIntentDebug = {
+  intent?: string;
+  output_mode?: string;
+  filter_narratives?: string[] | null;
+  sort_mode?: string;
+  prob_bias?: number;
+  weight_mult?: Record<string, number>;
+};
+
 export type AIIntelligenceOpportunitiesResponse = {
   opportunities: AIIntelligenceOpportunity[];
   market_regime: string;
   capital_rotation: CapitalRotationRow[];
   synthetic_fallback: boolean;
   model_insights: string[];
+  query_intent?: QueryIntentDebug;
 };
 
 export type GetOpportunitiesParams = {
@@ -80,6 +92,9 @@ function normalizeOpportunitiesPayload(data: unknown): AIIntelligenceOpportuniti
     capital_rotation: Array.isArray(o.capital_rotation) ? (o.capital_rotation as CapitalRotationRow[]) : [],
     synthetic_fallback: Boolean(o.synthetic_fallback),
     model_insights: Array.isArray(o.model_insights) ? (o.model_insights as string[]) : [],
+    query_intent: (o.query_intent && typeof o.query_intent === "object"
+      ? (o.query_intent as QueryIntentDebug)
+      : undefined),
   };
 }
 
@@ -123,6 +138,8 @@ export type AIIntelligenceAnalyzeResult = {
   recent_shifts?: string[];
   formatted_report?: string;
   model_insights?: string[];
+  query_intent?: QueryIntentDebug;
+  output_mode?: string;
 };
 
 export async function postAIIntelligenceAnalyze(query: string): Promise<AIIntelligenceAnalyzeResult> {

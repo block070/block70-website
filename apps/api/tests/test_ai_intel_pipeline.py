@@ -115,3 +115,29 @@ def test_save_adaptive_weights_clamps_and_normalizes(monkeypatch: pytest.MonkeyP
     for v in captured.values():
         assert 0.03 <= float(v) <= 0.45
     assert abs(sum(float(x) for x in captured.values()) - 1.0) < 1e-5
+
+def test_query_intent_ai_sector_vs_best_crypto() -> None:
+    from app.services.ai_intelligence.query_intent import parse_query_intent
+
+    a = parse_query_intent("AI coins to watch")
+    b = parse_query_intent("best crypto opportunities today")
+    assert a.intent == "SECTOR"
+    assert b.intent == "DISCOVERY"
+    assert a.filter_narratives is not None and "AI" in a.filter_narratives
+    assert b.filter_narratives is None
+
+
+def test_bundle_respects_query_intent_filter(monkeypatch: pytest.MonkeyPatch) -> None:
+    from app.services.ai_intelligence.query_intent import parse_query_intent
+
+    monkeypatch.setattr(
+        "app.services.ai_intelligence.opportunity_pipeline.fetch_all_coins",
+        lambda **kwargs: [],
+    )
+    qi = parse_query_intent("meme coins")
+    b = fetch_intelligence_bundle(limit=12, skip_enqueue_predictions=True, query_intent=qi)
+    assert b["query_intent"]["intent"] == "SECTOR"
+    prim = [x for x in b["opportunities"] if x.get("intent_primary_match")]
+    assert prim, "expected at least one primary meme match in synthetic book"
+    for x in prim:
+        assert "MEME" in (x.get("narrative_tags") or [])

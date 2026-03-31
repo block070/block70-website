@@ -29,6 +29,15 @@ from app.services.ai_intelligence.alpha_factors import (
 )
 from app.services.ai_intelligence.hour_intel_client import hour_sentiment_to_0_100
 from app.services.ai_intelligence.pattern_snapshots import push_rank_snapshot, rank_delta_for_symbol
+from app.services.ai_intelligence.narrative_map import narratives_for_asset
+from app.services.ai_intelligence.query_intent import (
+    QueryIntentResult,
+    apply_intent_post_scores,
+    apply_intent_weight_multipliers,
+    candidate_matches_intent,
+    parse_query_intent,
+    sort_key_for_mode,
+)
 from app.services.ai_intelligence.scoring_engine import (
     CoinMarketInputs,
     Timeframe,
@@ -227,6 +236,7 @@ def _score_candidates(
     query_boost: frozenset[str],
     skip_mcap: bool,
     min_mcap: float | None,
+    intent: QueryIntentResult | None = None,
 ) -> tuple[list[dict[str, Any]], int, int]:
     skipped_mcap = 0
     candidates: list[dict[str, Any]] = []
@@ -274,7 +284,8 @@ def _score_candidates(
         qb = 15.0 if sym in query_boost else 0.0
         trap = low_conviction_trap(row, ctx, rot_b)
 
-        w = _regime_weights(load_adaptive_weights(), ctx.market_regime)
+        w0 = _regime_weights(load_adaptive_weights(), ctx.market_regime)
+        w = apply_intent_weight_multipliers(w0, intent.weight_mult if intent else {})
         comps = {
             "momentum": mom,
             "volume": vol,
@@ -344,6 +355,7 @@ def _score_candidates(
             mentions=mentions,
         )
 
+        narr_tags = sorted(narratives_for_asset(sym, slug))
         candidates.append(
             {
                 "_raw_sort": raw_core,
@@ -375,6 +387,8 @@ def _score_candidates(
                 "entry_signal": entry,
                 "rank_reasons": reasons,
                 "factor_scores": {k: round(v, 2) for k, v in comps.items()},
+                "narrative_tags": narr_tags,
+                "spot_price": sp,
             }
         )
     return candidates, skipped_mcap, len(candidates)
@@ -414,6 +428,7 @@ def fetch_intelligence_bundle(
     hour_payload: dict[str, Any] | None = None,
     query_boost_symbols: frozenset[str] | None = None,
     skip_enqueue_predictions: bool = False,
+    query_intent: QueryIntentResult | None = None,
 ) -> dict[str, Any]:
     limit_eff = max(5, min(limit, 100))
     max_rows = min(1500, max(400, limit_eff * 40))
@@ -424,7 +439,8 @@ def fetch_intelligence_bundle(
         synthetic = True
         logger.warning("ai_intel: using synthetic market rows (CoinGecko empty)")
 
-    qb = query_boost_symbols or frozenset()
+    qi = query_intent if query_intent is not None else parse_query_intent("")
+    qb = frozenset(query_boost_symbols or frozenset()) | qi.boost_symbols
     ctx = BatchContext.build(rows, timeframe=timeframe, news_scores=news_scores, news_mentions=news_mentions_24h)
 
     primary, skipped_mcap, n_pri = _score_candidates(
@@ -438,6 +454,7 @@ def fetch_intelligence_bundle(
         query_boost=qb,
         skip_mcap=False,
         min_mcap=min_mcap,
+        intent=qi,
     )
     out = list(primary)
     if len(out) < limit_eff and min_mcap is not None and min_mcap > 0:
@@ -452,6 +469,7 @@ def fetch_intelligence_bundle(
             query_boost=qb,
             skip_mcap=True,
             min_mcap=None,
+            intent=qi,
         )
         seen = {x["asset_symbol"] for x in out}
         for x in sorted(back, key=lambda z: float(z["_raw_sort"]), reverse=True):
@@ -461,14 +479,21 @@ def fetch_intelligence_bundle(
             if len(out) >= limit_eff:
                 break
 
-    out.sort(
-        key=lambda x: (
-            -float(x.get("probability_of_move", 0)),
-            -int(x.get("confluence_score", 0)),
-            1 if x.get("cycle_stage") == "LATE" else 0,
-            -float(x.get("_raw_sort", 0)),
-        )
-    )
+    mode = qi.sort_mode
+
+    def _sk(x: dict[str, Any]) -> tuple[float, ...]:
+        return sort_key_for_mode(x, mode)
+
+    matched = [c for c in out if candidate_matches_intent(c, qi)]
+    rest = [c for c in out if not candidate_matches_intent(c, qi)]
+    matched.sort(key=_sk)
+    rest.sort(key=_sk)
+    out = matched + rest
+    for it in out:
+        apply_intent_post_scores(it, qi)
+    out.sort(key=_sk)
+    for it in out:
+        it["intent_primary_match"] = candidate_matches_intent(it, qi)
 
     for i, it in enumerate(out):
         rd = rank_delta_for_symbol(it["asset_symbol"], i)
@@ -517,11 +542,12 @@ def fetch_intelligence_bundle(
         it.pop("spot_price", None)
 
     logger.info(
-        "ai_intel scored=%s skipped_mcap=%s synthetic=%s output=%s",
+        "ai_intel scored=%s skipped_mcap=%s synthetic=%s output=%s query_intent=%s",
         n_pri,
         skipped_mcap,
         synthetic,
         len(final),
+        qi.to_log_dict(),
     )
 
     return {
@@ -530,6 +556,7 @@ def fetch_intelligence_bundle(
         "capital_rotation": ctx.capital_rotation,
         "synthetic_fallback": synthetic,
         "model_insights": model_insights_bullets(),
+        "query_intent": qi.to_log_dict(),
         "_batch_context": ctx,
     }
 
