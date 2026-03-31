@@ -167,6 +167,41 @@ function fallbackWallets(): WalletLeaderboardEntry[] {
       total_profit_usd: 6_100_000,
       recent_opportunity_count: 24,
     },
+    {
+      wallet_address: "0xd8da6bf26964af9d7eed9e03e53415dd37c80f66",
+      win_rate: 0.61,
+      average_roi: 0.19,
+      total_profit_usd: 3_400_000,
+      recent_opportunity_count: 15,
+    },
+    {
+      wallet_address: "0x3f5ce5fbfe3e9af3971dd833d26ba9b5c936f0be",
+      win_rate: 0.55,
+      average_roi: 0.12,
+      total_profit_usd: 980_000,
+      recent_opportunity_count: 9,
+    },
+    {
+      wallet_address: "0x564286362092d8e7936f7749573a1fd9fde7abeb",
+      win_rate: 0.67,
+      average_roi: 0.27,
+      total_profit_usd: 5_200_000,
+      recent_opportunity_count: 21,
+    },
+    {
+      wallet_address: "0x77696a7a2d7634ab4cfc9c96231e3c3d47cd14c8",
+      win_rate: 0.59,
+      average_roi: 0.16,
+      total_profit_usd: 2_100_000,
+      recent_opportunity_count: 13,
+    },
+    {
+      wallet_address: "0xe92d1a43df510f82c66392592fb0c5c14ff92ea2",
+      win_rate: 0.53,
+      average_roi: 0.11,
+      total_profit_usd: 720_000,
+      recent_opportunity_count: 7,
+    },
   ];
 }
 
@@ -251,9 +286,40 @@ function fallbackNews(): NewsIntelRow[] {
       narrativeImpact: 68,
       publishedAt: t,
     },
+    {
+      id: -204,
+      title: "Perp funding flips positive on majors after balanced weekend",
+      source: "Block70 Intel",
+      url: "/insights",
+      aiSummary:
+        "Crowded short funding often mean-reverts; pair with open-interest deltas and spot premium.",
+      narrativeImpact: 55,
+      publishedAt: t,
+    },
+    {
+      id: -205,
+      title: "On-chain active addresses: L2 batches steady while L1 fees cool",
+      source: "Block70 Intel",
+      url: "/chains",
+      aiSummary:
+        "Fee compression can lift app-chain rotation trades; validate against bridge flows.",
+      narrativeImpact: 49,
+      publishedAt: t,
+    },
+    {
+      id: -206,
+      title: "RWA desk notes: tokenized treasury spread stable vs. off-chain bills",
+      source: "Block70 Intel",
+      url: "/narratives",
+      aiSummary:
+        "Basis stability reduces squeeze risk for yield carry; watch issuance calendars.",
+      narrativeImpact: 44,
+      publishedAt: t,
+    },
   ];
 }
 
+/** Illustrative rows only when market endpoints return nothing — avoid implying live prices. */
 const DEMO_GAINERS_LOSERS: { gainers: MoverRow[]; losers: MoverRow[] } = {
   gainers: [
     {
@@ -276,6 +342,36 @@ const DEMO_GAINERS_LOSERS: { gainers: MoverRow[]; losers: MoverRow[] } = {
       volume24h: 890e6,
       marketCap: 16e9,
     },
+    {
+      symbol: "SUI",
+      name: "Sui",
+      slug: "sui",
+      logoUrl: null,
+      price: 3.85,
+      change24h: 2.6,
+      volume24h: 620e6,
+      marketCap: 11e9,
+    },
+    {
+      symbol: "NEAR",
+      name: "NEAR Protocol",
+      slug: "near",
+      logoUrl: null,
+      price: 4.92,
+      change24h: 2.2,
+      volume24h: 410e6,
+      marketCap: 5.8e9,
+    },
+    {
+      symbol: "LINK",
+      name: "Chainlink",
+      slug: "chainlink",
+      logoUrl: null,
+      price: 18.4,
+      change24h: 1.9,
+      volume24h: 780e6,
+      marketCap: 12e9,
+    },
   ],
   losers: [
     {
@@ -297,6 +393,36 @@ const DEMO_GAINERS_LOSERS: { gainers: MoverRow[]; losers: MoverRow[] } = {
       change24h: -1.9,
       volume24h: 410e6,
       marketCap: 14e9,
+    },
+    {
+      symbol: "PEPE",
+      name: "Pepe",
+      slug: "pepe",
+      logoUrl: null,
+      price: 0.0000092,
+      change24h: -3.1,
+      volume24h: 890e6,
+      marketCap: 3.8e9,
+    },
+    {
+      symbol: "WIF",
+      name: "dogwifhat",
+      slug: "dogwifcoin",
+      logoUrl: null,
+      price: 1.85,
+      change24h: -2.8,
+      volume24h: 320e6,
+      marketCap: 1.9e9,
+    },
+    {
+      symbol: "BONK",
+      name: "Bonk",
+      slug: "bonk",
+      logoUrl: null,
+      price: 0.000022,
+      change24h: -2.2,
+      volume24h: 280e6,
+      marketCap: 1.5e9,
     },
   ],
 };
@@ -357,22 +483,183 @@ function fallbackCategories(): CategoryDirectoryApiItem[] {
         { slug: "render-token", name: "Render", symbol: "RNDR", change24hPct: 2.4, block70Score: 71 },
       ],
     },
+    {
+      id: "defi-bluechips",
+      name: "DeFi Bluechips",
+      market_cap: 52e9,
+      market_cap_change_24h: 1.2,
+      volume_24h: 3.2e9,
+      trend: "bullish",
+      capital_flow: "in",
+      vol_to_mcap: 0.062,
+      avg_block70: 64,
+      avg_change_24h: 1.2,
+      coin_count: 36,
+      top3: [
+        { slug: "uniswap", name: "Uniswap", symbol: "UNI", change24hPct: 1.5, block70Score: 66 },
+        { slug: "aave", name: "Aave", symbol: "AAVE", change24hPct: 0.9, block70Score: 63 },
+        { slug: "curve-dao-token", name: "Curve", symbol: "CRV", change24hPct: -0.3, block70Score: 54 },
+      ],
+    },
+    {
+      id: "layer-1",
+      name: "Layer 1s",
+      market_cap: 880e9,
+      market_cap_change_24h: 0.9,
+      volume_24h: 22e9,
+      trend: "bullish",
+      capital_flow: "neutral",
+      vol_to_mcap: 0.025,
+      avg_block70: 58,
+      avg_change_24h: 0.9,
+      coin_count: 24,
+      top3: [
+        { slug: "ethereum", name: "Ethereum", symbol: "ETH", change24hPct: 0.8, block70Score: 61 },
+        { slug: "solana", name: "Solana", symbol: "SOL", change24hPct: 2.1, block70Score: 64 },
+        { slug: "sui", name: "Sui", symbol: "SUI", change24hPct: 1.1, block70Score: 59 },
+      ],
+    },
+    {
+      id: "infra",
+      name: "Infrastructure",
+      market_cap: 18e9,
+      market_cap_change_24h: -0.4,
+      volume_24h: 720e6,
+      trend: "neutral",
+      capital_flow: "out",
+      vol_to_mcap: 0.04,
+      avg_block70: 51,
+      avg_change_24h: -0.4,
+      coin_count: 41,
+      top3: [
+        { slug: "chainlink", name: "Chainlink", symbol: "LINK", change24hPct: 0.4, block70Score: 58 },
+        { slug: "the-graph", name: "The Graph", symbol: "GRT", change24hPct: -0.8, block70Score: 47 },
+        { slug: "polygon-ecosystem-token", name: "Polygon", symbol: "POL", change24hPct: -0.2, block70Score: 52 },
+      ],
+    },
+    {
+      id: "meme-token",
+      name: "Meme coins",
+      market_cap: 48e9,
+      market_cap_change_24h: -1.8,
+      volume_24h: 6e9,
+      trend: "bearish",
+      capital_flow: "out",
+      vol_to_mcap: 0.125,
+      avg_block70: 44,
+      avg_change_24h: -1.8,
+      coin_count: 28,
+      top3: [
+        { slug: "dogecoin", name: "Dogecoin", symbol: "DOGE", change24hPct: -1.2, block70Score: 48 },
+        { slug: "shiba-inu", name: "Shiba Inu", symbol: "SHIB", change24hPct: -0.9, block70Score: 45 },
+        { slug: "pepe", name: "Pepe", symbol: "PEPE", change24hPct: -2.4, block70Score: 42 },
+      ],
+    },
+    {
+      id: "store-of-value",
+      name: "Store of value",
+      market_cap: 1.9e12,
+      market_cap_change_24h: 0.15,
+      volume_24h: 42e9,
+      trend: "neutral",
+      capital_flow: "neutral",
+      vol_to_mcap: 0.022,
+      avg_block70: 54,
+      avg_change_24h: 0.15,
+      coin_count: 6,
+      top3: [
+        { slug: "bitcoin", name: "Bitcoin", symbol: "BTC", change24hPct: 0.2, block70Score: 56 },
+        { slug: "bitcoin-cash", name: "Bitcoin Cash", symbol: "BCH", change24hPct: -0.1, block70Score: 49 },
+        { slug: "litecoin", name: "Litecoin", symbol: "LTC", change24hPct: 0.05, block70Score: 50 },
+      ],
+    },
   ];
 }
 
+function hashToJitter(id: string, salt: number): number {
+  let h = salt;
+  for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) | 0;
+  return (Math.abs(h) % 17) - 8;
+}
+
 function categoryToNarrativeRow(c: CategoryDirectoryApiItem): NarrativeEngineRow {
-  const sentimentScore =
-    c.trend === "bullish" ? 58 : c.trend === "bearish" ? -52 : 12;
+  const b70 = typeof c.avg_block70 === "number" && Number.isFinite(c.avg_block70) ? c.avg_block70 : 52;
+  const mcapCh =
+    typeof c.market_cap_change_24h === "number" && Number.isFinite(c.market_cap_change_24h)
+      ? c.market_cap_change_24h
+      : null;
+  const avgCh = typeof c.avg_change_24h === "number" && Number.isFinite(c.avg_change_24h) ? c.avg_change_24h : 0;
+  const flowAdj =
+    c.capital_flow === "in" ? 6 : c.capital_flow === "out" ? -8 : 0;
+  const trendAdj = c.trend === "bullish" ? 5 : c.trend === "bearish" ? -12 : -2;
+  const volAdj = Math.round(Math.min(12, (c.vol_to_mcap ?? 0) * 80));
+  const mcapAdj = mcapCh != null ? Math.round(Math.max(-18, Math.min(22, mcapCh * 1.4))) : Math.round(avgCh * 2.2);
+  const jitter = hashToJitter(c.id, c.name.length);
+  let sentimentScore = Math.round(
+    Math.max(-88, Math.min(92, b70 * 0.55 + flowAdj + trendAdj + volAdj * 0.35 + mcapAdj + jitter)),
+  );
+  if (c.trend === "bearish" && sentimentScore > 15) sentimentScore = 15;
+  if (c.trend === "bullish" && sentimentScore < 8) sentimentScore = 8 + Math.abs(jitter % 5);
+
   return {
     id: c.id,
     name: c.name,
-    sentimentScore: sentimentScore + Math.round((c.avg_change_24h ?? 0) * 3),
+    sentimentScore,
     trend: c.trend,
     capitalFlow: c.capital_flow,
     volToMcap: c.vol_to_mcap,
     avgChange24h: c.avg_change_24h ?? null,
     topSymbols: c.top3?.map((t) => t.symbol) ?? c.top_coins?.map((x) => x.symbol) ?? [],
   };
+}
+
+function mapHeatmapEntry(c: MarketCoin) {
+  return {
+    symbol: c.symbol,
+    name: c.name,
+    slug: c.slug,
+    logoUrl: c.logo_url ?? null,
+    price: c.price ?? 0,
+    change24h: c.change_24h ?? 0,
+    marketCap: c.market_cap ?? 0,
+    volume24h: c.volume ?? 0,
+  };
+}
+
+/** Homepage treemap: five strongest gainers and five weakest losers (deduped), max 10 tiles. */
+function buildHomeHeatmapCoins(coins: MarketCoin[]) {
+  const v = validCoins(coins);
+  if (!v.length) return [];
+  const seen = new Set<string>();
+  const gainers = [...v]
+    .filter((c) => (c.change_24h ?? 0) > 0)
+    .sort((a, b) => (b.change_24h ?? 0) - (a.change_24h ?? 0));
+  const losers = [...v]
+    .filter((c) => (c.change_24h ?? 0) < 0)
+    .sort((a, b) => (a.change_24h ?? 0) - (b.change_24h ?? 0));
+  const out: MarketCoin[] = [];
+  for (const c of gainers) {
+    if (out.length >= 5) break;
+    if (seen.has(c.slug)) continue;
+    seen.add(c.slug);
+    out.push(c);
+  }
+  for (const c of losers) {
+    if (out.length >= 10) break;
+    if (seen.has(c.slug)) continue;
+    seen.add(c.slug);
+    out.push(c);
+  }
+  if (out.length < 10) {
+    const rest = [...v]
+      .sort((a, b) => Math.abs(b.change_24h ?? 0) - Math.abs(a.change_24h ?? 0))
+      .filter((c) => !seen.has(c.slug));
+    for (const c of rest) {
+      if (out.length >= 10) break;
+      out.push(c);
+    }
+  }
+  return out.map(mapHeatmapEntry);
 }
 
 function mapMoverRow(c: MarketCoin): MoverRow {
@@ -434,7 +721,7 @@ export async function buildHomeDashboard(): Promise<HomeDashboardPayload> {
   let vk = validCoins(marketCoins);
   if (!vk.length) {
     try {
-      const alt = await withTimeout(getMarketCoins({ limit: 48, page: 1 }), FETCH_MS);
+      const alt = await withTimeout(getMarketCoins({ limit: 120, page: 1 }), FETCH_MS);
       vk = validCoins(alt);
     } catch {
       vk = [];
@@ -460,7 +747,7 @@ export async function buildHomeDashboard(): Promise<HomeDashboardPayload> {
   }
 
   const narrativesFull = categoryItems.slice(0, 8).map(categoryToNarrativeRow);
-  const topNarratives: HeroNarrativeChip[] = categoryItems.slice(0, 3).map((c) => ({
+  const topNarratives: HeroNarrativeChip[] = categoryItems.slice(0, 12).map((c) => ({
     name: c.name,
     trend: c.trend,
     capitalFlow: c.capital_flow,
@@ -468,23 +755,25 @@ export async function buildHomeDashboard(): Promise<HomeDashboardPayload> {
 
   const gainers = [...vk]
     .sort((a, b) => (b.change_24h ?? -Infinity) - (a.change_24h ?? -Infinity))
-    .slice(0, 10)
+    .slice(0, 5)
     .map(mapMoverRow);
   const losers = [...vk]
     .sort((a, b) => (a.change_24h ?? Infinity) - (b.change_24h ?? Infinity))
-    .slice(0, 10)
+    .slice(0, 5)
     .map(mapMoverRow);
 
-  const heatmapCoins = vk.slice(0, 48).map((c) => ({
-    symbol: c.symbol,
-    name: c.name,
-    slug: c.slug,
-    logoUrl: c.logo_url ?? null,
-    price: c.price ?? 0,
-    change24h: c.change_24h ?? 0,
-    marketCap: c.market_cap ?? 0,
-    volume24h: c.volume ?? 0,
-  }));
+  const heatmapCoins = vk.length
+    ? buildHomeHeatmapCoins(vk)
+    : [...DEMO_GAINERS_LOSERS.gainers, ...DEMO_GAINERS_LOSERS.losers].map((r) => ({
+        symbol: r.symbol,
+        name: r.name,
+        slug: r.slug,
+        logoUrl: r.logoUrl,
+        price: r.price,
+        change24h: r.change24h,
+        marketCap: r.marketCap,
+        volume24h: r.volume24h,
+      }));
 
   const volumeSpikes: VolumeSpikeRow[] = [...vk]
     .filter((c) => (c.market_cap ?? 0) > 0)
@@ -503,7 +792,7 @@ export async function buildHomeDashboard(): Promise<HomeDashboardPayload> {
       };
     })
     .sort((a, b) => b.volToMcap - a.volToMcap)
-    .slice(0, 8);
+    .slice(0, 18);
 
   let wallets: WalletLeaderboardEntry[] =
     walletsRes.status === "fulfilled" ? walletsRes.value : [];
@@ -620,6 +909,41 @@ export async function buildHomeDashboard(): Promise<HomeDashboardPayload> {
         updated_at: t,
         raw_payload: null,
       },
+      {
+        id: -303,
+        title: "Liquid staking discount vs. native stake yield",
+        slug: "lst-discount-yield",
+        type: "arbitrage",
+        chain: "ethereum",
+        status: "active",
+        summary:
+          "When LST trade-off bps widen, mean-reversion often pairs with queue times — watch epoch boundaries.",
+        thesis: "Carry vs. basis — size smaller until redemption clarity improves.",
+        asset_symbol: "ETH",
+        base_symbol: "ETH",
+        quote_symbol: "USD",
+        source: "block70_intel",
+        source_ref: null,
+        estimated_cost: null,
+        estimated_upside: null,
+        estimated_roi_percent: null,
+        confidence_score: 58,
+        upside_score: 62,
+        freshness_score: 74,
+        liquidity_score: 78,
+        accessibility_score: 66,
+        risk_score: 48,
+        difficulty_score: 52,
+        total_score: 67,
+        risk_level: "medium",
+        difficulty_level: "intermediate",
+        detected_at: t,
+        expires_at: null,
+        last_seen_at: t,
+        created_at: t,
+        updated_at: t,
+        raw_payload: null,
+      },
     ];
   }
 
@@ -656,45 +980,27 @@ export async function buildHomeDashboard(): Promise<HomeDashboardPayload> {
       topNarratives,
       insightHeadline,
     },
-    market: {
+      market: {
       gainers: gainers.length ? gainers : DEMO_GAINERS_LOSERS.gainers,
       losers: losers.length ? losers : DEMO_GAINERS_LOSERS.losers,
-      heatmap: heatmapCoins.length
-        ? heatmapCoins
-        : [...DEMO_GAINERS_LOSERS.gainers, ...DEMO_GAINERS_LOSERS.losers].map((r) => ({
-            symbol: r.symbol,
-            name: r.name,
-            slug: r.slug,
-            logoUrl: r.logoUrl,
-            price: r.price,
-            change24h: r.change24h,
-            marketCap: r.marketCap,
-            volume24h: r.volume24h,
-          })),
+      heatmap: heatmapCoins,
       volumeSpikes: volumeSpikes.length
         ? volumeSpikes
-        : [
-            {
-              symbol: "SOL",
-              name: "Solana",
-              slug: "solana",
-              logoUrl: null,
-              volume24h: 3.2e9,
-              marketCap: 9.5e10,
-              volToMcap: 0.034,
-              change24h: 1.8,
-            },
-            {
-              symbol: "ETH",
-              name: "Ethereum",
-              slug: "ethereum",
-              logoUrl: null,
-              volume24h: 1.8e10,
-              marketCap: 4.2e11,
-              volToMcap: 0.043,
-              change24h: 0.9,
-            },
-          ],
+        : [...DEMO_GAINERS_LOSERS.gainers, ...DEMO_GAINERS_LOSERS.losers]
+            .map((r) => {
+              const mcap = Math.max(r.marketCap, 1);
+              return {
+                symbol: r.symbol,
+                name: r.name,
+                slug: r.slug,
+                logoUrl: r.logoUrl,
+                volume24h: r.volume24h,
+                marketCap: mcap,
+                volToMcap: r.volume24h / mcap,
+                change24h: r.change24h,
+              };
+            })
+            .sort((a, b) => b.volToMcap - a.volToMcap),
     },
     narratives: narrativesFull.length ? narrativesFull : fallbackCategories().map(categoryToNarrativeRow),
     smartMoney: { wallets, flows },

@@ -17,6 +17,8 @@ export type HeatmapCoin = {
 
 type MarketHeatmapProps = {
   coins?: HeatmapCoin[];
+  /** Cap tiles (homepage uses 10: five gainers + five losers). */
+  maxTiles?: number;
 };
 
 type HeatmapFilter = "all" | "gainers" | "losers";
@@ -53,14 +55,20 @@ function formatMarketCap(value: number): string {
 }
 
 function colorForChange(change: number): string {
-  if (change >= 8) return "#16a34a"; // strong green
-  if (change >= 2) return "#22c55e"; // light green
-  if (change > -2) return "#64748b"; // neutral gray
-  if (change > -8) return "#f87171"; // light red
-  return "#dc2626"; // strong red
+  if (change > 0) {
+    if (change >= 8) return "#16a34a";
+    if (change >= 2) return "#22c55e";
+    return "#4ade80";
+  }
+  if (change < 0) {
+    if (change <= -8) return "#dc2626";
+    if (change <= -2) return "#f87171";
+    return "#fb7185";
+  }
+  return "#64748b";
 }
 
-export function MarketHeatmap({ coins = [] }: MarketHeatmapProps) {
+export function MarketHeatmap({ coins = [], maxTiles = 50 }: MarketHeatmapProps) {
   const router = useRouter();
   const containerRef = useRef<HTMLDivElement | null>(null);
   const [containerWidth, setContainerWidth] = useState(0);
@@ -90,12 +98,12 @@ export function MarketHeatmap({ coins = [] }: MarketHeatmapProps) {
 
   const data = useMemo<TreemapNode[]>(
     () =>
-      filteredCoins.slice(0, 50).map((coin) => ({
+      filteredCoins.slice(0, maxTiles).map((coin) => ({
         ...coin,
         // Size by move magnitude so similarly large +/- moves look similarly sized.
         size: Math.max(Math.abs(coin.change24h), 0.2),
       })),
-    [filteredCoins],
+    [filteredCoins, maxTiles],
   );
   const positioned = useMemo<HierarchyRectangularNode<TreemapNode>[]>(() => {
     if (containerWidth <= 0 || data.length === 0) return [];

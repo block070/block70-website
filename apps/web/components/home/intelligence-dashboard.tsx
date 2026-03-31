@@ -86,7 +86,7 @@ function MoverTable({
     <div className="rounded-xl border border-[var(--b70-border)] bg-[var(--b70-card)] p-3 shadow-sm transition-all duration-200 hover:border-[var(--b70-crypto-blue)]/25">
       <h3 className="text-xs font-semibold text-[var(--b70-text-muted)]">{title}</h3>
       <ul className="mt-2 space-y-1.5">
-        {rows.slice(0, 8).map((r) => (
+        {rows.slice(0, 5).map((r) => (
           <li key={r.slug + r.symbol}>
             <Link
               href={`/coins/${r.slug}`}
@@ -271,11 +271,19 @@ export function IntelligenceDashboard() {
               <div className="border-t border-[var(--b70-border)] pt-3">
                 <p className="text-[9px] font-semibold uppercase text-[var(--b70-text-muted)]">Narratives</p>
                 <div className="mt-2 flex flex-wrap gap-1.5">
-                  {show.hero.topNarratives.slice(0, 5).map((n) => (
+                  {show.hero.topNarratives.map((n) => (
                     <Link
                       key={n.name}
                       href="/narratives"
-                      className="rounded-full border border-[var(--b70-border)] bg-[var(--b70-bg)] px-2.5 py-1 text-[10px] font-medium text-[var(--b70-text)] transition-colors hover:border-[var(--b70-crypto-blue)]"
+                      className={clsx(
+                        "rounded-full border px-2.5 py-1 text-[10px] font-medium transition-colors hover:border-[var(--b70-crypto-blue)]",
+                        n.trend === "bullish" &&
+                          "border-emerald-500/45 bg-emerald-500/10 text-emerald-800 dark:text-emerald-300",
+                        n.trend === "bearish" &&
+                          "border-rose-500/45 bg-rose-500/10 text-rose-800 dark:text-rose-300",
+                        n.trend === "neutral" &&
+                          "border-slate-500/40 bg-slate-500/10 text-slate-700 dark:text-slate-300",
+                      )}
                     >
                       {n.name}
                     </Link>
@@ -391,8 +399,17 @@ export function IntelligenceDashboard() {
                   </div>
                   <p className="mt-3 text-[11px] text-[var(--b70-text-muted)]">
                     Capital flow:{" "}
-                    <span className="font-medium text-[var(--b70-text)]">{n.capitalFlow}</span> · vol/mcap{" "}
-                    {(n.volToMcap * 100).toFixed(1)}¢
+                    <span
+                      className={clsx(
+                        "font-medium",
+                        n.capitalFlow === "in" && "text-emerald-600 dark:text-emerald-400",
+                        n.capitalFlow === "out" && "text-rose-600 dark:text-rose-400",
+                        n.capitalFlow === "neutral" && "text-[var(--b70-text)]",
+                      )}
+                    >
+                      {n.capitalFlow}
+                    </span>{" "}
+                    · vol/mcap {(n.volToMcap * 100).toFixed(1)}¢
                   </p>
                   {n.topSymbols.length ? (
                     <p className="mt-1 text-[10px] text-[var(--b70-text-muted)]">
@@ -437,8 +454,8 @@ export function IntelligenceDashboard() {
             <div className="grid gap-4 lg:grid-cols-2">
               <div className="rounded-xl border border-[var(--b70-border)] bg-[var(--b70-card)] p-4 transition-all duration-200 hover:border-[var(--b70-crypto-blue)]/20">
                 <h3 className="text-xs font-semibold text-[var(--b70-text-muted)]">Leaderboard clip</h3>
-                <ul className="mt-3 space-y-2">
-                  {show.smartMoney.wallets.slice(0, 6).map((w) => (
+                <ul className="mt-3 min-h-[260px] space-y-2">
+                  {show.smartMoney.wallets.slice(0, 8).map((w) => (
                     <li
                       key={w.wallet_address}
                       className="flex items-center justify-between gap-2 rounded-lg border border-[var(--b70-border)] bg-[var(--b70-bg)] px-3 py-2 text-xs"
@@ -452,6 +469,17 @@ export function IntelligenceDashboard() {
                       <span className="text-[var(--b70-text-muted)]">
                         {formatCompactUsd(w.total_profit_usd)}
                       </span>
+                    </li>
+                  ))}
+                  {Array.from({ length: Math.max(0, 8 - show.smartMoney.wallets.length) }).map((_, i) => (
+                    <li
+                      key={`leaderboard-pad-${i}`}
+                      aria-hidden
+                      className="flex items-center justify-between gap-2 rounded-lg border border-dashed border-[var(--b70-border)] bg-[var(--b70-bg)] px-3 py-2 text-xs blur-[2.5px] select-none opacity-60"
+                    >
+                      <span className="font-mono text-[var(--b70-text)]">0x••••••</span>
+                      <span className="text-emerald-600/50 dark:text-emerald-400/50">— win</span>
+                      <span className="text-[var(--b70-text-muted)]">—</span>
                     </li>
                   ))}
                 </ul>
@@ -509,15 +537,15 @@ export function IntelligenceDashboard() {
               <MoverTable title="Top gainers" rows={show.market.gainers} positive />
               <MoverTable title="Top losers" rows={show.market.losers} positive={false} />
             </div>
-            <div className="mt-4 grid gap-4 lg:grid-cols-3">
+            <div className="mt-4 grid gap-4 lg:grid-cols-3 lg:items-start">
               <div className="lg:col-span-2">
                 <h3 className="mb-2 text-xs font-semibold text-[var(--b70-text-muted)]">Heatmap</h3>
-                <MarketHeatmap coins={show.market.heatmap} />
+                <MarketHeatmap coins={show.market.heatmap} maxTiles={10} />
               </div>
-              <div>
+              <div className="flex min-h-0 flex-col lg:min-h-[616px]">
                 <h3 className="mb-2 text-xs font-semibold text-[var(--b70-text-muted)]">Volume spikes</h3>
-                <div className="rounded-xl border border-[var(--b70-border)] bg-[var(--b70-card)] p-3">
-                  <ul className="space-y-2">
+                <div className="flex min-h-0 flex-1 flex-col rounded-xl border border-[var(--b70-border)] bg-[var(--b70-card)] p-3 lg:min-h-[560px]">
+                  <ul className="max-h-[520px] space-y-1 overflow-y-auto pr-1 lg:max-h-none lg:flex-1">
                     {show.market.volumeSpikes.map((v) => (
                       <li key={v.slug}>
                         <Link
@@ -602,8 +630,8 @@ export function IntelligenceDashboard() {
           {/* NEWS PULSE */}
           <section>
             <SectionTitle kicker="06" title="News pulse" href="/news" />
-            <ul className="grid gap-3 md:grid-cols-3">
-              {show.news.slice(0, 3).map((n) => (
+            <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              {show.news.slice(0, 6).map((n) => (
                 <li
                   key={n.id}
                   className="rounded-xl border border-[var(--b70-border)] bg-[var(--b70-card)] p-4 transition-all duration-200 hover:border-[var(--b70-crypto-blue)]/25"
