@@ -18,13 +18,20 @@ export type CoingeckoGlobalNumbers = {
 async function cgGet(path: string, search: Record<string, string>): Promise<Response> {
   const u = new URL(`${CG_BASE}${path}`);
   for (const [k, v] of Object.entries(search)) u.searchParams.set(k, v);
-  const headers: Record<string, string> = { Accept: "application/json" };
+  const headers: Record<string, string> = {
+    Accept: "application/json",
+    "User-Agent": "Block70/1.0 (home-dashboard; https://block70.com)",
+  };
   const key = typeof process !== "undefined" ? process.env.COINGECKO_API_KEY : undefined;
   if (key) {
     const pro = CG_BASE.includes("pro-api.coingecko.com");
     headers[pro ? "x-cg-pro-api-key" : "x-cg-demo-api-key"] = key;
   }
-  return fetch(u.toString(), { cache: "no-store", headers });
+  return fetch(u.toString(), {
+    cache: "no-store",
+    headers,
+    signal: AbortSignal.timeout(20_000),
+  });
 }
 
 export async function fetchCoingeckoGlobal(): Promise<CoingeckoGlobalNumbers | null> {

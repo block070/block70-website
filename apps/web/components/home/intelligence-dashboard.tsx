@@ -191,7 +191,7 @@ export function IntelligenceDashboard() {
               isValidating && show && "font-medium text-[var(--b70-crypto-blue)] opacity-100",
             )}
           >
-            {isValidating && show ? "Refreshing live data…" : `Auto refresh ~${show?.meta.cacheTtlSec ?? 15}s`}
+            {isValidating && show ? "Refreshing live data…" : "Auto refresh ~20s"}
             {error ? " · reconnecting" : ""}
           </p>
         </div>

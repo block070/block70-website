@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "verify:home": "npx tsx scripts/verify-home-dashboard.ts"
   },
   "dependencies": {
     "@solana/web3.js": "^1.98.0",

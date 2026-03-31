@@ -4,9 +4,18 @@ import { L1_SLUGS } from "@/lib/coin-scanner-tags";
 import { toTraderRow, type TraderScannerRow } from "@/lib/coins-scanner";
 import type { Coin } from "@/lib/crypto-mock";
 
+function rowUsd(v: unknown): number | null {
+  if (v == null) return null;
+  if (typeof v === "number" && Number.isFinite(v) && v > 0) return v;
+  if (typeof v === "string") {
+    const n = Number(v);
+    return Number.isFinite(n) && n > 0 ? n : null;
+  }
+  return null;
+}
+
 export function traderScannerRowToMarketCoin(row: TraderScannerRow): MarketCoin {
-  const p =
-    row.priceUsd != null && Number.isFinite(row.priceUsd) && row.priceUsd > 0 ? row.priceUsd : null;
+  const p = rowUsd(row.priceUsd);
   return {
     name: row.name,
     symbol: (row.symbol || "").toUpperCase(),

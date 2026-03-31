@@ -28,7 +28,8 @@ import { withTimeout } from "@/lib/with-timeout";
 import { fetchCoingeckoHomeMarketBundle } from "@/lib/market/coingecko-home-fallback";
 import type { Opportunity, SignalDto, WalletLeaderboardEntry } from "@/lib/types";
 
-export const HOME_DASHBOARD_CACHE_SEC = 15;
+/** Client (SWR) still polls; server response is built per-request (no data cache). */
+export const HOME_DASHBOARD_CACHE_SEC = 0;
 const FETCH_MS = 8_000;
 const COINS_PAGE_FETCH_MS = 12_000;
 
@@ -132,24 +133,38 @@ export type HomeDashboardPayload = {
   opportunities: Opportunity[];
 };
 
+/** FastAPI / ORM occasionally serializes decimals as strings — coerce so rows aren’t dropped. */
+function toFiniteNumber(v: unknown): number | null {
+  if (v == null) return null;
+  if (typeof v === "number" && Number.isFinite(v)) return v;
+  if (typeof v === "string") {
+    const n = Number(v);
+    return Number.isFinite(n) ? n : null;
+  }
+  return null;
+}
+
 /**
  * Normalize API/DB rows for dashboard use: missing 24h% or volume no longer drops the coin
  * (avoids empty market → demo prices when DB snapshot omits change_24h).
  */
 function normalizeDashboardCoin(c: MarketCoin): MarketCoin | null {
-  const price = c.price;
-  if (price == null || !Number.isFinite(price) || price <= 0) return null;
-  const market_cap =
-    c.market_cap != null && Number.isFinite(c.market_cap) ? Math.max(0, c.market_cap) : 0;
-  const volume = c.volume != null && Number.isFinite(c.volume) ? Math.max(0, c.volume) : 0;
-  const change_24h =
-    c.change_24h != null && Number.isFinite(c.change_24h) ? c.change_24h : 0;
+  const price = toFiniteNumber(c.price);
+  if (price == null || price <= 0) return null;
+  const rawMcap = toFiniteNumber(c.market_cap);
+  const rawVol = toFiniteNumber(c.volume);
+  const market_cap = rawMcap != null && rawMcap >= 0 ? rawMcap : 0;
+  const volume = rawVol != null && rawVol >= 0 ? rawVol : 0;
+  const chRaw = toFiniteNumber(c.change_24h);
+  const change_24h = chRaw ?? 0;
+  const ch7 = toFiniteNumber(c.change_7d);
   return {
     ...c,
     price,
     market_cap,
     volume,
     change_24h,
+    change_7d: ch7,
   };
 }
 
@@ -832,7 +847,26 @@ function buildHomeHeatmapCoins(coins: MarketCoin[]) {
     seen.add(c.slug);
     out.push(c);
   }
+  if (out.length < 10) {
+    const byMcap = [...v]
+      .filter((c) => !seen.has(c.slug))
+      .sort((a, b) => (b.market_cap ?? 0) - (a.market_cap ?? 0));
+    for (const c of byMcap) {
+      if (out.length >= 10) break;
+      seen.add(c.slug);
+      out.push(c);
+    }
+  }
   return out.map(mapHeatmapEntry);
+}
+
+/** When treemap filters leave nothing (e.g. all flat 24h), still show real prices by mcap. */
+function heatmapEntriesTopByMcap(coins: MarketCoin[]): ReturnType<typeof mapHeatmapEntry>[] {
+  const v = dashboardMarketCoins(coins);
+  return [...v]
+    .sort((a, b) => (b.market_cap ?? 0) - (a.market_cap ?? 0))
+    .slice(0, 10)
+    .map(mapHeatmapEntry);
 }
 
 function mapMoverRow(c: MarketCoin): MoverRow {
@@ -984,18 +1018,22 @@ export async function buildHomeDashboard(): Promise<HomeDashboardPayload> {
     .slice(0, 5)
     .map(mapMoverRow);
 
-  const heatmapCoins = vk.length
-    ? buildHomeHeatmapCoins(vk)
-    : [...DEMO_GAINERS_LOSERS.gainers, ...DEMO_GAINERS_LOSERS.losers].map((r) => ({
-        symbol: r.symbol,
-        name: r.name,
-        slug: r.slug,
-        logoUrl: r.logoUrl,
-        price: r.price,
-        change24h: r.change24h,
-        marketCap: r.marketCap,
-        volume24h: r.volume24h,
-      }));
+  const heatmapFromGainersLosers = vk.length ? buildHomeHeatmapCoins(vk) : [];
+  const heatmapCoins =
+    heatmapFromGainersLosers.length > 0
+      ? heatmapFromGainersLosers
+      : vk.length > 0
+        ? heatmapEntriesTopByMcap(vk)
+        : [...DEMO_GAINERS_LOSERS.gainers, ...DEMO_GAINERS_LOSERS.losers].map((r) => ({
+            symbol: r.symbol,
+            name: r.name,
+            slug: r.slug,
+            logoUrl: r.logoUrl,
+            price: r.price,
+            change24h: r.change24h,
+            marketCap: r.marketCap,
+            volume24h: r.volume24h,
+          }));
 
   const volumeSpikes: VolumeSpikeRow[] = [...vk]
     .filter((c) => (c.market_cap ?? 0) > 0)
