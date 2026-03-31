@@ -69,6 +69,7 @@ from app.api.v1.copilot import router as copilot_router
 from app.api.v1.sentiment import router as sentiment_router
 from app.api.v1.token_comments import router as token_comments_router
 from app.api.v1.ai_search import router as ai_search_router
+from app.api.v1.ai_intelligence import router as ai_intelligence_router
 from app.api.v1.news import router as news_router
 from app.api.v1.search import router as search_router
 from app.api.v1.status import router as status_router, status_public_router
@@ -197,6 +198,7 @@ app.include_router(copilot_router)
 app.include_router(sentiment_router)
 app.include_router(token_comments_router)
 app.include_router(ai_search_router)
+app.include_router(ai_intelligence_router)
 app.include_router(news_router)
 app.include_router(search_router)
 app.include_router(status_router)
