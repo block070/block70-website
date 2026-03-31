@@ -1,8 +1,51 @@
 import type { MarketCoin } from "@/lib/api";
 import type { CoinListItemDto } from "@/lib/coins";
-import type { Coin } from "@/lib/crypto-mock";
 import { L1_SLUGS } from "@/lib/coin-scanner-tags";
 import { toTraderRow, type TraderScannerRow } from "@/lib/coins-scanner";
+import type { Coin } from "@/lib/crypto-mock";
+
+/** Same field resolution as the /coins scanner, shaped for dashboard/market blocks. */
+export function coinListItemToMarketCoin(item: CoinListItemDto): MarketCoin {
+  const c = item.coin;
+  const md = item.latest_market_data;
+  const sym = (c.symbol || "").toUpperCase();
+  return {
+    name: c.name,
+    symbol: sym,
+    slug: c.slug,
+    logo_url: c.logo_url ?? null,
+    price:
+      c.price != null && Number.isFinite(c.price)
+        ? c.price
+        : md?.price != null && Number.isFinite(md.price)
+          ? md.price
+          : null,
+    change_24h:
+      md?.price_change_24h != null && Number.isFinite(md.price_change_24h)
+        ? md.price_change_24h
+        : null,
+    change_7d:
+      md?.price_change_7d != null && Number.isFinite(md.price_change_7d)
+        ? md.price_change_7d
+        : null,
+    market_cap:
+      c.market_cap != null && Number.isFinite(c.market_cap)
+        ? c.market_cap
+        : md?.market_cap != null && Number.isFinite(md.market_cap)
+          ? md.market_cap
+          : null,
+    volume:
+      c.volume_24h != null && Number.isFinite(c.volume_24h)
+        ? c.volume_24h
+        : md?.volume_24h != null && Number.isFinite(md.volume_24h)
+          ? md.volume_24h
+          : null,
+  };
+}
+
+export function coinListItemsToMarketCoins(items: CoinListItemDto[]): MarketCoin[] {
+  return items.map(coinListItemToMarketCoin);
+}
 
 export function coinsToTraderRows(coins: Coin[]): TraderScannerRow[] {
   return coins.map(toTraderRow);

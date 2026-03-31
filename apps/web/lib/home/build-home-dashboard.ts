@@ -1,7 +1,9 @@
 /**
  * Aggregates all home “command center” data in one builder (used by GET /api/home/dashboard).
  * Always returns a full payload — live API when available, curated fallbacks when not.
+ * Market tiles prefer /api/v1/coins (same catalog as GET /api/coins) so prices match the scanner.
  */
+import { getCoinsList } from "@/lib/coins";
 import {
   getCategoryDirectory,
   getInsightsTrending,
@@ -16,6 +18,7 @@ import {
   type MarketCoin,
   type NewsArticleSummary,
 } from "@/lib/api";
+import { coinListItemsToMarketCoins } from "@/lib/map-coins-to-scanner";
 import {
   aiSummaryForNews,
   narrativeImpactFromNews,
@@ -849,6 +852,7 @@ export async function buildHomeDashboard(): Promise<HomeDashboardPayload> {
 
   const [
     summaryRes,
+    coinsCatalogRes,
     marketListRes,
     trendingRes,
     signalsRes,
@@ -859,6 +863,7 @@ export async function buildHomeDashboard(): Promise<HomeDashboardPayload> {
     insightsRes,
   ] = await Promise.allSettled([
     withTimeout(getMarketSummary(60), FETCH_MS),
+    withTimeout(getCoinsList({ limit: 120, page: 1 }), FETCH_MS),
     withTimeout(getMarketCoins({ limit: 120, page: 1 }), FETCH_MS),
     withTimeout(getSignalsTrending({ hours: 24, limit: 14 }), FETCH_MS),
     withTimeout(getSignalsLatest({ limit: 24 }), FETCH_MS),
@@ -890,7 +895,10 @@ export async function buildHomeDashboard(): Promise<HomeDashboardPayload> {
   }
 
   let vk: MarketCoin[] = [];
-  if (marketListRes.status === "fulfilled" && marketListRes.value.length) {
+  if (coinsCatalogRes.status === "fulfilled" && coinsCatalogRes.value.length) {
+    vk = dashboardMarketCoins(coinListItemsToMarketCoins(coinsCatalogRes.value));
+  }
+  if (!vk.length && marketListRes.status === "fulfilled" && marketListRes.value.length) {
     vk = dashboardMarketCoins(marketListRes.value);
   }
   if (!vk.length) {

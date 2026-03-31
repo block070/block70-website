@@ -20,7 +20,10 @@ async function cgGet(path: string, search: Record<string, string>): Promise<Resp
   for (const [k, v] of Object.entries(search)) u.searchParams.set(k, v);
   const headers: Record<string, string> = { Accept: "application/json" };
   const key = typeof process !== "undefined" ? process.env.COINGECKO_API_KEY : undefined;
-  if (key) headers["x-cg-demo-api-key"] = key;
+  if (key) {
+    const pro = CG_BASE.includes("pro-api.coingecko.com");
+    headers[pro ? "x-cg-pro-api-key" : "x-cg-demo-api-key"] = key;
+  }
   return fetch(u.toString(), { cache: "no-store", headers });
 }
 
