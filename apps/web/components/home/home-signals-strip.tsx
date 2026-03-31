@@ -26,7 +26,7 @@ export function HomeSignalsStrip({ signals }: Props) {
     setSpikeIds(next);
   }, [signals]);
 
-  const row = signals.slice(0, 8);
+  const row = signals.slice(0, 6);
   if (!row.length) return null;
 
   return (
@@ -45,7 +45,7 @@ export function HomeSignalsStrip({ signals }: Props) {
           All signals →
         </Link>
       </div>
-      <div className="scrollbar-hide flex gap-2 overflow-x-auto pb-1">
+      <div className="grid grid-cols-2 gap-2 pb-1 sm:grid-cols-3 lg:grid-cols-6">
         {row.map((s) => (
           <Link
             key={s.id}
@@ -55,7 +55,7 @@ export function HomeSignalsStrip({ signals }: Props) {
                 : "/signals"
             }
             className={clsx(
-              "min-w-[200px] flex-shrink-0 rounded-lg border px-3 py-2 transition-all duration-200",
+              "min-w-0 rounded-lg border px-3 py-2 transition-all duration-200",
               "border-[var(--b70-border)] bg-[var(--b70-card)] hover:-translate-y-0.5 hover:border-[var(--b70-crypto-blue)]/40 hover:shadow-md",
               spikeIds.has(s.id) && "b70-signal-spike border-amber-500/40 ring-1 ring-amber-500/25",
             )}

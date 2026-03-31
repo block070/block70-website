@@ -22,6 +22,7 @@ import {
   sentimentForNews,
 } from "@/lib/news/enrich";
 import { withTimeout } from "@/lib/with-timeout";
+import { fetchCoingeckoHomeMarketBundle } from "@/lib/market/coingecko-home-fallback";
 import type { Opportunity, SignalDto, WalletLeaderboardEntry } from "@/lib/types";
 
 export const HOME_DASHBOARD_CACHE_SEC = 15;
@@ -267,6 +268,48 @@ function fallbackSignals(): SignalDto[] {
       description: "Cross-venue mention velocity rising; pairs with sector leader strength.",
       signal_strength: 0.69,
       confidence_score: 71,
+      source: "block70_intel",
+      metadata_json: {},
+      created_at: now,
+    },
+    {
+      id: -104,
+      signal_type: "distribution",
+      token_symbol: "BTC",
+      token_address: null,
+      chain: "bitcoin",
+      title: "Exchange inflow cluster (illustrative)",
+      description: "Short-term profit-taking signature into known venue deposit wallets.",
+      signal_strength: 0.61,
+      confidence_score: 68,
+      source: "block70_intel",
+      metadata_json: {},
+      created_at: now,
+    },
+    {
+      id: -105,
+      signal_type: "funding",
+      token_symbol: "DOGE",
+      token_address: null,
+      chain: "ethereum",
+      title: "Perp funding dislocation",
+      description: "Elevated positive funding vs spot drift — mean-reversion watch.",
+      signal_strength: 0.58,
+      confidence_score: 64,
+      source: "block70_intel",
+      metadata_json: {},
+      created_at: now,
+    },
+    {
+      id: -106,
+      signal_type: "breakout",
+      token_symbol: "LINK",
+      token_address: null,
+      chain: "ethereum",
+      title: "Range breakout — volatility expansion",
+      description: "Multi-day compression resolving with rising sponsor volume.",
+      signal_strength: 0.63,
+      confidence_score: 66,
       source: "block70_intel",
       metadata_json: {},
       created_at: now,
@@ -600,6 +643,114 @@ function fallbackCategories(): CategoryDirectoryApiItem[] {
         { slug: "litecoin", name: "Litecoin", symbol: "LTC", change24hPct: 0.05, block70Score: 50 },
       ],
     },
+    {
+      id: "gaming-metaverse",
+      name: "Gaming & Metaverse",
+      market_cap: 11e9,
+      market_cap_change_24h: 0.8,
+      volume_24h: 1.4e9,
+      trend: "bullish",
+      capital_flow: "in",
+      vol_to_mcap: 0.11,
+      avg_block70: 57,
+      avg_change_24h: 0.8,
+      coin_count: 42,
+      top3: [
+        { slug: "immutable-x", name: "Immutable", symbol: "IMX", change24hPct: 1.1, block70Score: 55 },
+        { slug: "axie-infinity", name: "Axie Infinity", symbol: "AXS", change24hPct: 0.4, block70Score: 48 },
+        { slug: "gala", name: "Gala", symbol: "GALA", change24hPct: 0.9, block70Score: 51 },
+      ],
+    },
+    {
+      id: "privacy",
+      name: "Privacy",
+      market_cap: 2.8e9,
+      market_cap_change_24h: -0.9,
+      volume_24h: 180e6,
+      trend: "neutral",
+      capital_flow: "neutral",
+      vol_to_mcap: 0.064,
+      avg_block70: 49,
+      avg_change_24h: -0.9,
+      coin_count: 14,
+      top3: [
+        { slug: "zcash", name: "Zcash", symbol: "ZEC", change24hPct: -0.5, block70Score: 46 },
+        { slug: "monero", name: "Monero", symbol: "XMR", change24hPct: 0.2, block70Score: 52 },
+        { slug: "oasis-network", name: "Oasis", symbol: "ROSE", change24hPct: -1.2, block70Score: 44 },
+      ],
+    },
+    {
+      id: "lsd-staking",
+      name: "Liquid staking",
+      market_cap: 28e9,
+      market_cap_change_24h: 0.5,
+      volume_24h: 920e6,
+      trend: "bullish",
+      capital_flow: "in",
+      vol_to_mcap: 0.033,
+      avg_block70: 60,
+      avg_change_24h: 0.5,
+      coin_count: 18,
+      top3: [
+        { slug: "lido-dao", name: "Lido", symbol: "LDO", change24hPct: 0.6, block70Score: 58 },
+        { slug: "rocket-pool", name: "Rocket Pool", symbol: "RPL", change24hPct: 0.3, block70Score: 54 },
+        { slug: "stakewise", name: "StakeWise", symbol: "SWISE", change24hPct: -0.2, block70Score: 50 },
+      ],
+    },
+    {
+      id: "derivatives-perps",
+      name: "Derivatives & perps",
+      market_cap: 6.2e9,
+      market_cap_change_24h: 1.1,
+      volume_24h: 2.1e9,
+      trend: "bullish",
+      capital_flow: "in",
+      vol_to_mcap: 0.29,
+      avg_block70: 56,
+      avg_change_24h: 1.1,
+      coin_count: 24,
+      top3: [
+        { slug: "hyperliquid", name: "Hyperliquid", symbol: "HYPE", change24hPct: 2.2, block70Score: 62 },
+        { slug: "jupiter-exchange-solana", name: "Jupiter", symbol: "JUP", change24hPct: 0.8, block70Score: 55 },
+        { slug: "gmx", name: "GMX", symbol: "GMX", change24hPct: 0.4, block70Score: 53 },
+      ],
+    },
+    {
+      id: "interop-bridges",
+      name: "Interoperability",
+      market_cap: 9e9,
+      market_cap_change_24h: 0.35,
+      volume_24h: 550e6,
+      trend: "neutral",
+      capital_flow: "neutral",
+      vol_to_mcap: 0.061,
+      avg_block70: 53,
+      avg_change_24h: 0.35,
+      coin_count: 33,
+      top3: [
+        { slug: "cosmos", name: "Cosmos", symbol: "ATOM", change24hPct: 0.2, block70Score: 51 },
+        { slug: "layerzero", name: "LayerZero", symbol: "ZRO", change24hPct: 0.9, block70Score: 56 },
+        { slug: "wormhole", name: "Wormhole", symbol: "W", change24hPct: -0.3, block70Score: 48 },
+      ],
+    },
+    {
+      id: "payments-stable",
+      name: "Payments & stables",
+      market_cap: 140e9,
+      market_cap_change_24h: 0.05,
+      volume_24h: 45e9,
+      trend: "neutral",
+      capital_flow: "neutral",
+      vol_to_mcap: 0.032,
+      avg_block70: 52,
+      avg_change_24h: 0.05,
+      coin_count: 52,
+      top3: [
+        { slug: "tether", name: "Tether", symbol: "USDT", change24hPct: 0.01, block70Score: 55 },
+        { slug: "usd-coin", name: "USDC", symbol: "USDC", change24hPct: 0.0, block70Score: 54 },
+        { slug: "dai", name: "DAI", symbol: "DAI", change24hPct: 0.02, block70Score: 53 },
+      ],
+    },
   ];
 }
 
@@ -677,15 +828,6 @@ function buildHomeHeatmapCoins(coins: MarketCoin[]) {
     seen.add(c.slug);
     out.push(c);
   }
-  if (out.length < 10) {
-    const rest = [...v]
-      .sort((a, b) => Math.abs(b.change_24h ?? 0) - Math.abs(a.change_24h ?? 0))
-      .filter((c) => !seen.has(c.slug));
-    for (const c of rest) {
-      if (out.length >= 10) break;
-      out.push(c);
-    }
-  }
   return out.map(mapHeatmapEntry);
 }
 
@@ -719,7 +861,7 @@ export async function buildHomeDashboard(): Promise<HomeDashboardPayload> {
     withTimeout(getMarketSummary(60), FETCH_MS),
     withTimeout(getMarketCoins({ limit: 120, page: 1 }), FETCH_MS),
     withTimeout(getSignalsTrending({ hours: 24, limit: 14 }), FETCH_MS),
-    withTimeout(getSignalsLatest({ limit: 12 }), FETCH_MS),
+    withTimeout(getSignalsLatest({ limit: 24 }), FETCH_MS),
     withTimeout(getWalletLeaderboard(), FETCH_MS),
     withTimeout(getNewsArticles({ limit: 12 }), FETCH_MS),
     withTimeout(getOpportunities(), FETCH_MS),
@@ -763,14 +905,34 @@ export async function buildHomeDashboard(): Promise<HomeDashboardPayload> {
     }
   }
 
-  if (globalMcap == null && vk.length) {
-    globalMcap = vk.reduce((s, c) => s + (c.market_cap ?? 0), 0);
-    globalVol = vk.reduce((s, c) => s + (c.volume ?? 0), 0);
+  let marketSourceNote = marketSource;
+  if (
+    globalMcap == null ||
+    globalVol == null ||
+    btcDom == null ||
+    ethDom == null ||
+    !vk.length
+  ) {
+    const cg = await fetchCoingeckoHomeMarketBundle(100);
+    const tag = marketSourceNote ? `${marketSourceNote}+coingecko` : "coingecko-direct";
+    marketSourceNote = tag;
+    const g = cg.global;
+    if (g) {
+      if (globalMcap == null && g.total_market_cap_usd != null) globalMcap = g.total_market_cap_usd;
+      if (globalVol == null && g.total_volume_usd != null) globalVol = g.total_volume_usd;
+      if (btcDom == null && g.btc_dominance_pct != null) btcDom = g.btc_dominance_pct;
+      if (ethDom == null && g.eth_dominance_pct != null) ethDom = g.eth_dominance_pct;
+    }
+    if (!vk.length && cg.coins.length) vk = dashboardMarketCoins(cg.coins);
+  }
+
+  if (btcDom == null && vk.length) {
     const btc = vk.find((c) => (c.symbol || "").toUpperCase() === "BTC");
     const eth = vk.find((c) => (c.symbol || "").toUpperCase() === "ETH");
-    const sc = globalMcap > 0 ? globalMcap : 1;
-    btcDom = btc?.market_cap != null ? (btc.market_cap / sc) * 100 : btcDom;
-    ethDom = eth?.market_cap != null ? (eth.market_cap / sc) * 100 : ethDom;
+    const sum = vk.reduce((s, c) => s + (c.market_cap ?? 0), 0);
+    const sc = sum > 0 ? sum : 1;
+    if (btc?.market_cap != null) btcDom = (btc.market_cap / sc) * 100;
+    if (eth?.market_cap != null) ethDom = (eth.market_cap / sc) * 100;
   }
 
   const sent = sentimentFromCoins(vk);
@@ -779,6 +941,15 @@ export async function buildHomeDashboard(): Promise<HomeDashboardPayload> {
     categoriesRes.status === "fulfilled" ? categoriesRes.value.items : [];
   if (!categoryItems.length) {
     categoryItems = fallbackCategories();
+  } else if (categoryItems.length < 15) {
+    const seen = new Set(categoryItems.map((x) => x.id));
+    for (const c of fallbackCategories()) {
+      if (categoryItems.length >= 15) break;
+      if (!seen.has(c.id)) {
+        categoryItems.push(c);
+        seen.add(c.id);
+      }
+    }
   }
 
   const narrativesFull = categoryItems.slice(0, 8).map(categoryToNarrativeRow);
@@ -856,7 +1027,19 @@ export async function buildHomeDashboard(): Promise<HomeDashboardPayload> {
   ];
 
   let signals: SignalDto[] = signalsRes.status === "fulfilled" ? signalsRes.value : [];
-  if (!signals.length) signals = fallbackSignals();
+  if (!signals.length) {
+    signals = fallbackSignals();
+  } else {
+    const seen = new Set(signals.map((s) => s.id));
+    for (const s of fallbackSignals()) {
+      if (signals.length >= 6) break;
+      if (!seen.has(s.id)) {
+        signals.push(s);
+        seen.add(s.id);
+      }
+    }
+  }
+  signals = signals.slice(0, 6);
 
   let newsRaw: NewsArticleSummary[] = newsRes.status === "fulfilled" ? newsRes.value : [];
   let news: NewsIntelRow[] = newsRaw.map((item) => {
@@ -998,16 +1181,16 @@ export async function buildHomeDashboard(): Promise<HomeDashboardPayload> {
     insightHeadline = `Signal density: ${tr.token_symbol ?? "market"} · ${tr.signal_count} hits`;
   }
 
-  const heroMcap = globalMcap ?? (vk.length ? vk.reduce((s, c) => s + (c.market_cap ?? 0), 0) : 2.45e12);
-  const heroVol = globalVol ?? (vk.length ? vk.reduce((s, c) => s + (c.volume ?? 0), 0) : 98e9);
-  const heroBtc = btcDom ?? 52.4;
-  const heroEth = ethDom ?? 17.2;
+  const heroMcap = globalMcap;
+  const heroVol = globalVol;
+  const heroBtc = btcDom;
+  const heroEth = ethDom;
 
   return {
     meta: {
       generatedAt,
       cacheTtlSec: HOME_DASHBOARD_CACHE_SEC,
-      marketSource,
+      marketSource: marketSourceNote ?? marketSource,
       marketAsOf,
     },
     hero: {
@@ -1044,7 +1227,7 @@ export async function buildHomeDashboard(): Promise<HomeDashboardPayload> {
     },
     narratives: narrativesFull.length ? narrativesFull : fallbackCategories().map(categoryToNarrativeRow),
     smartMoney: { wallets, flows },
-    signals: signals.slice(0, 8),
+    signals: signals.slice(0, 6),
     news: news.slice(0, 8),
     opportunities,
   };

@@ -7,7 +7,7 @@ import {
 
 const getCachedDashboard = unstable_cache(
   async () => buildHomeDashboard(),
-  ["home-intelligence-dashboard-v1"],
+  ["home-intelligence-dashboard-v2"],
   { revalidate: HOME_DASHBOARD_CACHE_SEC },
 );
 

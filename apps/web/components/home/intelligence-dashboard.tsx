@@ -258,9 +258,9 @@ export function IntelligenceDashboard() {
                 </div>
                 <div className="rounded-lg border border-[var(--b70-border)] bg-[var(--b70-bg)] p-3">
                   <p className="text-[9px] font-semibold uppercase text-[var(--b70-text-muted)]">BTC / ETH</p>
-                  <p className="mt-1 font-[family-name:var(--font-jetbrains)] text-sm font-semibold text-[var(--b70-text)]">
+                  <p className="mt-1 font-[family-name:var(--font-jetbrains)] text-base font-semibold text-[var(--b70-text)]">
                     {show.hero.btcDominancePct != null ? `${show.hero.btcDominancePct.toFixed(1)}%` : "—"}{" "}
-                    <span className="text-[var(--b70-text-muted)]">/</span>{" "}
+                    <span className="font-semibold text-[var(--b70-text-muted)]">/</span>{" "}
                     {show.hero.ethDominancePct != null ? `${show.hero.ethDominancePct.toFixed(1)}%` : "—"}
                   </p>
                 </div>
@@ -354,14 +354,11 @@ export function IntelligenceDashboard() {
           {/* NARRATIVE ENGINE */}
           <section>
             <SectionTitle kicker="01" title="Narrative engine" href="/narratives" />
-            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-              {show.narratives.map((n, idx) => (
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+              {show.narratives.map((n) => (
                 <div
                   key={n.id}
-                  className={clsx(
-                    "rounded-xl border border-[var(--b70-border)] bg-[var(--b70-card)] p-4 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md",
-                    idx === 0 && "md:col-span-2 xl:col-span-2",
-                  )}
+                  className="rounded-xl border border-[var(--b70-border)] bg-[var(--b70-card)] p-4 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md"
                 >
                   <div className="flex items-start justify-between gap-2">
                     <h3 className="text-sm font-semibold text-[var(--b70-text)]">{n.name}</h3>
@@ -381,12 +378,7 @@ export function IntelligenceDashboard() {
                     {n.sentimentScore}
                   </p>
                   <p className="mt-1 text-[11px] text-[var(--b70-text-muted)]">Sentiment score (model)</p>
-                  <div
-                    className={clsx(
-                      "mt-3 h-2 overflow-hidden rounded-full bg-[var(--b70-border)]",
-                      idx === 0 && "md:h-2.5",
-                    )}
-                  >
+                  <div className="mt-3 h-2 overflow-hidden rounded-full bg-[var(--b70-border)]">
                     <div
                       className={clsx(
                         "h-full rounded-full transition-all duration-700",
