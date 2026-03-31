@@ -4,6 +4,32 @@ import { L1_SLUGS } from "@/lib/coin-scanner-tags";
 import { toTraderRow, type TraderScannerRow } from "@/lib/coins-scanner";
 import type { Coin } from "@/lib/crypto-mock";
 
+export function traderScannerRowToMarketCoin(row: TraderScannerRow): MarketCoin {
+  const p =
+    row.priceUsd != null && Number.isFinite(row.priceUsd) && row.priceUsd > 0 ? row.priceUsd : null;
+  return {
+    name: row.name,
+    symbol: (row.symbol || "").toUpperCase(),
+    slug: row.slug,
+    logo_url: row.logoUrl ?? null,
+    price: p,
+    change_24h:
+      typeof row.change24hPct === "number" && Number.isFinite(row.change24hPct)
+        ? row.change24hPct
+        : null,
+    change_7d:
+      typeof row.change7dPct === "number" && Number.isFinite(row.change7dPct) ? row.change7dPct : null,
+    market_cap:
+      row.marketCapUsd != null && Number.isFinite(row.marketCapUsd) ? row.marketCapUsd : null,
+    volume:
+      row.volume24hUsd != null && Number.isFinite(row.volume24hUsd) ? row.volume24hUsd : null,
+  };
+}
+
+export function traderScannerRowsToMarketCoins(rows: TraderScannerRow[]): MarketCoin[] {
+  return rows.map(traderScannerRowToMarketCoin);
+}
+
 /** Same field resolution as the /coins scanner, shaped for dashboard/market blocks. */
 export function coinListItemToMarketCoin(item: CoinListItemDto): MarketCoin {
   const c = item.coin;

@@ -1,9 +1,8 @@
 /**
  * Aggregates all home “command center” data in one builder (used by GET /api/home/dashboard).
  * Always returns a full payload — live API when available, curated fallbacks when not.
- * Market tiles prefer /api/v1/coins (same catalog as GET /api/coins) so prices match the scanner.
+ * Market tiles use the same loader as GET /api/coins so scanner and heatmap stay identical.
  */
-import { getCoinsList } from "@/lib/coins";
 import {
   getCategoryDirectory,
   getInsightsTrending,
@@ -18,7 +17,8 @@ import {
   type MarketCoin,
   type NewsArticleSummary,
 } from "@/lib/api";
-import { coinListItemsToMarketCoins } from "@/lib/map-coins-to-scanner";
+import { traderScannerRowsToMarketCoins } from "@/lib/map-coins-to-scanner";
+import { loadCoinsPageData } from "@/lib/market/load-coins-page-data";
 import {
   aiSummaryForNews,
   narrativeImpactFromNews,
@@ -30,6 +30,7 @@ import type { Opportunity, SignalDto, WalletLeaderboardEntry } from "@/lib/types
 
 export const HOME_DASHBOARD_CACHE_SEC = 15;
 const FETCH_MS = 8_000;
+const COINS_PAGE_FETCH_MS = 12_000;
 
 export type HeroNarrativeChip = {
   id: string;
@@ -852,7 +853,6 @@ export async function buildHomeDashboard(): Promise<HomeDashboardPayload> {
 
   const [
     summaryRes,
-    coinsCatalogRes,
     marketListRes,
     trendingRes,
     signalsRes,
@@ -862,8 +862,7 @@ export async function buildHomeDashboard(): Promise<HomeDashboardPayload> {
     categoriesRes,
     insightsRes,
   ] = await Promise.allSettled([
-    withTimeout(getMarketSummary(60), FETCH_MS),
-    withTimeout(getCoinsList({ limit: 120, page: 1 }), FETCH_MS),
+    withTimeout(getMarketSummary(0), FETCH_MS),
     withTimeout(getMarketCoins({ limit: 120, page: 1 }), FETCH_MS),
     withTimeout(getSignalsTrending({ hours: 24, limit: 14 }), FETCH_MS),
     withTimeout(getSignalsLatest({ limit: 24 }), FETCH_MS),
@@ -895,8 +894,16 @@ export async function buildHomeDashboard(): Promise<HomeDashboardPayload> {
   }
 
   let vk: MarketCoin[] = [];
-  if (coinsCatalogRes.status === "fulfilled" && coinsCatalogRes.value.length) {
-    vk = dashboardMarketCoins(coinListItemsToMarketCoins(coinsCatalogRes.value));
+  try {
+    const scannerPack = await withTimeout(
+      loadCoinsPageData({ limit: 120, offset: 0 }),
+      COINS_PAGE_FETCH_MS,
+    );
+    if (scannerPack.items.length) {
+      vk = dashboardMarketCoins(traderScannerRowsToMarketCoins(scannerPack.items));
+    }
+  } catch {
+    /* fall through to API slices + CoinGecko */
   }
   if (!vk.length && marketListRes.status === "fulfilled" && marketListRes.value.length) {
     vk = dashboardMarketCoins(marketListRes.value);
