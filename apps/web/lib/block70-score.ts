@@ -31,6 +31,13 @@ export function tierLabel(tier: Block70ScoreTier): string {
   }
 }
 
+/** UI tone for Block70 score badges (green / grey / red) from 0–100 display percent. */
+export function scoreMarketTone(percent: number): "bullish" | "bearish" | "neutral" {
+  if (percent >= 68) return "bullish";
+  if (percent <= 42) return "bearish";
+  return "neutral";
+}
+
 /** Factor 0–1 → display percent for breakdown rows */
 export function factorPercent(v: number | null | undefined): number {
   if (v == null || !Number.isFinite(v)) return 0;

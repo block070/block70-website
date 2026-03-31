@@ -162,11 +162,14 @@ def _load_market_fallback_from_db(
     rows: List[Dict[str, Any]] = []
     for coin in coins:
         m = md_by_coin.get(coin.id)
+        ch24 = m.price_change_24h if m and m.price_change_24h is not None else None
+        if ch24 is None:
+            ch24 = 0.0
         base = {
             "name": coin.name,
             "symbol": coin.symbol,
             "price": m.price if m and m.price is not None else coin.price,
-            "change_24h": m.price_change_24h if m else None,
+            "change_24h": ch24,
             "volume": m.volume_24h if m and m.volume_24h is not None else coin.volume_24h,
             "slug": coin.slug,
         }

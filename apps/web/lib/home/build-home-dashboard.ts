@@ -16,7 +16,11 @@ import {
   type MarketCoin,
   type NewsArticleSummary,
 } from "@/lib/api";
-import { aiSummaryForNews, narrativeImpactFromNews } from "@/lib/news/enrich";
+import {
+  aiSummaryForNews,
+  narrativeImpactFromNews,
+  sentimentForNews,
+} from "@/lib/news/enrich";
 import { withTimeout } from "@/lib/with-timeout";
 import type { Opportunity, SignalDto, WalletLeaderboardEntry } from "@/lib/types";
 
@@ -24,6 +28,7 @@ export const HOME_DASHBOARD_CACHE_SEC = 15;
 const FETCH_MS = 8_000;
 
 export type HeroNarrativeChip = {
+  id: string;
   name: string;
   trend: "bullish" | "neutral" | "bearish";
   capitalFlow: "in" | "out" | "neutral";
@@ -65,6 +70,7 @@ export type NewsIntelRow = {
   url: string;
   aiSummary: string;
   narrativeImpact: number;
+  impactSentiment: "bullish" | "bearish" | "neutral";
   publishedAt: string | null;
 };
 
@@ -121,21 +127,36 @@ export type HomeDashboardPayload = {
   opportunities: Opportunity[];
 };
 
-function validCoins(coins: MarketCoin[]) {
-  return coins.filter(
-    (c) =>
-      typeof c.price === "number" &&
-      typeof c.market_cap === "number" &&
-      typeof c.volume === "number" &&
-      typeof c.change_24h === "number",
-  );
+/**
+ * Normalize API/DB rows for dashboard use: missing 24h% or volume no longer drops the coin
+ * (avoids empty market → demo prices when DB snapshot omits change_24h).
+ */
+function normalizeDashboardCoin(c: MarketCoin): MarketCoin | null {
+  const price = c.price;
+  if (price == null || !Number.isFinite(price) || price <= 0) return null;
+  const market_cap =
+    c.market_cap != null && Number.isFinite(c.market_cap) ? Math.max(0, c.market_cap) : 0;
+  const volume = c.volume != null && Number.isFinite(c.volume) ? Math.max(0, c.volume) : 0;
+  const change_24h =
+    c.change_24h != null && Number.isFinite(c.change_24h) ? c.change_24h : 0;
+  return {
+    ...c,
+    price,
+    market_cap,
+    volume,
+    change_24h,
+  };
+}
+
+function dashboardMarketCoins(coins: MarketCoin[]): MarketCoin[] {
+  return coins.map(normalizeDashboardCoin).filter((x): x is MarketCoin => x != null);
 }
 
 function sentimentFromCoins(coins: MarketCoin[]): {
   label: "bullish" | "bearish" | "neutral";
   score: number;
 } {
-  const v = validCoins(coins).slice(0, 24);
+  const v = dashboardMarketCoins(coins).slice(0, 24);
   if (!v.length) return { label: "neutral", score: 0 };
   const avg = v.reduce((s, c) => s + (c.change_24h ?? 0), 0) / v.length;
   const score = Math.max(-100, Math.min(100, Math.round(avg * 8)));
@@ -264,6 +285,7 @@ function fallbackNews(): NewsIntelRow[] {
       aiSummary:
         "Flow commentary suggests risk-on appetite concentrated in liquid majors; watch ETH/BTC ratio and funding for confirmation.",
       narrativeImpact: 72,
+      impactSentiment: "bullish",
       publishedAt: t,
     },
     {
@@ -274,6 +296,7 @@ function fallbackNews(): NewsIntelRow[] {
       aiSummary:
         "Cost efficiency narratives can re-rate infra tokens short-term; pair with on-chain active-address trends.",
       narrativeImpact: 61,
+      impactSentiment: "neutral",
       publishedAt: t,
     },
     {
@@ -284,6 +307,7 @@ function fallbackNews(): NewsIntelRow[] {
       aiSummary:
         "Dry powder entering centralized venues often precedes volatility expansion within 48–96h.",
       narrativeImpact: 68,
+      impactSentiment: "bullish",
       publishedAt: t,
     },
     {
@@ -294,6 +318,7 @@ function fallbackNews(): NewsIntelRow[] {
       aiSummary:
         "Crowded short funding often mean-reverts; pair with open-interest deltas and spot premium.",
       narrativeImpact: 55,
+      impactSentiment: "bullish",
       publishedAt: t,
     },
     {
@@ -304,6 +329,7 @@ function fallbackNews(): NewsIntelRow[] {
       aiSummary:
         "Fee compression can lift app-chain rotation trades; validate against bridge flows.",
       narrativeImpact: 49,
+      impactSentiment: "neutral",
       publishedAt: t,
     },
     {
@@ -314,6 +340,7 @@ function fallbackNews(): NewsIntelRow[] {
       aiSummary:
         "Basis stability reduces squeeze risk for yield carry; watch issuance calendars.",
       narrativeImpact: 44,
+      impactSentiment: "neutral",
       publishedAt: t,
     },
   ];
@@ -628,7 +655,7 @@ function mapHeatmapEntry(c: MarketCoin) {
 
 /** Homepage treemap: five strongest gainers and five weakest losers (deduped), max 10 tiles. */
 function buildHomeHeatmapCoins(coins: MarketCoin[]) {
-  const v = validCoins(coins);
+  const v = dashboardMarketCoins(coins);
   if (!v.length) return [];
   const seen = new Set<string>();
   const gainers = [...v]
@@ -680,6 +707,7 @@ export async function buildHomeDashboard(): Promise<HomeDashboardPayload> {
 
   const [
     summaryRes,
+    marketListRes,
     trendingRes,
     signalsRes,
     walletsRes,
@@ -688,13 +716,14 @@ export async function buildHomeDashboard(): Promise<HomeDashboardPayload> {
     categoriesRes,
     insightsRes,
   ] = await Promise.allSettled([
-    withTimeout(getMarketSummary(40), FETCH_MS),
+    withTimeout(getMarketSummary(60), FETCH_MS),
+    withTimeout(getMarketCoins({ limit: 120, page: 1 }), FETCH_MS),
     withTimeout(getSignalsTrending({ hours: 24, limit: 14 }), FETCH_MS),
     withTimeout(getSignalsLatest({ limit: 12 }), FETCH_MS),
     withTimeout(getWalletLeaderboard(), FETCH_MS),
-    withTimeout(getNewsArticles({ limit: 10 }), FETCH_MS),
+    withTimeout(getNewsArticles({ limit: 12 }), FETCH_MS),
     withTimeout(getOpportunities(), FETCH_MS),
-    withTimeout(getCategoryDirectory({ limit: 24, order: "market_cap" }), FETCH_MS),
+    withTimeout(getCategoryDirectory({ limit: 40, order: "market_cap" }), FETCH_MS),
     withTimeout(getInsightsTrending(), FETCH_MS),
   ]);
 
@@ -718,11 +747,17 @@ export async function buildHomeDashboard(): Promise<HomeDashboardPayload> {
     ethDom = g?.eth_dominance_pct ?? null;
   }
 
-  let vk = validCoins(marketCoins);
+  let vk: MarketCoin[] = [];
+  if (marketListRes.status === "fulfilled" && marketListRes.value.length) {
+    vk = dashboardMarketCoins(marketListRes.value);
+  }
+  if (!vk.length) {
+    vk = dashboardMarketCoins(marketCoins);
+  }
   if (!vk.length) {
     try {
       const alt = await withTimeout(getMarketCoins({ limit: 120, page: 1 }), FETCH_MS);
-      vk = validCoins(alt);
+      vk = dashboardMarketCoins(alt);
     } catch {
       vk = [];
     }
@@ -747,7 +782,8 @@ export async function buildHomeDashboard(): Promise<HomeDashboardPayload> {
   }
 
   const narrativesFull = categoryItems.slice(0, 8).map(categoryToNarrativeRow);
-  const topNarratives: HeroNarrativeChip[] = categoryItems.slice(0, 12).map((c) => ({
+  const topNarratives: HeroNarrativeChip[] = categoryItems.slice(0, 15).map((c) => ({
+    id: c.id,
     name: c.name,
     trend: c.trend,
     capitalFlow: c.capital_flow,
@@ -823,15 +859,19 @@ export async function buildHomeDashboard(): Promise<HomeDashboardPayload> {
   if (!signals.length) signals = fallbackSignals();
 
   let newsRaw: NewsArticleSummary[] = newsRes.status === "fulfilled" ? newsRes.value : [];
-  let news: NewsIntelRow[] = newsRaw.map((item) => ({
-    id: item.id,
-    title: item.title,
-    source: item.source,
-    url: item.url,
-    aiSummary: aiSummaryForNews(item),
-    narrativeImpact: narrativeImpactFromNews(item),
-    publishedAt: item.published_at ?? null,
-  }));
+  let news: NewsIntelRow[] = newsRaw.map((item) => {
+    const { sentimentLabel } = sentimentForNews(item);
+    return {
+      id: item.id,
+      title: item.title,
+      source: item.source,
+      url: item.url,
+      aiSummary: aiSummaryForNews(item),
+      narrativeImpact: narrativeImpactFromNews(item),
+      impactSentiment: sentimentLabel,
+      publishedAt: item.published_at ?? null,
+    };
+  });
   if (!news.length) news = fallbackNews();
 
   let opportunities: Opportunity[] = oppsRes.status === "fulfilled" ? oppsRes.value : [];

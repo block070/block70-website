@@ -273,7 +273,7 @@ export function IntelligenceDashboard() {
                 <div className="mt-2 flex flex-wrap gap-1.5">
                   {show.hero.topNarratives.map((n) => (
                     <Link
-                      key={n.name}
+                      key={n.id}
                       href="/narratives"
                       className={clsx(
                         "rounded-full border px-2.5 py-1 text-[10px] font-medium transition-colors hover:border-[var(--b70-crypto-blue)]",
@@ -537,15 +537,15 @@ export function IntelligenceDashboard() {
               <MoverTable title="Top gainers" rows={show.market.gainers} positive />
               <MoverTable title="Top losers" rows={show.market.losers} positive={false} />
             </div>
-            <div className="mt-4 grid gap-4 lg:grid-cols-3 lg:items-start">
-              <div className="lg:col-span-2">
-                <h3 className="mb-2 text-xs font-semibold text-[var(--b70-text-muted)]">Heatmap</h3>
+            <div className="mt-4 grid gap-4 lg:grid-cols-3 lg:items-stretch">
+              <div className="flex min-h-0 flex-col lg:col-span-2">
+                <h3 className="mb-2 shrink-0 text-xs font-semibold text-[var(--b70-text-muted)]">Heatmap</h3>
                 <MarketHeatmap coins={show.market.heatmap} maxTiles={10} />
               </div>
-              <div className="flex min-h-0 flex-col lg:min-h-[616px]">
-                <h3 className="mb-2 text-xs font-semibold text-[var(--b70-text-muted)]">Volume spikes</h3>
-                <div className="flex min-h-0 flex-1 flex-col rounded-xl border border-[var(--b70-border)] bg-[var(--b70-card)] p-3 lg:min-h-[560px]">
-                  <ul className="max-h-[520px] space-y-1 overflow-y-auto pr-1 lg:max-h-none lg:flex-1">
+              <div className="flex h-full min-h-0 flex-col">
+                <h3 className="mb-2 shrink-0 text-xs font-semibold text-[var(--b70-text-muted)]">Volume spikes</h3>
+                <div className="flex min-h-0 flex-1 flex-col rounded-xl border border-[var(--b70-border)] bg-[var(--b70-card)] p-3">
+                  <ul className="min-h-0 flex-1 space-y-1 overflow-y-auto pr-1">
                     {show.market.volumeSpikes.map((v) => (
                       <li key={v.slug}>
                         <Link
@@ -640,9 +640,24 @@ export function IntelligenceDashboard() {
                     <span className="text-[10px] font-semibold uppercase text-[var(--b70-text-muted)]">
                       {n.source}
                     </span>
-                    <span className="font-[family-name:var(--font-jetbrains)] text-[11px] text-[var(--b70-crypto-orange)]">
-                      Impact {n.narrativeImpact}
-                    </span>
+                    <div className="flex flex-wrap items-center justify-end gap-1.5">
+                      <span
+                        className={clsx(
+                          "rounded px-1.5 py-0.5 text-[9px] font-semibold uppercase",
+                          n.impactSentiment === "bullish" &&
+                            "bg-emerald-500/15 text-emerald-700 dark:text-emerald-400",
+                          n.impactSentiment === "bearish" &&
+                            "bg-rose-500/15 text-rose-700 dark:text-rose-400",
+                          n.impactSentiment === "neutral" &&
+                            "bg-slate-500/15 text-slate-600 dark:text-slate-400",
+                        )}
+                      >
+                        {n.impactSentiment}
+                      </span>
+                      <span className="font-[family-name:var(--font-jetbrains)] text-[11px] text-[var(--b70-text-muted)]">
+                        Impact {n.narrativeImpact}
+                      </span>
+                    </div>
                   </div>
                   <a
                     href={n.url}

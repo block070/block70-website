@@ -15,6 +15,9 @@ export type HeatmapCoin = {
   volume24h: number;
 };
 
+/** Total min height for homepage layout parity (heatmap title + controls + 560px chart + section padding). */
+export const HEATMAP_HOME_COLUMN_MIN_HEIGHT_PX = 658;
+
 type MarketHeatmapProps = {
   coins?: HeatmapCoin[];
   /** Cap tiles (homepage uses 10: five gainers + five losers). */
