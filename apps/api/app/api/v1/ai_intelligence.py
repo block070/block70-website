@@ -67,6 +67,7 @@ def _finalize_opportunities_response(
     limit: int,
     min_mcap: float | None,
     risk: str | None,
+    query_normalized: str = "",
 ) -> dict[str, Any]:
     public = {k: v for k, v in bundle.items() if k != "_batch_context"}
     coin_intel = None
@@ -84,6 +85,7 @@ def _finalize_opportunities_response(
             None,
         )
         if primary is None:
+            preserved_qi = dict(qid) if isinstance(qid, dict) else {}
             bundle2 = fetch_intelligence_bundle(
                 limit=limit,
                 timeframe=timeframe,
@@ -95,7 +97,9 @@ def _finalize_opportunities_response(
                 query_boost_symbols=frozenset(),
                 query_intent=parse_query_intent(""),
             )
-            public = {k: v for k, v in bundle2.items() if k != "_batch_context"}
+            merged = {k: v for k, v in bundle2.items() if k != "_batch_context"}
+            merged["query_intent"] = preserved_qi
+            public = merged
             coin_fallback = True
         else:
             coin_intel = build_coin_intel(
@@ -110,6 +114,19 @@ def _finalize_opportunities_response(
 
     public["coin_intel"] = coin_intel
     public["coin_fallback"] = coin_fallback
+    coin_mode_triggered = bool(
+        intent in ("SPECIFIC_ASSET", "ANALYSIS")
+        and primary_sym
+        and (coin_intel is not None or coin_fallback),
+    )
+    logger.info(
+        "ai_intel_finalize query=%r detected_symbol=%r intent=%s coin_mode_triggered=%s coin_fallback=%s",
+        query_normalized.strip(),
+        str(primary_sym).upper() if primary_sym else None,
+        intent,
+        coin_mode_triggered,
+        coin_fallback,
+    )
     return public
 
 
@@ -154,6 +171,7 @@ def get_opportunities(
         limit=limit,
         min_mcap=min_mcap,
         risk=risk,
+        query_normalized=qn,
     )
     market_cache_set("ai_intel_bundle", _CACHE_TTL, public, **params)
     return public

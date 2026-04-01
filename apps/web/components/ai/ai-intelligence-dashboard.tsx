@@ -310,7 +310,13 @@ export function AIIntelligenceDashboard() {
   }
 
   const intent = payload?.query_intent?.intent ?? "DISCOVERY";
-  const coinMode = Boolean(payload?.coin_intel && !payload?.coin_fallback);
+  const isCoinIntent = intent === "SPECIFIC_ASSET" || intent === "ANALYSIS";
+  const coinMode = Boolean(payload && isCoinIntent);
+  const coinIntelReady = Boolean(payload?.coin_intel && !payload?.coin_fallback);
+  const focusSymbol =
+    payload?.query_intent?.focus_symbols && payload.query_intent.focus_symbols.length > 0
+      ? payload.query_intent.focus_symbols[0]
+      : null;
 
   const predictionsFirst = intent === "PREDICTION";
 
@@ -345,9 +351,10 @@ export function AIIntelligenceDashboard() {
             Run
           </button>
         </div>
-        {payload?.coin_fallback ? (
+        {payload?.coin_fallback && coinMode ? (
           <p className="text-xs text-amber-600 dark:text-amber-400">
-            Showing top opportunities based on current market conditions — asset not found in live universe.
+            Coin intelligence batch: {focusSymbol ?? "asset"} was not in the ranked set — showing a neutral market
+            slice. Intent stays single-asset.
           </p>
         ) : null}
         {activeQuery.trim() && intent === "DISCOVERY" && !coinMode && !payload?.coin_fallback ? (
@@ -464,7 +471,19 @@ export function AIIntelligenceDashboard() {
         </button>
       </section>
 
-      {coinMode && payload?.coin_intel ? <CoinIntelligenceTerminal data={payload.coin_intel} /> : null}
+      {coinIntelReady && payload?.coin_intel ? <CoinIntelligenceTerminal data={payload.coin_intel} /> : null}
+
+      {coinMode && payload && !payload.coin_intel ? (
+        <div className="rounded-b70-lg border border-[var(--b70-border)] bg-[var(--b70-card)]/80 p-6 text-center text-sm text-[var(--b70-muted)]">
+          <p className="font-medium text-[var(--b70-fg)]">
+            {focusSymbol ? `${focusSymbol} intelligence` : "Coin intelligence"}
+          </p>
+          <p className="mt-2">
+            Full briefing is unavailable until this symbol appears in the live ranked universe. Try refresh or widen
+            filters.
+          </p>
+        </div>
+      ) : null}
 
       {!coinMode && loading ? (
         <div className="space-y-3">
@@ -474,6 +493,13 @@ export function AIIntelligenceDashboard() {
               <Skeleton key={i} className="h-40 rounded-b70-lg" />
             ))}
           </div>
+        </div>
+      ) : null}
+
+      {coinMode && loading ? (
+        <div className="space-y-3">
+          <Skeleton className="h-32 w-full rounded-b70-lg" />
+          <Skeleton className="h-64 w-full rounded-b70-lg" />
         </div>
       ) : null}
 

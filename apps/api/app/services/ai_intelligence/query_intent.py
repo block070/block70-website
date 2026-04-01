@@ -1,12 +1,15 @@
-﻿"""Query classification: intent drives filters, composite weights, sort, and output mode."""
+"""Query classification: intent drives filters, composite weights, sort, and output mode."""
 
 from __future__ import annotations
 
+import logging
 import re
 from dataclasses import dataclass, field
 from typing import Any, Literal
 
 from app.services.ai_intelligence.narrative_map import narratives_for_asset
+
+logger = logging.getLogger(__name__)
 
 QueryIntentType = Literal[
     "DISCOVERY",
@@ -22,10 +25,24 @@ _EXTRA_MAJORS = frozenset(
 )
 
 
+def _coingecko_slug_registry_symbols() -> frozenset[str]:
+    """Upper symbols from SLUG_TO_SYMBOL (CoinGecko canonical slug map)."""
+    from app.api.v1.market import SLUG_TO_SYMBOL
+
+    return frozenset(str(v).strip().upper() for v in SLUG_TO_SYMBOL.values() if v)
+
+
 def _all_recognized_symbols() -> frozenset[str]:
     from app.services.ai_intelligence.narrative_map import _SYMBOL_TAGS  # type: ignore[attr-defined]
 
-    return frozenset(_SYMBOL_TAGS.keys()) | _EXTRA_MAJORS
+    return frozenset(_SYMBOL_TAGS.keys()) | _EXTRA_MAJORS | _coingecko_slug_registry_symbols()
+
+
+def _first_query_token_upper(raw: str) -> str | None:
+    parts = (raw or "").strip().split()
+    if not parts:
+        return None
+    return parts[0].strip().upper().lstrip("$") or None
 
 
 def _tickers_in_query(q: str) -> frozenset[str]:
@@ -77,6 +94,7 @@ class QueryIntentResult:
     prefer_low_volatility: bool = False
     boost_symbols: frozenset[str] = field(default_factory=frozenset)
     output_mode: str = "ranked_opportunities"
+    strict_ticker_match: bool = False
 
     def to_log_dict(self) -> dict[str, Any]:
         return {
@@ -91,6 +109,7 @@ class QueryIntentResult:
             "prefer_low_volatility": self.prefer_low_volatility,
             "boost_symbols": sorted(self.boost_symbols),
             "output_mode": self.output_mode,
+            "strict_ticker_match": self.strict_ticker_match,
         }
 
 
@@ -102,6 +121,38 @@ def _sector_tickers_for_narratives(nids: frozenset[str]) -> frozenset[str]:
         if tags & nids:
             out.add(sym)
     return frozenset(out)
+
+
+def _leading_ticker_specific_asset_intent(raw: str, tickers: frozenset[str]) -> QueryIntentResult | None:
+    """First token is the only ticker in the query → SPECIFIC_ASSET (before sector/discovery)."""
+    if len(tickers) != 1:
+        return None
+    only = next(iter(tickers))
+    first = _first_query_token_upper(raw)
+    if first != only:
+        return None
+    strict_whole = len(raw.strip().split()) == 1
+    peers = _peer_narratives_for_symbols(tickers)
+    res = QueryIntentResult(
+        intent="SPECIFIC_ASSET",
+        focus_symbols=tickers,
+        peer_narratives=peers if peers else None,
+        weight_mult={"narrative": 1.2, "relative_strength": 1.08},
+        prob_bias=3.0,
+        sort_mode="sector_compare",
+        boost_symbols=tickers,
+        output_mode="asset_breakdown_with_peers",
+        strict_ticker_match=strict_whole,
+    )
+    logger.info(
+        "ai_intel_query_intent query=%r detected_symbol=%r intent=%s coin_mode_triggered=%s strict_ticker_match=%s",
+        raw.strip(),
+        only,
+        res.intent,
+        True,
+        res.strict_ticker_match,
+    )
+    return res
 
 
 def parse_query_intent(query: str) -> QueryIntentResult:
@@ -163,18 +214,9 @@ def parse_query_intent(query: str) -> QueryIntentResult:
                 output_mode="single_asset_deep",
             )
 
-    if tickers and len(raw) <= 12 and len(tickers) == 1:
-        peers = _peer_narratives_for_symbols(tickers)
-        return QueryIntentResult(
-            intent="SPECIFIC_ASSET",
-            focus_symbols=tickers,
-            peer_narratives=peers if peers else None,
-            weight_mult={"narrative": 1.2, "relative_strength": 1.08},
-            prob_bias=3.0,
-            sort_mode="sector_compare",
-            boost_symbols=tickers,
-            output_mode="asset_breakdown_with_peers",
-        )
+    early_asset = _leading_ticker_specific_asset_intent(raw, tickers)
+    if early_asset is not None:
+        return early_asset
 
     if len(tickers) >= 1 and re.search(r"\b(vs|versus|compare|and)\b", qlow) and len(tickers) <= 4:
         peers_m: frozenset[str] | None = None

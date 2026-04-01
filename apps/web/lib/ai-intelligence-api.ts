@@ -60,6 +60,7 @@ export type QueryIntentDebug = {
   sort_mode?: string;
   prob_bias?: number;
   weight_mult?: Record<string, number>;
+  strict_ticker_match?: boolean;
 };
 
 export type CoinIntelPrediction = {

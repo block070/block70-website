@@ -140,6 +140,80 @@ def test_query_intent_ai_sector_vs_best_crypto() -> None:
     assert b.filter_narratives is None
 
 
+def test_query_intent_strict_ticker_ada_and_dollar_prefix() -> None:
+    from app.services.ai_intelligence.query_intent import parse_query_intent
+
+    for q in ("ADA", "  ada  ", "$ADA"):
+        r = parse_query_intent(q)
+        assert r.intent == "SPECIFIC_ASSET"
+        assert r.focus_symbols == frozenset({"ADA"})
+        assert r.strict_ticker_match is True
+
+
+def test_query_intent_leading_ticker_not_limited_by_query_length() -> None:
+    from app.services.ai_intelligence.query_intent import parse_query_intent
+
+    r = parse_query_intent("ADA long form query that exceeds twelve characters easily")
+    assert r.intent == "SPECIFIC_ASSET"
+    assert r.focus_symbols == frozenset({"ADA"})
+    assert r.strict_ticker_match is False
+
+
+def test_finalize_preserves_query_intent_on_coin_fallback(monkeypatch: pytest.MonkeyPatch) -> None:
+    from unittest.mock import MagicMock
+
+    from app.api.v1.ai_intelligence import _finalize_opportunities_response
+    from app.services.ai_intelligence.query_intent import parse_query_intent
+
+    def fake_fetch(**kwargs: object) -> dict:
+        del kwargs
+        qid = parse_query_intent("").to_log_dict()
+        return {
+            "opportunities": [{"asset_symbol": "BTC", "coingecko_id": "bitcoin"}],
+            "market_regime": "TRANSITION",
+            "capital_rotation": [],
+            "synthetic_fallback": False,
+            "model_insights": [],
+            "query_intent": qid,
+            "predictions": [],
+            "recent_shifts": [],
+            "portfolio_positioning": {},
+            "_batch_context": MagicMock(),
+        }
+
+    monkeypatch.setattr("app.api.v1.ai_intelligence.fetch_intelligence_bundle", fake_fetch)
+
+    ada_qi = parse_query_intent("ADA").to_log_dict()
+    bundle = {
+        "opportunities": [{"asset_symbol": "ETH", "coingecko_id": "ethereum"}],
+        "market_regime": "TRANSITION",
+        "capital_rotation": [],
+        "synthetic_fallback": False,
+        "model_insights": [],
+        "query_intent": ada_qi,
+        "predictions": [],
+        "recent_shifts": [],
+        "portfolio_positioning": {},
+        "_batch_context": MagicMock(),
+    }
+    out = _finalize_opportunities_response(
+        MagicMock(),
+        bundle,
+        timeframe="24h",
+        news_agg=MagicMock(scores={}, mentions_24h={}),
+        hour_pl={},
+        limit=10,
+        min_mcap=None,
+        risk=None,
+        query_normalized="ADA",
+    )
+    assert out["query_intent"]["intent"] == "SPECIFIC_ASSET"
+    assert "ADA" in (out["query_intent"].get("focus_symbols") or [])
+    assert out["coin_fallback"] is True
+    assert out["coin_intel"] is None
+    assert out["opportunities"][0]["asset_symbol"] == "BTC"
+
+
 def test_bundle_respects_query_intent_filter(monkeypatch: pytest.MonkeyPatch) -> None:
     from app.services.ai_intelligence.query_intent import parse_query_intent
 
