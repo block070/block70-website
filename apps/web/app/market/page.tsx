@@ -7,7 +7,8 @@ export const metadata = {
     "Dominance, sector rotation, market heatmap, and sentiment—macro dashboard for crypto markets.",
 };
 
-export const revalidate = 60;
+/** Never ship a build-time static snapshot with empty upstreams; always assemble on request. */
+export const dynamic = "force-dynamic";
 
 export default async function MarketMacroPage() {
   const data = await buildMacroDashboard();

@@ -1,8 +1,7 @@
 /**
  * Server-side aggregator for /market macro intelligence.
- * Uses market summary + category directory + optional Alternative.me Fear & Greed.
+ * API snapshot + category directory + CoinGecko in parallel (CoinGecko fills gaps when API/build env is weak).
  */
-import { unstable_cache } from "next/cache";
 import {
   getCategoryDirectory,
   getMarketCoins,
@@ -17,6 +16,7 @@ import { fetchCoingeckoHomeMarketBundle } from "@/lib/market/coingecko-home-fall
 
 export const MACRO_CACHE_SEC = 60;
 const FETCH_MS = 8_000;
+const CG_FETCH_MS = 20_000;
 
 export type FearGreedPoint = {
   value: number;
@@ -110,6 +110,34 @@ function normalizeMacroCoin(c: MarketCoin): MarketCoin | null {
 
 function validCoins(coins: MarketCoin[]): MarketCoin[] {
   return coins.map(normalizeMacroCoin).filter((x): x is MarketCoin => x != null);
+}
+
+function coinKey(c: MarketCoin): string {
+  const s = (c.slug || c.symbol || "").trim().toLowerCase();
+  return s || `${c.symbol}:${c.name}`.toLowerCase();
+}
+
+/** Prefer first occurrence (API / scanner), append CoinGecko for missing slugs. */
+function mergeCoinsBySlug(primary: MarketCoin[], secondary: MarketCoin[]): MarketCoin[] {
+  const seen = new Set<string>();
+  const out: MarketCoin[] = [];
+  for (const c of primary) {
+    const k = coinKey(c);
+    if (!k || seen.has(k)) continue;
+    const n = normalizeMacroCoin(c);
+    if (!n) continue;
+    seen.add(k);
+    out.push(n);
+  }
+  for (const c of secondary) {
+    const k = coinKey(c);
+    if (!k || seen.has(k)) continue;
+    const n = normalizeMacroCoin(c);
+    if (!n) continue;
+    seen.add(k);
+    out.push(n);
+  }
+  return out;
 }
 
 function mcapWeightedChange24h(coins: MarketCoin[]): number {
@@ -207,78 +235,86 @@ function buildRotation(categories: CategoryDirectoryApiItem[]): RotationSector[]
   }));
 }
 
-async function buildMacroDashboardUncached(): Promise<MacroDashboardPayload> {
+export async function buildMacroDashboardUncached(): Promise<MacroDashboardPayload> {
   const generatedAt = new Date().toISOString();
 
-  const [summaryOutcome, catOutcome, fngAlt] = await Promise.all([
+  const [summaryOutcome, catOutcome, fngAlt, cgOutcome, moreCoinsOutcome] = await Promise.all([
     Promise.allSettled([withTimeout(getMarketSummary(48), FETCH_MS)]).then((r) => r[0]),
     Promise.allSettled([
       withTimeout(getCategoryDirectory({ limit: 24, order: "market_cap" }), FETCH_MS),
     ]).then((r) => r[0]),
     fetchAlternativeFearGreed(),
+    Promise.allSettled([withTimeout(fetchCoingeckoHomeMarketBundle(100), CG_FETCH_MS)]).then(
+      (r) => r[0],
+    ),
+    Promise.allSettled([withTimeout(getMarketCoins({ limit: 100, page: 1 }), FETCH_MS)]).then((r) => r[0]),
   ]);
 
-  let summary: MarketSummaryResponse | null =
+  const summary: MarketSummaryResponse | null =
     summaryOutcome.status === "fulfilled" ? summaryOutcome.value : null;
+
   const catPayload =
     catOutcome.status === "fulfilled"
       ? catOutcome.value
       : { items: [] as CategoryDirectoryApiItem[], total: 0 };
-  let categories = catPayload.items ?? [];
+  const categories = catPayload.items ?? [];
 
-  let topCoins = summary?.top ? validCoins(summary.top) : [];
-  if (topCoins.length < 15) {
-    try {
-      const more = await withTimeout(getMarketCoins({ limit: 80, page: 1 }), FETCH_MS);
-      if (more.length) topCoins = validCoins(more);
-    } catch {
-      /* keep summary slice */
-    }
+  const cg =
+    cgOutcome.status === "fulfilled"
+      ? cgOutcome.value
+      : { global: null, coins: [] as MarketCoin[] };
+  const cgCoins = validCoins(cg.coins);
+
+  let topCoins: MarketCoin[] = [];
+  if (summary?.top?.length) topCoins = validCoins(summary.top);
+  const moreCoins =
+    moreCoinsOutcome.status === "fulfilled" ? moreCoinsOutcome.value : [];
+  if (moreCoins.length) {
+    topCoins = mergeCoinsBySlug(topCoins, validCoins(moreCoins));
+  }
+  if (topCoins.length < 50) {
+    topCoins = mergeCoinsBySlug(topCoins, cgCoins);
   }
 
-  let g = summary?.global;
-  let totalMcap = g?.total_market_cap_usd ?? null;
-  let totalVol = g?.total_volume_usd ?? null;
-  let btcDom = g?.btc_dominance_pct ?? null;
-  let ethDom = g?.eth_dominance_pct ?? null;
+  let totalMcap = summary?.global?.total_market_cap_usd ?? null;
+  let totalVol = summary?.global?.total_volume_usd ?? null;
+  let btcDom = summary?.global?.btc_dominance_pct ?? null;
+  let ethDom = summary?.global?.eth_dominance_pct ?? null;
   let marketAsOf = summary?.as_of ?? null;
   let marketSource = summary?.source?.trim() || "";
 
-  const globalsMissing =
-    (totalMcap == null || totalMcap <= 0) &&
-    (totalVol == null || totalVol <= 0) &&
-    btcDom == null &&
-    ethDom == null;
-  const needTape = topCoins.length < 12 || globalsMissing;
-
+  const gn = cg.global;
   let usedCoingecko = false;
-  if (needTape) {
-    try {
-      const cg = await fetchCoingeckoHomeMarketBundle(100);
-      const gn = cg.global;
-      if (gn) {
-        if (totalMcap == null || totalMcap <= 0)
-          totalMcap = gn.total_market_cap_usd ?? totalMcap;
-        if (totalVol == null || totalVol <= 0) totalVol = gn.total_volume_usd ?? totalVol;
-        if (btcDom == null) btcDom = gn.btc_dominance_pct ?? btcDom;
-        if (ethDom == null) ethDom = gn.eth_dominance_pct ?? ethDom;
+  if (gn) {
+    if (totalMcap == null || totalMcap <= 0) {
+      const v = gn.total_market_cap_usd;
+      if (v != null && v > 0) {
+        totalMcap = v;
         usedCoingecko = true;
       }
-      if (topCoins.length < 12 && cg.coins.length) {
-        topCoins = validCoins(cg.coins);
-        usedCoingecko = true;
-      }
-      if (usedCoingecko && !marketAsOf) {
-        marketAsOf = generatedAt;
-      }
-      if (usedCoingecko) {
-        marketSource = marketSource
-          ? `${marketSource}+coingecko`
-          : "CoinGecko (direct)";
-      }
-    } catch {
-      /* keep API-only snapshot */
     }
+    if (totalVol == null || totalVol <= 0) {
+      const v = gn.total_volume_usd;
+      if (v != null && v > 0) {
+        totalVol = v;
+        usedCoingecko = true;
+      }
+    }
+    if (btcDom == null && gn.btc_dominance_pct != null) {
+      btcDom = gn.btc_dominance_pct;
+      usedCoingecko = true;
+    }
+    if (ethDom == null && gn.eth_dominance_pct != null) {
+      ethDom = gn.eth_dominance_pct;
+      usedCoingecko = true;
+    }
+  }
+
+  if (usedCoingecko) {
+    marketSource = marketSource ? `${marketSource}+coingecko` : "CoinGecko (direct)";
+    if (!marketAsOf) marketAsOf = generatedAt;
+  } else if (!marketSource) {
+    marketSource = "Block70 API";
   }
 
   let denom = totalMcap != null && totalMcap > 0 ? totalMcap : 0;
@@ -311,7 +347,7 @@ async function buildMacroDashboardUncached(): Promise<MacroDashboardPayload> {
       if (!eth && ethRow?.market_cap) eth = (ethRow.market_cap / t) * 100;
     }
   }
-  /** KPI strip: use API dominance when present, else same slice-implied % as the pie. */
+
   const displayBtcDom = btcDom != null ? btcDom : btc > 0 ? btc : null;
   const displayEthDom = ethDom != null ? ethDom : eth > 0 ? eth : null;
 
@@ -357,7 +393,6 @@ async function buildMacroDashboardUncached(): Promise<MacroDashboardPayload> {
   ];
 
   const heatmapCoins = topCoins.slice(0, 50).map(toHeatmapCoin);
-  /** Log-scale scatter: floored volume so majors with data still plot. */
   const scatter: ScatterPoint[] = topCoins.slice(0, 48).map((c) => ({
     symbol: c.symbol,
     slug: c.slug,
@@ -378,7 +413,7 @@ async function buildMacroDashboardUncached(): Promise<MacroDashboardPayload> {
     meta: {
       generatedAt,
       marketAsOf: marketAsOf ?? generatedAt,
-      marketSource: marketSource || (usedCoingecko ? "CoinGecko (direct)" : "Block70 API"),
+      marketSource,
       cacheTtlSec: MACRO_CACHE_SEC,
     },
     global: {
@@ -397,12 +432,7 @@ async function buildMacroDashboardUncached(): Promise<MacroDashboardPayload> {
   };
 }
 
-const getCachedMacro = unstable_cache(
-  async () => buildMacroDashboardUncached(),
-  ["macro-intelligence-dashboard-v2"],
-  { revalidate: MACRO_CACHE_SEC },
-);
-
+/** No unstable_cache: avoids empty snapshots stuck from build/edge and hangs when called outside Next.js. */
 export async function buildMacroDashboard(): Promise<MacroDashboardPayload> {
-  return getCachedMacro();
+  return buildMacroDashboardUncached();
 }
