@@ -480,15 +480,12 @@ export function AIIntelligenceDashboard() {
         </aside>
       ) : null}
 
-      {marketBundle && (marketBundle.synthetic_fallback || marketBundle.capital_rotation.length > 0) ? (
+      {marketBundle && marketBundle.capital_rotation.length > 0 ? (
         <div className="flex flex-wrap gap-3 rounded-b70-lg border border-[var(--b70-border)] bg-[var(--b70-card)]/50 px-4 py-3 text-sm">
           <span className="font-medium text-[var(--b70-fg)]">
             Meta: <span className="text-[var(--b70-muted)]">{marketBundle.market_regime}</span>
           </span>
-          {marketBundle.synthetic_fallback ? (
-            <span className="text-amber-600 dark:text-amber-400">Demo data (CoinGecko unavailable)</span>
-          ) : null}
-        </div>
+          </div>
       ) : null}
 
       <section className="flex flex-wrap items-end gap-4 rounded-b70-lg border border-[var(--b70-border)] bg-[var(--b70-card)]/60 p-4">
