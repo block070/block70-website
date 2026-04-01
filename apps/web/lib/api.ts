@@ -47,6 +47,36 @@ export const API_BASE_URL =
     ? process.env.API_SERVER_URL || process.env.NEXT_PUBLIC_API_BASE_URL || ""
     : process.env.NEXT_PUBLIC_API_BASE_URL || "";
 
+/** Browser: same-origin `/api/v1/...` (Next proxy). Server: direct FastAPI URL. */
+function v1RequestUrl(path: string): string {
+  const p = path.startsWith("/") ? path : `/${path}`;
+  if (typeof window !== "undefined") {
+    return p;
+  }
+  const base = (process.env.API_SERVER_URL || process.env.NEXT_PUBLIC_API_BASE_URL || "").replace(
+    /\/$/,
+    "",
+  );
+  return base ? `${base}${p}` : p;
+}
+
+async function fetchV1Json<T>(path: string, init?: RequestInit): Promise<T> {
+  const url = v1RequestUrl(path);
+  const res = await fetch(url, {
+    ...init,
+    headers: {
+      Accept: "application/json",
+      "Content-Type": "application/json",
+      ...(init?.headers ?? {}),
+    },
+    cache: "no-store",
+  });
+  if (!res.ok) {
+    throw new Error(`API request failed with status ${res.status}`);
+  }
+  return (await res.json()) as T;
+}
+
 export async function fetchJson<T>(path: string, init?: RequestInit): Promise<T> {
   const base = getApiBaseUrl();
   const url = base ? `${base}${path.startsWith("/") ? "" : "/"}${path}` : path;
@@ -1080,7 +1110,7 @@ export async function getSignals(params?: SignalsFilter): Promise<SignalDto[]> {
   if (params?.limit != null) search.set("limit", String(params.limit));
   if (params?.offset != null) search.set("offset", String(params.offset));
   const query = search.toString();
-  return fetchJson<SignalDto[]>(`/api/v1/signals${query ? `?${query}` : ""}`, {
+  return fetchV1Json<SignalDto[]>(`/api/v1/signals${query ? `?${query}` : ""}`, {
     headers: optionalAuthHeaders(),
   });
 }
@@ -1095,7 +1125,7 @@ export async function getSignalsLatest(params?: {
   if (params?.chain) search.set("chain", params.chain);
   if (params?.signal_type) search.set("signal_type", params.signal_type);
   const query = search.toString();
-  return fetchJson<SignalDto[]>(`/api/v1/signals/latest${query ? `?${query}` : ""}`, {
+  return fetchV1Json<SignalDto[]>(`/api/v1/signals/latest${query ? `?${query}` : ""}`, {
     headers: optionalAuthHeaders(),
   });
 }
@@ -1109,7 +1139,7 @@ export async function getSignalsForToken(
   if (params?.signal_type) search.set("signal_type", params.signal_type);
   if (params?.limit != null) search.set("limit", String(params.limit));
   const query = search.toString();
-  return fetchJson<SignalDto[]>(
+  return fetchV1Json<SignalDto[]>(
     `/api/v1/signals/${encodeURIComponent(token)}${query ? `?${query}` : ""}`,
     { headers: optionalAuthHeaders() },
   );
@@ -1123,7 +1153,7 @@ export async function getSignalsTrending(params?: {
   if (params?.hours != null) search.set("hours", String(params.hours));
   if (params?.limit != null) search.set("limit", String(params.limit));
   const query = search.toString();
-  return fetchJson<TrendingSignalTokenDto[]>(
+  return fetchV1Json<TrendingSignalTokenDto[]>(
     `/api/v1/signals/trending${query ? `?${query}` : ""}`,
     { headers: optionalAuthHeaders() },
   );
@@ -1287,7 +1317,7 @@ export async function getSignalsLeaderboard(params?: {
   if (params?.limit != null) search.set("limit", String(params.limit));
   if (params?.sort_by) search.set("sort_by", params.sort_by);
   const query = search.toString();
-  return fetchJson<TrendingSignalTokenDto[]>(
+  return fetchV1Json<TrendingSignalTokenDto[]>(
     `/api/v1/signals/leaderboard${query ? `?${query}` : ""}`,
     { headers: optionalAuthHeaders() },
   );
