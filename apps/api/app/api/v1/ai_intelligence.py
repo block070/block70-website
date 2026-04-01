@@ -17,7 +17,9 @@ from app.services.ai_intelligence.hour_intel_client import (
 )
 from app.services.ai_intelligence.news_signals import get_news_intel_aggregate_cached
 from app.services.ai_intelligence.coin_intel import build_coin_intel
+from app.services.ai_intelligence.coin_slug_resolve import resolve_coingecko_slug_for_ticker
 from app.services.ai_intelligence.opportunity_pipeline import (
+    build_opportunity_from_markets_snapshot,
     fetch_intelligence_bundle,
 )
 from app.services.ai_intelligence.query_sector_hints import sector_symbols_for_query
@@ -86,21 +88,53 @@ def _finalize_opportunities_response(
         )
         if primary is None:
             preserved_qi = dict(qid) if isinstance(qid, dict) else {}
-            bundle2 = fetch_intelligence_bundle(
-                limit=limit,
-                timeframe=timeframe,
-                min_mcap=min_mcap,
-                risk=risk,
-                news_scores=news_agg.scores,
-                news_mentions_24h=news_agg.mentions_24h,
-                hour_payload=hour_pl,
-                query_boost_symbols=frozenset(),
-                query_intent=parse_query_intent(""),
+            slug = resolve_coingecko_slug_for_ticker(db, ps)
+            qi_parse = (
+                parse_query_intent(query_normalized)
+                if (query_normalized or "").strip()
+                else parse_query_intent("")
             )
-            merged = {k: v for k, v in bundle2.items() if k != "_batch_context"}
-            merged["query_intent"] = preserved_qi
-            public = merged
-            coin_fallback = True
+            hydrated = (
+                build_opportunity_from_markets_snapshot(
+                    slug,
+                    batch_ctx=batch_ctx,
+                    timeframe=timeframe,
+                    risk=risk,
+                    news_scores=news_agg.scores,
+                    news_mentions_24h=news_agg.mentions_24h,
+                    hour_payload=hour_pl,
+                    query_intent_result=qi_parse,
+                )
+                if slug
+                else None
+            )
+            if hydrated is not None:
+                coin_intel = build_coin_intel(
+                    db,
+                    primary=hydrated,
+                    opportunities=list(public.get("opportunities") or []),
+                    batch_ctx=batch_ctx,
+                    capital_rotation=list(public.get("capital_rotation") or []),
+                    query_intent=dict(qid) if isinstance(qid, dict) else {},
+                    timeframe=timeframe,
+                )
+                coin_fallback = False
+            else:
+                bundle2 = fetch_intelligence_bundle(
+                    limit=limit,
+                    timeframe=timeframe,
+                    min_mcap=min_mcap,
+                    risk=risk,
+                    news_scores=news_agg.scores,
+                    news_mentions_24h=news_agg.mentions_24h,
+                    hour_payload=hour_pl,
+                    query_boost_symbols=frozenset(),
+                    query_intent=parse_query_intent(""),
+                )
+                merged = {k: v for k, v in bundle2.items() if k != "_batch_context"}
+                merged["query_intent"] = preserved_qi
+                public = merged
+                coin_fallback = True
         else:
             coin_intel = build_coin_intel(
                 db,

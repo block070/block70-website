@@ -69,6 +69,7 @@ def fetch_coin_markets_row_by_id(coin_gecko_id: str) -> Optional[Dict[str, Any]]
                 "per_page": 1,
                 "page": 1,
                 "sparkline": "false",
+                "price_change_percentage": "1h,24h,7d",
             },
             timeout=8,
         )

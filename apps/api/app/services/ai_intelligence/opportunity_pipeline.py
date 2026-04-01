@@ -49,7 +49,11 @@ from app.services.ai_intelligence.scoring_engine import (
     compute_alpha_score,
     compute_weighted_composite,
 )
-from app.services.connectors.coingecko_connector import fetch_all_coins
+from app.services.connectors.coingecko_connector import (
+    fetch_all_coins,
+    fetch_coin_markets_row_by_id,
+    normalize_market_coin,
+)
 
 RiskTier = Literal["low", "medium", "high"]
 
@@ -397,6 +401,58 @@ def _score_candidates(
             }
         )
     return candidates, skipped_mcap, len(candidates)
+
+
+def build_opportunity_from_markets_snapshot(
+    slug: str,
+    *,
+    batch_ctx: BatchContext,
+    timeframe: Timeframe,
+    risk: RiskTier | None,
+    news_scores: dict[str, float] | None,
+    news_mentions_24h: dict[str, int] | None,
+    hour_payload: dict[str, Any] | None,
+    query_intent_result: QueryIntentResult | None,
+) -> dict[str, Any] | None:
+    """Hydrate one ranked-opportunity-shaped row from CoinGecko /coins/markets using the live batch
+    context (cross-sectional scores stay comparable to the rest of the bundle).
+    """
+    cid = (slug or "").lower().strip()
+    if not cid:
+        return None
+    raw = fetch_coin_markets_row_by_id(cid)
+    if not raw:
+        return None
+    row = normalize_market_coin(raw)
+    qi = query_intent_result
+    qb = frozenset(qi.boost_symbols) if qi else frozenset()
+    candidates, _, n_scored = _score_candidates(
+        [row],
+        ctx=batch_ctx,
+        timeframe=timeframe,
+        risk=risk,
+        news_scores=news_scores,
+        news_mentions_24h=news_mentions_24h,
+        hour_payload=hour_payload,
+        query_boost=qb,
+        skip_mcap=True,
+        min_mcap=None,
+        intent=qi,
+    )
+    if not candidates or n_scored <= 0:
+        return None
+    it = dict(candidates[0])
+    if qi:
+        apply_intent_post_scores(it, qi)
+    _spread_display_scores([it], floor=42, ceiling=94)
+    sp = it.get("spot_price")
+    try:
+        it["current_price"] = float(sp) if sp is not None else None
+    except (TypeError, ValueError):
+        it["current_price"] = None
+    it.pop("spot_price", None)
+    it.pop("_raw_sort", None)
+    return it
 
 
 def fetch_ranked_opportunities(

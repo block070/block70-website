@@ -7,6 +7,7 @@ from typing import Any, Literal
 
 from sqlalchemy.orm import Session
 
+from app.models.coin import Coin
 from app.services.ai_intelligence.alpha_batch import BatchContext
 from app.services.ai_intelligence.news_signals import build_coin_news_slice
 
@@ -389,12 +390,34 @@ def build_coin_intel(
 
     signals_out = {"primary_driver": primary_driver, "supporting": [s for s in supporting if s][:3]}
 
+    coin_profile: dict[str, Any] | None = None
+    if slug:
+        try:
+            crow = db.query(Coin).filter(Coin.slug == slug.lower()).first()
+            if crow:
+                desc = (crow.description or "").strip()
+                preview = None
+                if desc:
+                    preview = desc if len(desc) <= 280 else f"{desc[:277]}..."
+                coin_profile = {
+                    "category": crow.category,
+                    "category_slug": crow.category_slug,
+                    "description_preview": preview,
+                    "logo_url": crow.logo_url,
+                }
+        except Exception:
+            coin_profile = None
+
     return {
         **narrative,
         "overview": {
             "symbol": sym,
             "name": primary.get("name"),
             "current_price": primary.get("current_price"),
+            "price_change_24h": primary.get("price_change_24h"),
+            "price_change_7d": primary.get("price_change_7d"),
+            "market_cap": primary.get("market_cap"),
+            "volume_24h": primary.get("volume_24h"),
             "score": primary.get("score"),
             "confidence_score": primary.get("confidence_score"),
             "probability_of_move": primary.get("probability_of_move"),
@@ -412,5 +435,6 @@ def build_coin_intel(
         "headlines": news.headlines,
         "related": _related_buckets(primary, opportunities),
         "coin_page": coin_page,
+        "coin_profile": coin_profile,
         "query_intent": query_intent,
     }

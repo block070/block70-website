@@ -182,6 +182,10 @@ def test_finalize_preserves_query_intent_on_coin_fallback(monkeypatch: pytest.Mo
         }
 
     monkeypatch.setattr("app.api.v1.ai_intelligence.fetch_intelligence_bundle", fake_fetch)
+    monkeypatch.setattr(
+        "app.api.v1.ai_intelligence.build_opportunity_from_markets_snapshot",
+        lambda *a, **k: None,
+    )
 
     ada_qi = parse_query_intent("ADA").to_log_dict()
     bundle = {
@@ -212,6 +216,125 @@ def test_finalize_preserves_query_intent_on_coin_fallback(monkeypatch: pytest.Mo
     assert out["coin_fallback"] is True
     assert out["coin_intel"] is None
     assert out["opportunities"][0]["asset_symbol"] == "BTC"
+
+
+def test_resolve_coingecko_slug_ada_inverse_no_db() -> None:
+    from app.services.ai_intelligence.coin_slug_resolve import resolve_coingecko_slug_for_ticker
+
+    assert resolve_coingecko_slug_for_ticker(None, "ADA") == "cardano"
+    assert resolve_coingecko_slug_for_ticker(None, "BTC") == "bitcoin"
+
+
+def test_build_opportunity_from_markets_snapshot(monkeypatch: pytest.MonkeyPatch) -> None:
+    from app.services.ai_intelligence.alpha_batch import BatchContext
+    from app.services.ai_intelligence.opportunity_pipeline import (
+        _SYNTHETIC_MARKET,
+        build_opportunity_from_markets_snapshot,
+    )
+    from app.services.ai_intelligence.query_intent import parse_query_intent
+
+    ctx = BatchContext.build(list(_SYNTHETIC_MARKET), timeframe="24h")
+
+    def fake_fetch(_cid: str) -> dict:
+        return {
+            "id": "cardano",
+            "name": "Cardano",
+            "symbol": "ada",
+            "image": "",
+            "market_cap_rank": 8,
+            "market_cap": 1e10,
+            "current_price": 0.52,
+            "total_volume": 2e8,
+            "circulating_supply": None,
+            "total_supply": None,
+            "price_change_percentage_1h_in_currency": 0.1,
+            "price_change_percentage_24h": 2.1,
+            "price_change_percentage_7d_in_currency": 4.5,
+        }
+
+    monkeypatch.setattr(
+        "app.services.ai_intelligence.opportunity_pipeline.fetch_coin_markets_row_by_id",
+        fake_fetch,
+    )
+    row = build_opportunity_from_markets_snapshot(
+        "cardano",
+        batch_ctx=ctx,
+        timeframe="24h",
+        risk=None,
+        news_scores=None,
+        news_mentions_24h=None,
+        hour_payload=None,
+        query_intent_result=parse_query_intent("ADA"),
+    )
+    assert row is not None
+    assert row.get("asset_symbol") == "ADA"
+    assert row.get("coingecko_id") == "cardano"
+    assert row.get("current_price") is not None
+    assert "probability_of_move" in row
+    assert "_raw_sort" not in row
+
+
+def test_finalize_hydrates_off_ranked_coin(monkeypatch: pytest.MonkeyPatch) -> None:
+    from unittest.mock import MagicMock
+
+    from app.api.v1.ai_intelligence import _finalize_opportunities_response
+    from app.services.ai_intelligence.query_intent import parse_query_intent
+
+    def fake_hydrate(*_a: object, **_k: object) -> dict:
+        return {
+            "asset_symbol": "ADA",
+            "coingecko_id": "cardano",
+            "name": "Cardano",
+            "cycle_stage": "MID",
+            "confluence_score": 3,
+            "confluence_flags": ["momentum"],
+            "factor_scores": {"relative_strength": 52.0},
+            "price_change_24h": 1.0,
+            "price_change_7d": 2.0,
+            "probability_of_move": 52.0,
+            "confidence_score": 60.0,
+            "current_price": 0.5,
+            "narrative_tags": [],
+        }
+
+    def spy_intel(_db: object, **kw: object) -> dict:
+        assert kw["primary"]["asset_symbol"] == "ADA"
+        return {"overview": {"symbol": "ADA"}, "stub": True}
+
+    monkeypatch.setattr(
+        "app.api.v1.ai_intelligence.build_opportunity_from_markets_snapshot",
+        fake_hydrate,
+    )
+    monkeypatch.setattr("app.api.v1.ai_intelligence.build_coin_intel", spy_intel)
+
+    ada_qi = parse_query_intent("ADA").to_log_dict()
+    bundle = {
+        "opportunities": [{"asset_symbol": "ETH", "coingecko_id": "ethereum"}],
+        "market_regime": "TRANSITION",
+        "capital_rotation": [],
+        "synthetic_fallback": False,
+        "model_insights": [],
+        "query_intent": ada_qi,
+        "predictions": [],
+        "recent_shifts": [],
+        "portfolio_positioning": {},
+        "_batch_context": MagicMock(),
+    }
+    out = _finalize_opportunities_response(
+        MagicMock(),
+        bundle,
+        timeframe="24h",
+        news_agg=MagicMock(scores={}, mentions_24h={}),
+        hour_pl={},
+        limit=10,
+        min_mcap=None,
+        risk=None,
+        query_normalized="ADA",
+    )
+    assert out["coin_fallback"] is False
+    assert out["coin_intel"] is not None
+    assert out["coin_intel"].get("stub") is True
+    assert out["opportunities"][0]["asset_symbol"] == "ETH"
 
 
 def test_bundle_respects_query_intent_filter(monkeypatch: pytest.MonkeyPatch) -> None:

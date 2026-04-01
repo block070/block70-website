@@ -45,8 +45,34 @@ function RelatedCard({ row }: { row: Record<string, unknown> }) {
   );
 }
 
+function snapshotOverview(overview: CoinIntelPayload["overview"]) {
+  const price = overview.current_price;
+  const pc24 = overview.price_change_24h;
+  const pc7 = overview.price_change_7d;
+  const priceNum = typeof price === "number" && Number.isFinite(price) ? price : null;
+  const p24 = typeof pc24 === "number" && Number.isFinite(pc24) ? pc24 : null;
+  const p7 = typeof pc7 === "number" && Number.isFinite(pc7) ? pc7 : null;
+  return { priceNum, p24, p7 };
+}
+
 export function CoinIntelligenceTerminal({ data }: { data: CoinIntelPayload }) {
-  const { hero_call, positioning_insight, risk_context, entry_context, prediction, signals, news_insight, headlines, related, coin_page, relative_strength, narrative_flow } = data;
+  const {
+    hero_call,
+    positioning_insight,
+    risk_context,
+    entry_context,
+    prediction,
+    signals,
+    news_insight,
+    headlines,
+    related,
+    coin_page,
+    relative_strength,
+    narrative_flow,
+    overview,
+    coin_profile,
+  } = data;
+  const snap = snapshotOverview(overview);
 
   return (
     <div className="space-y-5">
@@ -57,6 +83,30 @@ export function CoinIntelligenceTerminal({ data }: { data: CoinIntelPayload }) {
         <h2 className="mt-2 text-xl font-semibold leading-snug tracking-tight text-[var(--b70-fg)] md:text-2xl">
           {hero_call.headline}
         </h2>
+        {snap.priceNum != null || coin_profile?.category ? (
+          <div className="mt-3 flex flex-wrap items-baseline gap-x-3 gap-y-1 text-xs text-[var(--b70-muted)]">
+            {snap.priceNum != null ? (
+              <span className="font-semibold tabular-nums text-[var(--b70-fg)]">
+                ${snap.priceNum < 1 ? snap.priceNum.toPrecision(4) : snap.priceNum.toLocaleString(undefined, { maximumFractionDigits: 6 })}
+              </span>
+            ) : null}
+            {snap.p24 != null ? <span className="tabular-nums">24h {formatChangePct(snap.p24)}</span> : null}
+            {snap.p7 != null ? <span className="tabular-nums">7d {formatChangePct(snap.p7)}</span> : null}
+            {coin_profile?.category ? (
+              <span className="text-[var(--b70-muted)]">
+                {coin_profile.category}
+                {coin_profile.category_slug ? (
+                  <Link
+                    href={`/discover/${encodeURIComponent(coin_profile.category_slug)}`}
+                    className="ml-1 text-[var(--b70-crypto-blue)] hover:underline"
+                  >
+                    (discover)
+                  </Link>
+                ) : null}
+              </span>
+            ) : null}
+          </div>
+        ) : null}
         <div className="mt-3 flex flex-wrap gap-2">
           <span className="rounded-full border border-[var(--b70-border)] bg-[var(--b70-bg)] px-2.5 py-0.5 text-xs font-medium">
             {hero_call.direction_label}
@@ -79,6 +129,13 @@ export function CoinIntelligenceTerminal({ data }: { data: CoinIntelPayload }) {
           Signal interpretation — not financial advice.
         </p>
       </div>
+
+      {coin_profile?.description_preview ? (
+        <div className="rounded-b70-lg border border-[var(--b70-border)] bg-[var(--b70-card)]/80 p-4 text-sm leading-relaxed text-[var(--b70-muted)]">
+          <p className="text-[10px] font-semibold uppercase tracking-wider text-[var(--b70-muted)]">About</p>
+          <p className="mt-2 text-[var(--b70-fg)]">{coin_profile.description_preview}</p>
+        </div>
+      ) : null}
 
       <div className="rounded-b70-lg border border-[var(--b70-border)] bg-[var(--b70-card)]/90 p-4">
         <h3 className="text-[11px] font-semibold uppercase tracking-wider text-[var(--b70-crypto-blue)]">

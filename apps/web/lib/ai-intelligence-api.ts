@@ -70,6 +70,13 @@ export type CoinIntelPrediction = {
   strength: string;
 };
 
+export type CoinIntelProfile = {
+  category?: string | null;
+  category_slug?: string | null;
+  description_preview?: string | null;
+  logo_url?: string | null;
+};
+
 export type CoinIntelPayload = {
   hero_call: {
     headline: string;
@@ -92,6 +99,7 @@ export type CoinIntelPayload = {
     earlier_stage: Record<string, unknown>[];
   };
   coin_page: { slug: string | null; href: string | null };
+  coin_profile?: CoinIntelProfile | null;
   query_intent?: QueryIntentDebug;
 };
 
