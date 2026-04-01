@@ -56,6 +56,7 @@ def _cache_key_params(
         "min_mcap": min_mcap if min_mcap is not None else "none",
         "risk": risk or "none",
         "query": query_normalized or "",
+        "intel_v": 3,
     }
 
 
@@ -83,7 +84,7 @@ def _finalize_opportunities_response(
     if intent in ("SPECIFIC_ASSET", "ANALYSIS") and primary_sym and batch_ctx is not None:
         ps = str(primary_sym).upper()
         primary = next(
-            (o for o in public["opportunities"] if str(o.get("asset_symbol") or "").upper() == ps),
+            (o for o in (public.get("opportunities") or []) if str(o.get("asset_symbol") or "").upper() == ps),
             None,
         )
         if primary is None:
@@ -97,6 +98,8 @@ def _finalize_opportunities_response(
             hydrated = (
                 build_opportunity_from_markets_snapshot(
                     slug,
+                    focus_symbol_upper=ps,
+                    db=db,
                     batch_ctx=batch_ctx,
                     timeframe=timeframe,
                     risk=risk,

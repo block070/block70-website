@@ -363,7 +363,7 @@ export function AIIntelligenceDashboard() {
   const intent = payload?.query_intent?.intent ?? "DISCOVERY";
   const isCoinIntent = intent === "SPECIFIC_ASSET" || intent === "ANALYSIS";
   const coinMode = Boolean(payload && isCoinIntent);
-  const coinIntelReady = Boolean(payload?.coin_intel && !payload?.coin_fallback);
+  const coinIntelReady = Boolean(payload?.coin_intel);
   const focusSymbol =
     payload?.query_intent?.focus_symbols && payload.query_intent.focus_symbols.length > 0
       ? payload.query_intent.focus_symbols[0]
@@ -428,7 +428,7 @@ export function AIIntelligenceDashboard() {
             Searching: <span className="font-medium text-[var(--b70-fg)]">{activeQuery.trim()}</span>
           </p>
         ) : null}
-        {payload?.coin_fallback && coinMode ? (
+        {payload?.coin_fallback && coinMode && !payload?.coin_intel ? (
           <p className="text-xs text-amber-600 dark:text-amber-400">
             Coin intelligence batch: {focusSymbol ?? "asset"} was not in the ranked set — showing a neutral market
             slice. Intent stays single-asset.

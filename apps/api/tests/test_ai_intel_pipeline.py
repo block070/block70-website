@@ -258,6 +258,7 @@ def test_build_opportunity_from_markets_snapshot(monkeypatch: pytest.MonkeyPatch
     )
     row = build_opportunity_from_markets_snapshot(
         "cardano",
+        db=None,
         batch_ctx=ctx,
         timeframe="24h",
         risk=None,
@@ -272,6 +273,90 @@ def test_build_opportunity_from_markets_snapshot(monkeypatch: pytest.MonkeyPatch
     assert row.get("current_price") is not None
     assert "probability_of_move" in row
     assert "_raw_sort" not in row
+
+
+def test_build_opportunity_major_slug_fallback_without_cg_or_db(monkeypatch: pytest.MonkeyPatch) -> None:
+    from app.services.ai_intelligence.alpha_batch import BatchContext
+    from app.services.ai_intelligence.opportunity_pipeline import (
+        _SYNTHETIC_MARKET,
+        build_opportunity_from_markets_snapshot,
+    )
+    from app.services.ai_intelligence.query_intent import parse_query_intent
+
+    ctx = BatchContext.build(list(_SYNTHETIC_MARKET), timeframe="24h")
+    monkeypatch.setattr(
+        "app.services.ai_intelligence.opportunity_pipeline.fetch_coin_markets_row_by_id",
+        lambda _cid: None,
+    )
+    monkeypatch.setattr(
+        "app.services.ai_intelligence.opportunity_pipeline.normalized_market_row_from_db",
+        lambda *_a, **_k: None,
+    )
+    row = build_opportunity_from_markets_snapshot(
+        "cardano",
+        focus_symbol_upper="ADA",
+        db=None,
+        batch_ctx=ctx,
+        timeframe="24h",
+        risk=None,
+        news_scores=None,
+        news_mentions_24h=None,
+        hour_payload=None,
+        query_intent_result=parse_query_intent("ADA"),
+    )
+    assert row is not None
+    assert row.get("asset_symbol") == "ADA"
+    assert row.get("coingecko_id") == "cardano"
+
+
+def test_build_opportunity_db_fallback_when_coingecko_empty(monkeypatch: pytest.MonkeyPatch) -> None:
+    from unittest.mock import MagicMock
+
+    from app.services.ai_intelligence.alpha_batch import BatchContext
+    from app.services.ai_intelligence.opportunity_pipeline import (
+        _SYNTHETIC_MARKET,
+        build_opportunity_from_markets_snapshot,
+    )
+    from app.services.ai_intelligence.query_intent import parse_query_intent
+
+    ctx = BatchContext.build(list(_SYNTHETIC_MARKET), timeframe="24h")
+    monkeypatch.setattr(
+        "app.services.ai_intelligence.opportunity_pipeline.fetch_coin_markets_row_by_id",
+        lambda _cid: None,
+    )
+
+    def fake_db_row(_db: object, slug: str) -> dict:
+        assert slug == "cardano"
+        return {
+            "external_id": "cardano",
+            "name": "Cardano",
+            "symbol": "ADA",
+            "slug": "cardano",
+            "market_cap": 1e10,
+            "price": 0.55,
+            "volume_24h": 1.5e8,
+            "price_change_24h": 1.2,
+            "price_change_7d": 3.0,
+        }
+
+    monkeypatch.setattr(
+        "app.services.ai_intelligence.opportunity_pipeline.normalized_market_row_from_db",
+        fake_db_row,
+    )
+    row = build_opportunity_from_markets_snapshot(
+        "cardano",
+        db=MagicMock(),
+        batch_ctx=ctx,
+        timeframe="24h",
+        risk=None,
+        news_scores=None,
+        news_mentions_24h=None,
+        hour_payload=None,
+        query_intent_result=parse_query_intent("ADA"),
+    )
+    assert row is not None
+    assert row.get("asset_symbol") == "ADA"
+    assert row.get("coingecko_id") == "cardano"
 
 
 def test_finalize_hydrates_off_ranked_coin(monkeypatch: pytest.MonkeyPatch) -> None:

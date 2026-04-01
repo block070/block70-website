@@ -4,6 +4,8 @@ import logging
 import statistics
 from typing import Any, Literal
 
+from sqlalchemy.orm import Session
+
 logger = logging.getLogger(__name__)
 
 from app.services.ai_intelligence.adaptive_model import (
@@ -42,6 +44,10 @@ from app.services.ai_intelligence.query_intent import (
     candidate_matches_intent,
     parse_query_intent,
     sort_key_for_mode,
+)
+from app.services.ai_intelligence.db_coin_snapshot import (
+    minimal_row_for_major_slug,
+    normalized_market_row_from_db,
 )
 from app.services.ai_intelligence.scoring_engine import (
     CoinMarketInputs,
@@ -403,8 +409,8 @@ def _score_candidates(
     return candidates, skipped_mcap, len(candidates)
 
 
-def build_opportunity_from_markets_snapshot(
-    slug: str,
+def _score_single_opportunity_row(
+    row: dict[str, Any],
     *,
     batch_ctx: BatchContext,
     timeframe: Timeframe,
@@ -414,16 +420,6 @@ def build_opportunity_from_markets_snapshot(
     hour_payload: dict[str, Any] | None,
     query_intent_result: QueryIntentResult | None,
 ) -> dict[str, Any] | None:
-    """Hydrate one ranked-opportunity-shaped row from CoinGecko /coins/markets using the live batch
-    context (cross-sectional scores stay comparable to the rest of the bundle).
-    """
-    cid = (slug or "").lower().strip()
-    if not cid:
-        return None
-    raw = fetch_coin_markets_row_by_id(cid)
-    if not raw:
-        return None
-    row = normalize_market_coin(raw)
     qi = query_intent_result
     qb = frozenset(qi.boost_symbols) if qi else frozenset()
     candidates, _, n_scored = _score_candidates(
@@ -453,6 +449,45 @@ def build_opportunity_from_markets_snapshot(
     it.pop("spot_price", None)
     it.pop("_raw_sort", None)
     return it
+
+
+def build_opportunity_from_markets_snapshot(
+    slug: str,
+    *,
+    focus_symbol_upper: str | None = None,
+    db: Session | None,
+    batch_ctx: BatchContext,
+    timeframe: Timeframe,
+    risk: RiskTier | None,
+    news_scores: dict[str, float] | None,
+    news_mentions_24h: dict[str, int] | None,
+    hour_payload: dict[str, Any] | None,
+    query_intent_result: QueryIntentResult | None,
+) -> dict[str, Any] | None:
+    """CoinGecko /coins/markets first; if unavailable, DB Coin + latest MarketData (same scoring path)."""
+    cid = (slug or "").lower().strip()
+    if not cid:
+        return None
+    row: dict[str, Any] | None = None
+    raw = fetch_coin_markets_row_by_id(cid)
+    if raw:
+        row = normalize_market_coin(raw)
+    elif db is not None:
+        row = normalized_market_row_from_db(db, cid)
+    if row is None and focus_symbol_upper:
+        row = minimal_row_for_major_slug(cid, focus_symbol_upper)
+    if row is None:
+        return None
+    return _score_single_opportunity_row(
+        row,
+        batch_ctx=batch_ctx,
+        timeframe=timeframe,
+        risk=risk,
+        news_scores=news_scores,
+        news_mentions_24h=news_mentions_24h,
+        hour_payload=hour_payload,
+        query_intent_result=query_intent_result,
+    )
 
 
 def fetch_ranked_opportunities(
