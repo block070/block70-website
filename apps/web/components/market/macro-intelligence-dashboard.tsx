@@ -30,7 +30,11 @@ const MarketHeatmap = dynamic(
   },
 );
 
-const PIE_COLORS = ["#f7931a", "#627eea", "#94a3b8"];
+const PIE_COLOR_BY_NAME: Record<string, string> = {
+  BTC: "#f7931a",
+  ETH: "#627eea",
+  Other: "#94a3b8",
+};
 
 function SectionTitle({ kicker, title }: { kicker: string; title: string }) {
   return (
@@ -87,7 +91,7 @@ export function MacroIntelligenceDashboard({ data }: Props) {
   const { global, dominancePie, categoryDominance, rotation, heatmapCoins, fearGreed, scatter, historical } =
     data;
 
-  const scatterData = scatter.filter((d) => d.volume24h > 0);
+  const scatterData = scatter.filter((d) => d.marketCap > 0);
   const maxShare = categoryDominance.reduce((m, r) => Math.max(m, r.sharePct), 1);
 
   return (
@@ -104,14 +108,33 @@ export function MacroIntelligenceDashboard({ data }: Props) {
           complex.
         </p>
         <p className="text-[11px] text-[var(--b70-text-muted)]">
-          Data as of {data.meta.marketAsOf ?? "—"} · Source {data.meta.marketSource}
+          Data as of{" "}
+          <time dateTime={data.meta.marketAsOf ?? data.meta.generatedAt}>
+            {new Date(data.meta.marketAsOf ?? data.meta.generatedAt).toLocaleString()}
+          </time>
+          {" · "}
+          Source {data.meta.marketSource}
         </p>
       </header>
 
       {/* KPI strip */}
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <KpiCard label="Total market cap" value={formatCompactUsd(global.totalMarketCapUsd ?? 0)} />
-        <KpiCard label="24h volume" value={formatCompactUsd(global.totalVolumeUsd ?? 0)} />
+        <KpiCard
+          label="Total market cap"
+          value={
+            global.totalMarketCapUsd != null && global.totalMarketCapUsd > 0
+              ? formatCompactUsd(global.totalMarketCapUsd)
+              : "—"
+          }
+        />
+        <KpiCard
+          label="24h volume"
+          value={
+            global.totalVolumeUsd != null && global.totalVolumeUsd > 0
+              ? formatCompactUsd(global.totalVolumeUsd)
+              : "—"
+          }
+        />
         <KpiCard
           label="BTC dominance"
           value={global.btcDominancePct != null ? `${global.btcDominancePct.toFixed(1)}%` : "—"}
@@ -141,8 +164,12 @@ export function MacroIntelligenceDashboard({ data }: Props) {
                     outerRadius={88}
                     paddingAngle={2}
                   >
-                    {dominancePie.map((_, i) => (
-                      <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} stroke="transparent" />
+                    {dominancePie.map((entry, i) => (
+                      <Cell
+                        key={`${entry.name}-${i}`}
+                        fill={PIE_COLOR_BY_NAME[entry.name] ?? "#64748b"}
+                        stroke="transparent"
+                      />
                     ))}
                   </Pie>
                   <Tooltip

@@ -13,6 +13,7 @@ import {
 } from "@/lib/api";
 import { withTimeout } from "@/lib/with-timeout";
 import type { HeatmapCoin } from "@/components/market/market-heatmap";
+import { fetchCoingeckoHomeMarketBundle } from "@/lib/market/coingecko-home-fallback";
 
 export const MACRO_CACHE_SEC = 60;
 const FETCH_MS = 8_000;
@@ -81,14 +82,34 @@ export type MacroDashboardPayload = {
   historical: HistoricalMetric[];
 };
 
+/** Same tolerances as home dashboard: missing 24h% / volume must not drop the whole tape. */
+function normalizeMacroCoin(c: MarketCoin): MarketCoin | null {
+  const price =
+    typeof c.price === "number" && Number.isFinite(c.price) ? c.price : Number(c.price);
+  if (price == null || !Number.isFinite(price) || price <= 0) return null;
+  const rawMcap =
+    typeof c.market_cap === "number" && Number.isFinite(c.market_cap) ? c.market_cap : Number(c.market_cap);
+  const rawVol =
+    typeof c.volume === "number" && Number.isFinite(c.volume) ? c.volume : Number(c.volume);
+  const market_cap = rawMcap != null && Number.isFinite(rawMcap) && rawMcap >= 0 ? rawMcap : 0;
+  const volume = rawVol != null && Number.isFinite(rawVol) && rawVol >= 0 ? rawVol : 0;
+  const chRaw =
+    typeof c.change_24h === "number" && Number.isFinite(c.change_24h) ? c.change_24h : Number(c.change_24h);
+  const change_24h = chRaw != null && Number.isFinite(chRaw) ? chRaw : 0;
+  const ch7 =
+    typeof c.change_7d === "number" && Number.isFinite(c.change_7d) ? c.change_7d : c.change_7d;
+  return {
+    ...c,
+    price,
+    market_cap,
+    volume,
+    change_24h,
+    change_7d: ch7,
+  };
+}
+
 function validCoins(coins: MarketCoin[]): MarketCoin[] {
-  return coins.filter(
-    (c) =>
-      typeof c.price === "number" &&
-      typeof c.market_cap === "number" &&
-      typeof c.volume === "number" &&
-      typeof c.change_24h === "number",
-  );
+  return coins.map(normalizeMacroCoin).filter((x): x is MarketCoin => x != null);
 }
 
 function mcapWeightedChange24h(coins: MarketCoin[]): number {
@@ -215,11 +236,50 @@ async function buildMacroDashboardUncached(): Promise<MacroDashboardPayload> {
     }
   }
 
-  const g = summary?.global;
-  const totalMcap = g?.total_market_cap_usd ?? null;
-  const totalVol = g?.total_volume_usd ?? null;
-  const btcDom = g?.btc_dominance_pct ?? null;
-  const ethDom = g?.eth_dominance_pct ?? null;
+  let g = summary?.global;
+  let totalMcap = g?.total_market_cap_usd ?? null;
+  let totalVol = g?.total_volume_usd ?? null;
+  let btcDom = g?.btc_dominance_pct ?? null;
+  let ethDom = g?.eth_dominance_pct ?? null;
+  let marketAsOf = summary?.as_of ?? null;
+  let marketSource = summary?.source?.trim() || "";
+
+  const globalsMissing =
+    (totalMcap == null || totalMcap <= 0) &&
+    (totalVol == null || totalVol <= 0) &&
+    btcDom == null &&
+    ethDom == null;
+  const needTape = topCoins.length < 12 || globalsMissing;
+
+  let usedCoingecko = false;
+  if (needTape) {
+    try {
+      const cg = await fetchCoingeckoHomeMarketBundle(100);
+      const gn = cg.global;
+      if (gn) {
+        if (totalMcap == null || totalMcap <= 0)
+          totalMcap = gn.total_market_cap_usd ?? totalMcap;
+        if (totalVol == null || totalVol <= 0) totalVol = gn.total_volume_usd ?? totalVol;
+        if (btcDom == null) btcDom = gn.btc_dominance_pct ?? btcDom;
+        if (ethDom == null) ethDom = gn.eth_dominance_pct ?? ethDom;
+        usedCoingecko = true;
+      }
+      if (topCoins.length < 12 && cg.coins.length) {
+        topCoins = validCoins(cg.coins);
+        usedCoingecko = true;
+      }
+      if (usedCoingecko && !marketAsOf) {
+        marketAsOf = generatedAt;
+      }
+      if (usedCoingecko) {
+        marketSource = marketSource
+          ? `${marketSource}+coingecko`
+          : "CoinGecko (direct)";
+      }
+    } catch {
+      /* keep API-only snapshot */
+    }
+  }
 
   let denom = totalMcap != null && totalMcap > 0 ? totalMcap : 0;
   if (denom <= 0 && categories.length) {
@@ -251,6 +311,10 @@ async function buildMacroDashboardUncached(): Promise<MacroDashboardPayload> {
       if (!eth && ethRow?.market_cap) eth = (ethRow.market_cap / t) * 100;
     }
   }
+  /** KPI strip: use API dominance when present, else same slice-implied % as the pie. */
+  const displayBtcDom = btcDom != null ? btcDom : btc > 0 ? btc : null;
+  const displayEthDom = ethDom != null ? ethDom : eth > 0 ? eth : null;
+
   const other = Math.max(0, 100 - btc - eth);
   const dominancePie = [
     { name: "BTC", value: Math.round(btc * 10) / 10 },
@@ -293,12 +357,13 @@ async function buildMacroDashboardUncached(): Promise<MacroDashboardPayload> {
   ];
 
   const heatmapCoins = topCoins.slice(0, 50).map(toHeatmapCoin);
+  /** Log-scale scatter: floored volume so majors with data still plot. */
   const scatter: ScatterPoint[] = topCoins.slice(0, 48).map((c) => ({
     symbol: c.symbol,
     slug: c.slug,
-    volume24h: Math.max(0, c.volume ?? 0),
+    volume24h: Math.max(1, c.volume ?? 0),
     change24h: c.change_24h ?? 0,
-    marketCap: c.market_cap ?? 0,
+    marketCap: Math.max(0, c.market_cap ?? 0),
   }));
 
   let fearGreed: MacroDashboardPayload["fearGreed"];
@@ -312,15 +377,15 @@ async function buildMacroDashboardUncached(): Promise<MacroDashboardPayload> {
   return {
     meta: {
       generatedAt,
-      marketAsOf: summary?.as_of ?? null,
-      marketSource: summary?.source ?? "—",
+      marketAsOf: marketAsOf ?? generatedAt,
+      marketSource: marketSource || (usedCoingecko ? "CoinGecko (direct)" : "Block70 API"),
       cacheTtlSec: MACRO_CACHE_SEC,
     },
     global: {
       totalMarketCapUsd: totalMcap,
       totalVolumeUsd: totalVol,
-      btcDominancePct: btcDom,
-      ethDominancePct: ethDom,
+      btcDominancePct: displayBtcDom,
+      ethDominancePct: displayEthDom,
     },
     dominancePie,
     categoryDominance,
@@ -334,7 +399,7 @@ async function buildMacroDashboardUncached(): Promise<MacroDashboardPayload> {
 
 const getCachedMacro = unstable_cache(
   async () => buildMacroDashboardUncached(),
-  ["macro-intelligence-dashboard-v1"],
+  ["macro-intelligence-dashboard-v2"],
   { revalidate: MACRO_CACHE_SEC },
 );
 
