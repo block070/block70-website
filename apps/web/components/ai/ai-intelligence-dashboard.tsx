@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useId, useMemo, useState } from "react";
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import { clsx } from "clsx";
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -15,6 +15,11 @@ import {
   type AIIntelligenceTimeframe,
 } from "@/lib/ai-intelligence-api";
 import { formatChangePct, formatCompactUsd } from "@/lib/format";
+import {
+  getIntelSearchModeHintLabel,
+  inferIntelSearchModeHint,
+  INTEL_SEARCH_PLACEHOLDER_EXAMPLES,
+} from "@/lib/intelligence-search-hints";
 
 const SIGNAL_ORDER = [
   "momentum",
@@ -250,6 +255,8 @@ export function AIIntelligenceDashboard() {
   } | null>(null);
   const [analyzeLoading, setAnalyzeLoading] = useState(false);
   const [reportQuery, setReportQuery] = useState("");
+  const [placeholderExampleIndex, setPlaceholderExampleIndex] = useState(0);
+  const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const minMcapNum = useMemo(() => {
     const n = parseFloat(minMcap.replace(/,/g, ""));
@@ -280,9 +287,45 @@ export function AIIntelligenceDashboard() {
     void load();
   }, [load]);
 
+  useEffect(() => {
+    const id = setInterval(() => {
+      setPlaceholderExampleIndex((i) => (i + 1) % INTEL_SEARCH_PLACEHOLDER_EXAMPLES.length);
+    }, 3000);
+    return () => clearInterval(id);
+  }, []);
+
+  const flushActiveQuery = useCallback(() => {
+    if (searchDebounceRef.current) {
+      clearTimeout(searchDebounceRef.current);
+      searchDebounceRef.current = null;
+    }
+    const t = searchQuery.trim();
+    setActiveQuery((prev) => (prev === t ? prev : t));
+  }, [searchQuery]);
+
+  useEffect(() => {
+    if (searchDebounceRef.current) {
+      clearTimeout(searchDebounceRef.current);
+      searchDebounceRef.current = null;
+    }
+    searchDebounceRef.current = setTimeout(() => {
+      searchDebounceRef.current = null;
+      const t = searchQuery.trim();
+      setActiveQuery((prev) => (prev === t ? prev : t));
+    }, 550);
+    return () => {
+      if (searchDebounceRef.current) {
+        clearTimeout(searchDebounceRef.current);
+        searchDebounceRef.current = null;
+      }
+    };
+  }, [searchQuery]);
+
+  const draftModeHint = useMemo(() => inferIntelSearchModeHint(searchQuery), [searchQuery]);
+
   async function onSearchSubmit(e: React.FormEvent) {
     e.preventDefault();
-    setActiveQuery(searchQuery.trim());
+    flushActiveQuery();
   }
 
   async function onAnalyze(e: React.FormEvent) {
@@ -332,24 +375,39 @@ export function AIIntelligenceDashboard() {
 
       <form onSubmit={onSearchSubmit} className="space-y-2 rounded-b70-lg border border-[var(--b70-border)] bg-[var(--b70-card)]/60 p-4">
         <label className="small font-medium text-[var(--b70-muted)]" htmlFor={`${formId}-q`}>
-          Command query
+          Search crypto intelligence
         </label>
-        <div className="flex flex-col gap-2 sm:flex-row">
+        <div className="space-y-1.5">
           <input
             id={`${formId}-q`}
+            type="search"
+            enterKeyHint="search"
+            autoComplete="off"
+            aria-describedby={`${formId}-search-help ${formId}-mode-hint`}
             className={clsx(
-              "min-w-0 flex-1 rounded-lg border border-[var(--b70-border)] bg-[var(--b70-bg)] px-3 py-2 text-sm",
+              "min-w-0 w-full rounded-lg border border-[var(--b70-border)] bg-[var(--b70-bg)] px-3 py-2 text-sm",
+              "focus:outline-none focus:ring-2 focus:ring-[var(--b70-crypto-blue)]/40",
             )}
-            placeholder="e.g. PEPE, AI sector opportunities, safest names…"
+            placeholder={`Try: ${INTEL_SEARCH_PLACEHOLDER_EXAMPLES[placeholderExampleIndex]}`}
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
           />
-          <button
-            type="submit"
-            className="rounded-lg bg-[var(--b70-crypto-blue)] px-4 py-2 text-sm font-medium text-white hover:opacity-90"
-          >
-            Run
+          <button type="submit" className="sr-only">
+            Search
           </button>
+          <p id={`${formId}-search-help`} className="text-[11px] text-[var(--b70-muted)]">
+            Press <kbd className="rounded border border-[var(--b70-border)] bg-[var(--b70-bg)] px-1 font-mono text-[10px]">Enter</kbd>{" "}
+            to search, or pause typing — results update automatically after a short delay.
+          </p>
+          {draftModeHint ? (
+            <p id={`${formId}-mode-hint`} className="text-xs font-medium text-[var(--b70-crypto-blue)]">
+              Detected mode: {getIntelSearchModeHintLabel(draftModeHint)}
+            </p>
+          ) : (
+            <span id={`${formId}-mode-hint`} className="sr-only">
+              Start typing to see how your query will be interpreted.
+            </span>
+          )}
         </div>
         {payload?.coin_fallback && coinMode ? (
           <p className="text-xs text-amber-600 dark:text-amber-400">
