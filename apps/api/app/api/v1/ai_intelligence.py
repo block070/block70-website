@@ -56,7 +56,7 @@ def _cache_key_params(
         "min_mcap": min_mcap if min_mcap is not None else "none",
         "risk": risk or "none",
         "query": query_normalized or "",
-        "intel_v": 4,
+        "intel_v": 5,
     }
 
 

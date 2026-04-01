@@ -133,9 +133,9 @@ export default async function SignalTokenPage({ params }: PageProps) {
           ) : null}
           <Link
             href={`/coins/${coinInfo.slug}`}
-            className="mt-2 inline-block text-xs font-medium text-emerald-400 hover:text-emerald-300"
+            className="mt-2 inline-flex rounded-lg bg-[var(--b70-crypto-blue)] px-4 py-2 text-sm font-medium text-white transition hover:opacity-90"
           >
-            View full coin page →
+            View Full Coin Page
           </Link>
         </section>
       ) : null}

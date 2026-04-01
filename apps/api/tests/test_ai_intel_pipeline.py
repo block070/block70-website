@@ -47,9 +47,31 @@ def test_bundle_includes_predictions_shifts_portfolio(monkeypatch: pytest.Monkey
     b = fetch_intelligence_bundle(limit=5, skip_enqueue_predictions=True)
     assert "predictions" in b and isinstance(b["predictions"], list)
     assert "recent_shifts" in b and isinstance(b["recent_shifts"], list)
+    assert "emerging_signals" in b and isinstance(b["emerging_signals"], list)
+    assert len(b["emerging_signals"]) >= 1
     assert "portfolio_positioning" in b and isinstance(b["portfolio_positioning"], dict)
     o = b["opportunities"][0]
     assert "current_price" in o
+
+
+def test_emerging_signals_synthetic_when_shifts_and_insights_empty(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(
+        "app.services.ai_intelligence.opportunity_pipeline.fetch_all_coins",
+        lambda **kwargs: [],
+    )
+    monkeypatch.setattr(
+        "app.services.ai_intelligence.opportunity_pipeline.recent_shift_strings",
+        lambda *a, **k: [],
+    )
+    monkeypatch.setattr(
+        "app.services.ai_intelligence.opportunity_pipeline.model_insights_bullets",
+        lambda: [],
+    )
+    b = fetch_intelligence_bundle(limit=5, skip_enqueue_predictions=True)
+    assert len(b["emerging_signals"]) >= 1
+    joined = " ".join(b["emerging_signals"]).lower()
+    assert b["market_regime"].lower() in joined or "transitional" in joined or "risk-on" in joined or "risk-off" in joined
+    assert all(isinstance(s, str) and s.strip() for s in b["emerging_signals"])
 
 
 def test_enriched_opportunity_has_phase_d_e_fields(monkeypatch: pytest.MonkeyPatch) -> None:

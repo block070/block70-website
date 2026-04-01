@@ -36,6 +36,7 @@ from app.services.ai_intelligence.report_builder import (
     portfolio_buckets,
     prediction_strings,
     recent_shift_strings,
+    synthetic_emerging_signal_lines,
 )
 from app.services.ai_intelligence.query_intent import (
     QueryIntentResult,
@@ -645,6 +646,15 @@ def fetch_intelligence_bundle(
     _preds = prediction_strings(ctx, ctx.market_regime)
     _shifts = recent_shift_strings(final)
     _portfolio = portfolio_buckets(final)
+    _insights = model_insights_bullets()
+    _seen_em: set[str] = set()
+    _emerging: list[str] = []
+    for _line in _shifts + _insights:
+        if _line and _line not in _seen_em:
+            _seen_em.add(_line)
+            _emerging.append(_line)
+    if not _emerging:
+        _emerging = synthetic_emerging_signal_lines(ctx, final)
 
     logger.info(
         "ai_intel scored=%s skipped_mcap=%s synthetic=%s output=%s query_intent=%s",
@@ -660,10 +670,11 @@ def fetch_intelligence_bundle(
         "market_regime": ctx.market_regime,
         "capital_rotation": ctx.capital_rotation,
         "synthetic_fallback": synthetic,
-        "model_insights": model_insights_bullets(),
+        "model_insights": _insights,
         "query_intent": qi.to_log_dict(),
         "predictions": _preds,
         "recent_shifts": _shifts,
+        "emerging_signals": _emerging,
         "portfolio_positioning": _portfolio,
         "_batch_context": ctx,
     }

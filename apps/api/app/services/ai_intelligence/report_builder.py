@@ -71,6 +71,83 @@ def recent_shift_strings(rows: list[dict[str, Any]], top_n: int = 4) -> list[str
     return lines
 
 
+def synthetic_emerging_signal_lines(
+    ctx: BatchContext,
+    opportunities: list[dict[str, Any]],
+    *,
+    top_n: int = 8,
+) -> list[str]:
+    """Deterministic 1–3 line emerging-signal copy when rank deltas and model stats are empty."""
+    out: list[str] = []
+    regime = ctx.market_regime
+    if regime == "RISK_ON":
+        out.append(
+            "Risk-on regime favors narrative leaders with momentum and clean relative strength vs majors."
+        )
+    elif regime == "RISK_OFF":
+        out.append(
+            "Defensive regime skews liquidity to quality sleeves — trim alt beta until breadth improves."
+        )
+    else:
+        out.append(
+            "Transitional tape: rotation is two-way — lean on confluence before sizing directional risk."
+        )
+
+    rot = ctx.capital_rotation[:2]
+    if rot:
+        r0 = rot[0]
+        nid = str(r0.get("narrative_id") or "Multi-sector")
+        ph = str(r0.get("phase") or "steady")
+        if ph in ("strong_inflow", "early_inflow"):
+            out.append(
+                f"Early-stage inflow into {nid} sector with rising volume vs price in the ranked cohort."
+            )
+        elif ph == "capital_exiting":
+            out.append(
+                f"{nid} sleeve shows capital exiting — treat strength as fragile without flow confirmation."
+            )
+        else:
+            out.append(
+                f"{nid} rotation reads {ph.replace('_', ' ')} — leadership within the sleeve is still contested."
+            )
+
+    rows = opportunities[:top_n]
+    pct_vals: list[float] = []
+    mom_vals: list[float] = []
+    for o in rows:
+        try:
+            pct_vals.append(float(o.get("price_change_24h") or 0.0))
+        except (TypeError, ValueError):
+            pass
+        fv = o.get("factor_scores") or {}
+        try:
+            mom_vals.append(float(fv.get("momentum") or 50.0))
+        except (TypeError, ValueError):
+            pass
+
+    if pct_vals:
+        pos = sum(1 for x in pct_vals if x > 0)
+        share = 100.0 * pos / max(1, len(pct_vals))
+        if share >= 60:
+            out.append(
+                f"Book breadth: ~{share:.0f}% of top book green on 24h — momentum pocket still broadening."
+            )
+        elif share <= 40:
+            out.append(
+                f"Tight breadth (~{share:.0f}% up on 24h) — tape shows volume–price divergence risk."
+            )
+        else:
+            out.append(
+                f"Mixed breadth (~{share:.0f}% up on 24h) — favors stock-picking over passive beta."
+            )
+    elif mom_vals:
+        avg_m = sum(mom_vals) / len(mom_vals)
+        tone = "elevated" if avg_m >= 55 else "soft" if avg_m < 48 else "balanced"
+        out.append(f"Cohort momentum averages {avg_m:.0f}/100 — near-term tape speed reads {tone}.")
+
+    return out[:3]
+
+
 def build_formatted_report(
     *,
     query: str,

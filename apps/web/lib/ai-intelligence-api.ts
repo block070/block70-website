@@ -112,6 +112,7 @@ export type AIIntelligenceOpportunitiesResponse = {
   query_intent?: QueryIntentDebug;
   predictions?: string[];
   recent_shifts?: string[];
+  emerging_signals?: string[];
   portfolio_positioning?: Record<string, string[]>;
   coin_intel?: CoinIntelPayload | null;
   coin_fallback?: boolean;
@@ -147,6 +148,7 @@ function normalizeOpportunitiesPayload(data: unknown): AIIntelligenceOpportuniti
       : undefined),
     predictions: Array.isArray(o.predictions) ? (o.predictions as string[]) : undefined,
     recent_shifts: Array.isArray(o.recent_shifts) ? (o.recent_shifts as string[]) : undefined,
+    emerging_signals: Array.isArray(o.emerging_signals) ? (o.emerging_signals as string[]) : undefined,
     portfolio_positioning:
       o.portfolio_positioning && typeof o.portfolio_positioning === "object"
         ? (o.portfolio_positioning as Record<string, string[]>)

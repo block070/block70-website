@@ -271,9 +271,9 @@ export function CoinIntelligenceTerminal({ data }: { data: CoinIntelPayload }) {
         <div className="flex justify-end">
           <Link
             href={coin_page.href}
-            className="text-sm font-medium text-[var(--b70-crypto-blue)] hover:underline"
+            className="inline-flex rounded-lg bg-[var(--b70-crypto-blue)] px-4 py-2 text-sm font-medium text-white transition hover:opacity-90"
           >
-            View full coin page →
+            View Full Coin Page
           </Link>
         </div>
       ) : null}

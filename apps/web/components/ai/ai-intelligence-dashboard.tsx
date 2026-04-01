@@ -664,11 +664,11 @@ export function AIIntelligenceDashboard() {
               Emerging signals
             </summary>
             <div className="space-y-2 px-4 pb-4 text-xs text-[var(--b70-muted)]">
-              {marketBundle.recent_shifts?.map((s) => (
+              {(marketBundle.emerging_signals && marketBundle.emerging_signals.length > 0
+                ? marketBundle.emerging_signals
+                : [...(marketBundle.recent_shifts ?? []), ...marketBundle.model_insights]
+              ).map((s) => (
                 <p key={s}>{s}</p>
-              ))}
-              {marketBundle.model_insights.map((m) => (
-                <p key={m}>{m}</p>
               ))}
             </div>
           </details>
