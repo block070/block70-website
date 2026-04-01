@@ -142,8 +142,15 @@ function OpportunityGridCard({ o }: { o: Opportunity }) {
   );
 }
 
-export function IntelligenceDashboard() {
+type IntelligenceDashboardProps = {
+  initialData?: HomeDashboardPayload;
+};
+
+export function IntelligenceDashboard({ initialData }: IntelligenceDashboardProps) {
   const { data, error, isLoading, isValidating } = useSWR("/api/home/dashboard", fetcher, {
+    fallbackData: initialData,
+    /** Server already hydrated payload; avoid duplicate /api/home/dashboard on mount. */
+    revalidateOnMount: initialData == null,
     refreshInterval: 20_000,
     revalidateOnFocus: true,
     dedupingInterval: 10_000,

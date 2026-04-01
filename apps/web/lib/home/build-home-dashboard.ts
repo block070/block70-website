@@ -28,8 +28,11 @@ import { withTimeout } from "@/lib/with-timeout";
 import { fetchCoingeckoHomeMarketBundle } from "@/lib/market/coingecko-home-fallback";
 import type { Opportunity, SignalDto, WalletLeaderboardEntry } from "@/lib/types";
 
-/** Client (SWR) still polls; server response is built per-request (no data cache). */
-export const HOME_DASHBOARD_CACHE_SEC = 0;
+/**
+ * Advertised TTL for API/CDN caching (non-demo). Demo builds stay uncached (see getHomeDashboardPayload).
+ */
+export const HOME_DASHBOARD_CACHE_SEC =
+  process.env.NEXT_PUBLIC_DEMO_MODE === "true" ? 0 : 60;
 const FETCH_MS = 8_000;
 const COINS_PAGE_FETCH_MS = 12_000;
 
@@ -895,6 +898,7 @@ export async function buildHomeDashboard(): Promise<HomeDashboardPayload> {
     oppsRes,
     categoriesRes,
     insightsRes,
+    scannerRes,
   ] = await Promise.allSettled([
     withTimeout(getMarketSummary(0), FETCH_MS),
     withTimeout(getMarketCoins({ limit: 120, page: 1 }), FETCH_MS),
@@ -905,6 +909,7 @@ export async function buildHomeDashboard(): Promise<HomeDashboardPayload> {
     withTimeout(getOpportunities(), FETCH_MS),
     withTimeout(getCategoryDirectory({ limit: 40, order: "market_cap" }), FETCH_MS),
     withTimeout(getInsightsTrending(), FETCH_MS),
+    withTimeout(loadCoinsPageData({ limit: 120, offset: 0 }), COINS_PAGE_FETCH_MS),
   ]);
 
   let marketCoins: MarketCoin[] = [];
@@ -928,16 +933,8 @@ export async function buildHomeDashboard(): Promise<HomeDashboardPayload> {
   }
 
   let vk: MarketCoin[] = [];
-  try {
-    const scannerPack = await withTimeout(
-      loadCoinsPageData({ limit: 120, offset: 0 }),
-      COINS_PAGE_FETCH_MS,
-    );
-    if (scannerPack.items.length) {
-      vk = dashboardMarketCoins(traderScannerRowsToMarketCoins(scannerPack.items));
-    }
-  } catch {
-    /* fall through to API slices + CoinGecko */
+  if (scannerRes.status === "fulfilled" && scannerRes.value.items.length) {
+    vk = dashboardMarketCoins(traderScannerRowsToMarketCoins(scannerRes.value.items));
   }
   if (!vk.length && marketListRes.status === "fulfilled" && marketListRes.value.length) {
     vk = dashboardMarketCoins(marketListRes.value);

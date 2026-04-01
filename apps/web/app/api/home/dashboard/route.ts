@@ -1,16 +1,17 @@
 import { NextResponse } from "next/server";
-import { buildHomeDashboard } from "@/lib/home/build-home-dashboard";
+import { HOME_DASHBOARD_CACHE_SEC } from "@/lib/home/build-home-dashboard";
+import { getHomeDashboardPayload } from "@/lib/home/get-cached-home-dashboard";
 
-/**
- * No data cache: market snapshot + heatmap must reflect each request’s upstream
- * (FastAPI / CoinGecko). stale `unstable_cache` + CDN s-maxage previously kept demo tiles.
- */
 export async function GET() {
   try {
-    const data = await buildHomeDashboard();
+    const data = await getHomeDashboardPayload();
+    const demo = process.env.NEXT_PUBLIC_DEMO_MODE === "true";
+    const cacheControl = demo
+      ? "private, no-store, max-age=0, must-revalidate"
+      : `public, s-maxage=${HOME_DASHBOARD_CACHE_SEC}, stale-while-revalidate=${HOME_DASHBOARD_CACHE_SEC * 2}`;
     return NextResponse.json(data, {
       headers: {
-        "Cache-Control": "private, no-store, max-age=0, must-revalidate",
+        "Cache-Control": cacheControl,
       },
     });
   } catch (e) {
