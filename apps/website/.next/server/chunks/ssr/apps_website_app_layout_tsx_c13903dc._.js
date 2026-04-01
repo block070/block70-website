@@ -1,0 +1,3 @@
+module.exports=[91140,a=>{"use strict";var b=a.i(7997);function c({children:a}){return(0,b.jsx)("html",{lang:"en",children:(0,b.jsx)("body",{className:"min-h-screen bg-slate-950 text-slate-50 antialiased",children:a})})}a.s(["default",()=>c,"metadata",0,{title:"Block70 – Crypto Opportunity Intelligence",description:"Discover the easiest money in crypto right now."}])}];
+
+//# sourceMappingURL=apps_website_app_layout_tsx_c13903dc._.js.map
