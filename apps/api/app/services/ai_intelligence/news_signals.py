@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import logging
 import math
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
@@ -204,3 +204,109 @@ def get_news_intel_aggregate_cached(db: Session, *, hours: int = 48) -> NewsInte
     except Exception as e:
         logger.warning("get_news_intel_aggregate_cached failed: %s", e, exc_info=True)
         return NewsIntelAggregate(scores={}, mentions_24h={}, bullets=[])
+
+
+@dataclass(frozen=True)
+class CoinNewsSlice:
+    headline_count: int
+    sentiment_score: float | None
+    insight_lines: list[str]
+    headlines: list[dict[str, Any]] = field(default_factory=list)
+
+
+def build_coin_news_slice(db: Session, symbol: str, *, hours: int = 48) -> CoinNewsSlice:
+    """Recent RSS rows tagged with this ticker: counts, blended sentiment, insight + citations."""
+    sym_u = (symbol or "").strip().upper()
+    if not sym_u:
+        return CoinNewsSlice(0, None, ["No ticker supplied for news lookup."], [])
+    now = datetime.now(timezone.utc)
+    since = now - timedelta(hours=hours)
+    since_24 = now - timedelta(hours=24)
+    try:
+        rows = (
+            db.query(NewsArticle)
+            .filter(
+                or_(
+                    NewsArticle.published_at == None,  # noqa: E711
+                    NewsArticle.published_at >= since,
+                )
+            )
+            .order_by(NewsArticle.homepage_score.desc().nullslast(), NewsArticle.published_at.desc().nullslast())
+            .limit(2000)
+            .all()
+        )
+    except Exception as e:
+        logger.warning("build_coin_news_slice query failed: %s", e)
+        return CoinNewsSlice(0, None, ["News lookup temporarily unavailable."], [])
+
+    matched: list[NewsArticle] = []
+    for art in rows:
+        tickers = art.tickers or []
+        if not tickers:
+            continue
+        if sym_u in {str(t).strip().upper() for t in tickers if t}:
+            matched.append(art)
+
+    if not matched:
+        return CoinNewsSlice(
+            0,
+            None,
+            [f"No recent RSS headlines tagged to {sym_u} in the ingestion window."],
+            [],
+        )
+
+    acc_w = 0.0
+    w_sum = 0.0
+    in_24 = 0
+    insight_parts: list[str] = []
+    for art in matched:
+        pub = art.published_at
+        in_window = pub is None or pub >= since_24
+        spread = max(1, len(art.tickers or []))
+        hp = float(art.homepage_score or 0.0)
+        article_w = 1.0 + min(2.0, hp / 120.0)
+        w = article_w / (spread**0.5)
+        sent = _article_ticker_sentiment(float(art.sentiment or 0.0), art.coin_scores, sym_u)
+        acc_w += sent * w
+        w_sum += w
+        if in_window:
+            in_24 += 1
+
+    blended = round(_clamp(acc_w / w_sum), 1) if w_sum > 0 else None
+
+    if in_24 >= 4:
+        insight_parts.append("Recent coverage is elevated — attention is building around this name.")
+    elif in_24 >= 1:
+        insight_parts.append("Headline flow is present — monitoring whether sentiment confirms tape action.")
+
+    if blended is not None:
+        if blended >= 58:
+            insight_parts.append("Blended news skew is constructive vs a neutral tape.")
+        elif blended <= 42:
+            insight_parts.append("Blended news skew is cautious — watch for headline-driven volatility.")
+        else:
+            insight_parts.append("News sentiment is mixed — prioritize price-structure signals from the engine.")
+
+    if not insight_parts:
+        insight_lines = [f"{in_24} headline(s) tagged in the last 24h — review citations below."]
+    else:
+        insight_lines = insight_parts[:2]
+
+    headlines: list[dict[str, Any]] = []
+    for art in matched[:12]:
+        headlines.append(
+            {
+                "title": art.title,
+                "url": art.url,
+                "source": art.source,
+                "published_at": art.published_at.isoformat() if art.published_at else None,
+            }
+        )
+    display_hl = headlines[:3]
+
+    return CoinNewsSlice(
+        headline_count=in_24,
+        sentiment_score=blended,
+        insight_lines=insight_lines,
+        headlines=display_hl,
+    )

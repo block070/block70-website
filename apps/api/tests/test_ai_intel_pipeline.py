@@ -39,6 +39,19 @@ def test_synthetic_fallback_nonempty_ranked_list(monkeypatch: pytest.MonkeyPatch
     assert "confidence_score" in b["opportunities"][0]
 
 
+def test_bundle_includes_predictions_shifts_portfolio(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(
+        "app.services.ai_intelligence.opportunity_pipeline.fetch_all_coins",
+        lambda **kwargs: [],
+    )
+    b = fetch_intelligence_bundle(limit=5, skip_enqueue_predictions=True)
+    assert "predictions" in b and isinstance(b["predictions"], list)
+    assert "recent_shifts" in b and isinstance(b["recent_shifts"], list)
+    assert "portfolio_positioning" in b and isinstance(b["portfolio_positioning"], dict)
+    o = b["opportunities"][0]
+    assert "current_price" in o
+
+
 def test_enriched_opportunity_has_phase_d_e_fields(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
         "app.services.ai_intelligence.opportunity_pipeline.fetch_all_coins",

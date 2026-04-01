@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useId, useMemo, useState } from "react";
 import { clsx } from "clsx";
 import { Card } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
+import { CoinIntelligenceTerminal } from "@/components/ai/coin-intelligence-terminal";
 import {
   getAIIntelligenceOpportunities,
   postAIIntelligenceAnalyze,
@@ -42,9 +44,7 @@ function ScoreRing({ score, size = 56 }: { score: number; size?: number }) {
         className="relative flex items-center justify-center rounded-full bg-[var(--b70-card)]"
         style={{ width: size - 10, height: size - 10 }}
       >
-        <span className="text-sm font-semibold tabular-nums text-[var(--b70-fg)]">
-          {Math.round(pct)}
-        </span>
+        <span className="text-sm font-semibold tabular-nums text-[var(--b70-fg)]">{Math.round(pct)}</span>
       </div>
     </div>
   );
@@ -69,22 +69,175 @@ function SignalBar({ label, value }: { label: string; value: number }) {
   );
 }
 
+function rankArrow(d: number | null | undefined): { ch: string; cls: string } {
+  if (d == null || d === 0) return { ch: "→", cls: "text-[var(--b70-muted)]" };
+  if (d > 0) return { ch: `↑ ${d}`, cls: "text-emerald-600 dark:text-emerald-400" };
+  return { ch: `↓ ${Math.abs(d)}`, cls: "text-rose-600 dark:text-rose-400" };
+}
+
+function freshnessLabel(fr: string | null | undefined): string {
+  if (!fr) return "—";
+  if (fr === "EXHAUSTED") return "Fading";
+  if (fr === "NEW") return "New";
+  if (fr === "BUILDING") return "Building";
+  if (fr === "AGING") return "Aging";
+  return fr;
+}
+
+function stageBadge(stage: string | null | undefined): string {
+  const s = (stage || "—").toUpperCase();
+  if (s === "EARLY") return "EARLY";
+  if (s === "MID") return "MID";
+  if (s === "LATE") return "LATE";
+  return s;
+}
+
+function whyThisMatters(qi: QueryIntentDebug | undefined): string {
+  const intent = qi?.intent ?? "DISCOVERY";
+  const fn = qi?.filter_narratives?.length ? qi.filter_narratives.join(", ") : null;
+  const fs = qi?.focus_symbols?.length ? qi.focus_symbols.join(", ") : null;
+  const sort = qi?.sort_mode ?? "default";
+  const parts: string[] = [];
+  if (intent === "PREDICTION") {
+    parts.push("Your query reads as prediction-seeking; ordering weights velocity and early-cycle tape.");
+  } else if (intent === "RISK") {
+    parts.push("Defensive intent: rankings favor confidence and calmer volatility tiers.");
+  } else if (intent === "SECTOR") {
+    parts.push(`Sector lens applied${fn ? ` (${fn})` : ""}; only narrative-tagged names are prioritized ahead of backfill.`);
+  } else if (intent === "SPECIFIC_ASSET" || intent === "ANALYSIS") {
+    parts.push(`Single-asset focus${fs ? ` on ${fs}` : ""} with peer narratives used for context.`);
+  } else {
+    parts.push("Discovery mode: broad opportunity scan under current regime and rotation telemetry.");
+  }
+  parts.push(`Engine sort: ${sort}.`);
+  return parts.join(" ");
+}
+
+function marketHeroLine(data: AIIntelligenceOpportunitiesResponse): string {
+  const shifts = data.recent_shifts?.[0];
+  const pred = data.predictions?.[0];
+  const rot = data.capital_rotation?.[0];
+  if (shifts) return shifts;
+  if (pred) return pred;
+  if (rot) return `${rot.narrative_id} rotation phase ${rot.phase} — regime ${data.market_regime}.`;
+  return `Market regime ${data.market_regime} — scanning ranked opportunities.`;
+}
+
+function OpportunityIntelCard({
+  o,
+  timeframe,
+  featured,
+  index,
+}: {
+  o: AIIntelligenceOpportunity;
+  timeframe: AIIntelligenceTimeframe;
+  featured: boolean;
+  index: number;
+}) {
+  const [open, setOpen] = useState(false);
+  const ra = rankArrow(o.rank_delta);
+  const bullets = (o.rank_reasons ?? o.confluence_flags ?? []).slice(0, 3).filter(Boolean) as string[];
+  const accent =
+    o.probability_of_move != null &&
+    o.probability_of_move >= 58 &&
+    (o.cycle_stage === "EARLY" || (o.rank_delta ?? 0) > 0)
+      ? "border-l-4 border-l-emerald-500/70"
+      : o.signal_freshness === "EXHAUSTED" || (o.rank_delta ?? 0) < -2
+        ? "border-l-4 border-l-rose-500/50"
+        : "border-l-4 border-l-amber-500/40";
+
+  const probBig = featured ? "text-3xl" : "text-2xl";
+
+  return (
+    <div
+      className="b70-intel-card-respects-motion"
+      style={
+        {
+          animationDelay: `${Math.min(index, 12) * 45}ms`,
+        } as React.CSSProperties
+      }
+    >
+    <Card
+      className={clsx(
+        "overflow-hidden transition-all duration-300",
+        featured ? "md:col-span-2 ring-1 ring-[var(--b70-crypto-blue)]/15" : "",
+        accent,
+      )}
+    >
+      <button
+        type="button"
+        className="flex w-full cursor-pointer gap-4 p-4 text-left"
+        onClick={() => setOpen(!open)}
+        aria-expanded={open}
+      >
+        <ScoreRing score={o.score} size={featured ? 64 : 56} />
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-baseline gap-2">
+            <span className={clsx("font-semibold text-[var(--b70-fg)]", featured ? "text-xl" : "text-lg")}>
+              {o.asset_symbol}
+            </span>
+            {o.name ? <span className="truncate text-sm text-[var(--b70-muted)]">{o.name}</span> : null}
+            <span className="rounded border border-[var(--b70-border)] px-1.5 py-0.5 text-[10px] font-semibold uppercase text-[var(--b70-muted)]">
+              {stageBadge(o.cycle_stage)}
+            </span>
+          </div>
+          <div className="mt-2 flex flex-wrap items-end gap-3">
+            {o.probability_of_move != null ? (
+              <div>
+                <p className="text-[10px] uppercase tracking-wide text-[var(--b70-muted)]">Probability</p>
+                <p className={clsx("font-[family-name:var(--font-jetbrains)] font-bold tabular-nums text-[var(--b70-fg)]", probBig)}>
+                  {Math.round(o.probability_of_move)}
+                  <span className="text-sm font-medium text-[var(--b70-muted)]">%</span>
+                </p>
+              </div>
+            ) : null}
+            <span className={clsx("text-sm font-medium tabular-nums", ra.cls)}>{ra.ch} rank</span>
+            <span className="text-[11px] text-[var(--b70-muted)]">{freshnessLabel(o.signal_freshness)}</span>
+          </div>
+          <ul className="mt-2 list-inside list-disc space-y-0.5 text-xs text-[var(--b70-muted)]">
+            {bullets.map((b) => (
+              <li key={b.slice(0, 48)}>{b.length > 120 ? `${b.slice(0, 117)}…` : b}</li>
+            ))}
+          </ul>
+        </div>
+      </button>
+      {open ? (
+        <div className="space-y-3 border-t border-[var(--b70-border)] px-4 py-3">
+          <div className="flex flex-wrap gap-x-3 gap-y-0.5 text-xs text-[var(--b70-muted)]">
+            {o.market_cap != null ? <span>Mcap {formatCompactUsd(o.market_cap)}</span> : null}
+            {o.current_price != null ? <span>Price ${o.current_price.toLocaleString(undefined, { maximumFractionDigits: 6 })}</span> : null}
+            {o.price_change_24h != null ? <span>24h {formatChangePct(o.price_change_24h)}</span> : null}
+            {timeframe === "7d" && o.price_change_7d != null ? <span>7d {formatChangePct(o.price_change_7d)}</span> : null}
+            {o.risk_tier ? <span className="capitalize">Vol {o.risk_tier}</span> : null}
+            {o.confidence_score != null ? <span>Conf {Math.round(o.confidence_score)}</span> : null}
+            {o.entry_signal && o.entry_signal !== "none" ? <span>Entry {o.entry_signal}</span> : null}
+            {o.narrative_tags && o.narrative_tags.length > 0 ? (
+              <span>Tags {o.narrative_tags.join(", ")}</span>
+            ) : null}
+          </div>
+          <div className="space-y-2">
+            {SIGNAL_ORDER.map((k) => (
+              <SignalBar key={k} label={k} value={o.signals[k] ?? 0} />
+            ))}
+          </div>
+        </div>
+      ) : null}
+    </Card>
+    </div>
+  );
+}
+
 export function AIIntelligenceDashboard() {
   const formId = useId();
   const [timeframe, setTimeframe] = useState<AIIntelligenceTimeframe>("24h");
   const [minMcap, setMinMcap] = useState<string>("");
   const [risk, setRisk] = useState<AIIntelligenceRisk | "">("");
   const [limit] = useState(12);
-  const [rows, setRows] = useState<AIIntelligenceOpportunity[]>([]);
-  const [intelMeta, setIntelMeta] = useState<
-    Pick<
-      AIIntelligenceOpportunitiesResponse,
-      "market_regime" | "capital_rotation" | "synthetic_fallback" | "model_insights"
-    > | null
-  >(null);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [activeQuery, setActiveQuery] = useState("");
+  const [payload, setPayload] = useState<AIIntelligenceOpportunitiesResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [query, setQuery] = useState("");
   const [analysis, setAnalysis] = useState<{
     summary: string;
     key_trends: string[];
@@ -96,6 +249,7 @@ export function AIIntelligenceDashboard() {
     output_mode?: string;
   } | null>(null);
   const [analyzeLoading, setAnalyzeLoading] = useState(false);
+  const [reportQuery, setReportQuery] = useState("");
 
   const minMcapNum = useMemo(() => {
     const n = parseFloat(minMcap.replace(/,/g, ""));
@@ -111,29 +265,29 @@ export function AIIntelligenceDashboard() {
         timeframe,
         minMcap: minMcapNum,
         risk: risk || undefined,
+        query: activeQuery.trim() || undefined,
       });
-      setRows(data.opportunities);
-      setIntelMeta({
-        market_regime: data.market_regime,
-        capital_rotation: data.capital_rotation,
-        synthetic_fallback: data.synthetic_fallback,
-        model_insights: data.model_insights,
-      });
+      setPayload(data);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to load");
-      setRows([]);
+      setPayload(null);
     } finally {
       setLoading(false);
     }
-  }, [limit, timeframe, minMcapNum, risk]);
+  }, [limit, timeframe, minMcapNum, risk, activeQuery]);
 
   useEffect(() => {
     void load();
   }, [load]);
 
+  async function onSearchSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setActiveQuery(searchQuery.trim());
+  }
+
   async function onAnalyze(e: React.FormEvent) {
     e.preventDefault();
-    const q = query.trim();
+    const q = reportQuery.trim() || searchQuery.trim();
     if (!q) return;
     setAnalyzeLoading(true);
     try {
@@ -155,32 +309,94 @@ export function AIIntelligenceDashboard() {
     }
   }
 
+  const intent = payload?.query_intent?.intent ?? "DISCOVERY";
+  const coinMode = Boolean(payload?.coin_intel && !payload?.coin_fallback);
+
+  const predictionsFirst = intent === "PREDICTION";
+
   return (
     <div className="space-y-8">
       <header className="space-y-2">
-        <h1 className="heading-xl">AI intelligence</h1>
-        <p className="text-[var(--b70-muted)] max-w-2xl">
-          Alpha scores blend momentum, liquidity, sentiment proxies, and calm-volatility risk. CoinGecko
-          market data only—exploratory, not financial advice.
+        <h1 className="heading-xl">Intelligence desk</h1>
+        <p className="max-w-2xl text-sm text-[var(--b70-muted)]">
+          Decision-first crypto intelligence: regime, rotation, ranked opportunities, and coin-level briefing when you
+          name a ticker.
         </p>
       </header>
 
-      {intelMeta ? (
+      <form onSubmit={onSearchSubmit} className="space-y-2 rounded-b70-lg border border-[var(--b70-border)] bg-[var(--b70-card)]/60 p-4">
+        <label className="small font-medium text-[var(--b70-muted)]" htmlFor={`${formId}-q`}>
+          Command query
+        </label>
+        <div className="flex flex-col gap-2 sm:flex-row">
+          <input
+            id={`${formId}-q`}
+            className={clsx(
+              "min-w-0 flex-1 rounded-lg border border-[var(--b70-border)] bg-[var(--b70-bg)] px-3 py-2 text-sm",
+            )}
+            placeholder="e.g. PEPE, AI sector opportunities, safest names…"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+          />
+          <button
+            type="submit"
+            className="rounded-lg bg-[var(--b70-crypto-blue)] px-4 py-2 text-sm font-medium text-white hover:opacity-90"
+          >
+            Run
+          </button>
+        </div>
+        {payload?.coin_fallback ? (
+          <p className="text-xs text-amber-600 dark:text-amber-400">
+            Showing top opportunities based on current market conditions — asset not found in live universe.
+          </p>
+        ) : null}
+        {activeQuery.trim() && intent === "DISCOVERY" && !coinMode && !payload?.coin_fallback ? (
+          <p className="text-xs text-[var(--b70-muted)]">Discovery ranking applied to your keywords.</p>
+        ) : null}
+      </form>
+
+      {payload && !coinMode ? (
+        <div className="rounded-b70-lg border border-[var(--b70-border)] bg-[var(--b70-card)]/90 p-5 shadow-sm">
+          <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[var(--b70-crypto-blue)]">
+            Market call
+          </p>
+          <h2 className="mt-2 text-lg font-semibold leading-snug text-[var(--b70-fg)] md:text-xl">
+            {marketHeroLine(payload)}
+          </h2>
+          <div className="mt-3 flex flex-wrap gap-2 text-xs">
+            <span className="rounded-full border border-[var(--b70-border)] px-2.5 py-0.5 font-medium">
+              Regime {payload.market_regime}
+            </span>
+            {payload.capital_rotation[0] ? (
+              <span className="rounded-full border border-[var(--b70-border)] px-2.5 py-0.5 text-[var(--b70-muted)]">
+                {payload.capital_rotation[0].narrative_id} · {payload.capital_rotation[0].phase.replace(/_/g, " ")}
+              </span>
+            ) : null}
+            {payload.predictions?.[0] ? (
+              <span className="rounded-full border border-emerald-500/30 bg-emerald-500/5 px-2.5 py-0.5 text-emerald-700 dark:text-emerald-300">
+                {payload.predictions[0]}
+              </span>
+            ) : null}
+          </div>
+        </div>
+      ) : null}
+
+      {payload && !coinMode ? (
+        <aside className="rounded-b70-lg border border-dashed border-[var(--b70-border)] bg-[var(--b70-bg)]/40 px-4 py-3 text-sm text-[var(--b70-muted)]">
+          <p className="text-[10px] font-semibold uppercase tracking-wide text-[var(--b70-crypto-blue)]">
+            Why this layout
+          </p>
+          <p className="mt-1">{whyThisMatters(payload.query_intent)}</p>
+        </aside>
+      ) : null}
+
+      {payload && !coinMode && (payload.synthetic_fallback || payload.capital_rotation.length > 0) ? (
         <div className="flex flex-wrap gap-3 rounded-b70-lg border border-[var(--b70-border)] bg-[var(--b70-card)]/50 px-4 py-3 text-sm">
           <span className="font-medium text-[var(--b70-fg)]">
-            Regime: <span className="text-[var(--b70-muted)]">{intelMeta.market_regime}</span>
+            Meta: <span className="text-[var(--b70-muted)]">{payload.market_regime}</span>
           </span>
-          {intelMeta.synthetic_fallback ? (
+          {payload.synthetic_fallback ? (
             <span className="text-amber-600 dark:text-amber-400">Demo data (CoinGecko unavailable)</span>
-          ) : null}
-          {intelMeta.capital_rotation.length > 0 ? (
-            <span className="text-[var(--b70-muted)]">
-              Rotation top:{" "}
-              {intelMeta.capital_rotation
-                .slice(0, 3)
-                .map((r) => `${r.narrative_id} (${r.phase})`)
-                .join(" · ")}
-            </span>
           ) : null}
         </div>
       ) : null}
@@ -248,19 +464,126 @@ export function AIIntelligenceDashboard() {
         </button>
       </section>
 
-      <form onSubmit={onAnalyze} className="space-y-2 rounded-b70-lg border border-[var(--b70-border)] bg-[var(--b70-card)]/40 p-4">
-        <label className="small font-medium text-[var(--b70-muted)]" htmlFor={`${formId}-q`}>
-          Quick analyze (optional)
+      {coinMode && payload?.coin_intel ? <CoinIntelligenceTerminal data={payload.coin_intel} /> : null}
+
+      {!coinMode && loading ? (
+        <div className="space-y-3">
+          <Skeleton className="h-24 w-full rounded-b70-lg" />
+          <div className="grid gap-4 md:grid-cols-2">
+            {Array.from({ length: 6 }).map((_, i) => (
+              <Skeleton key={i} className="h-40 rounded-b70-lg" />
+            ))}
+          </div>
+        </div>
+      ) : null}
+
+      {error ? <p className="text-sm text-red-500">{error}</p> : null}
+
+      {!coinMode && !loading && payload ? (
+        <div className="space-y-4">
+          {predictionsFirst && payload.predictions && payload.predictions.length > 0 ? (
+            <details open className="group rounded-b70-lg border border-[var(--b70-border)] bg-[var(--b70-card)]/80">
+              <summary className="cursor-pointer px-4 py-3 text-sm font-semibold text-[var(--b70-fg)]">
+                Predictions
+              </summary>
+              <ul className="list-inside list-disc space-y-1 px-4 pb-4 text-sm text-[var(--b70-muted)]">
+                {payload.predictions.map((t) => (
+                  <li key={t}>{t}</li>
+                ))}
+              </ul>
+            </details>
+          ) : null}
+
+          <details open className="rounded-b70-lg border border-[var(--b70-border)] bg-[var(--b70-card)]/80">
+            <summary className="cursor-pointer px-4 py-3 text-sm font-semibold text-[var(--b70-fg)]">
+              Top opportunities
+            </summary>
+            <div className="grid gap-4 px-4 pb-4 md:grid-cols-2">
+              {payload.opportunities.map((o, index) => (
+                <OpportunityIntelCard
+                  key={`${o.asset_symbol}-${o.coingecko_id ?? index}`}
+                  o={o}
+                  timeframe={timeframe}
+                  featured={index < 3}
+                  index={index}
+                />
+              ))}
+            </div>
+          </details>
+
+          {!predictionsFirst && payload.predictions && payload.predictions.length > 0 ? (
+            <details open className="rounded-b70-lg border border-[var(--b70-border)] bg-[var(--b70-card)]/80">
+              <summary className="cursor-pointer px-4 py-3 text-sm font-semibold text-[var(--b70-fg)]">
+                Predictions
+              </summary>
+              <ul className="list-inside list-disc space-y-1 px-4 pb-4 text-sm text-[var(--b70-muted)]">
+                {payload.predictions.map((t) => (
+                  <li key={t}>{t}</li>
+                ))}
+              </ul>
+            </details>
+          ) : null}
+
+          <details className="rounded-b70-lg border border-[var(--b70-border)] bg-[var(--b70-card)]/60">
+            <summary className="cursor-pointer px-4 py-3 text-sm font-semibold text-[var(--b70-fg)]">
+              Capital rotation
+            </summary>
+            <ul className="space-y-1 px-4 pb-4 text-sm text-[var(--b70-muted)]">
+              {payload.capital_rotation.map((r) => (
+                <li key={r.narrative_id}>
+                  {r.narrative_id}: {r.phase.replace(/_/g, " ")}
+                </li>
+              ))}
+            </ul>
+          </details>
+
+          {payload.portfolio_positioning && Object.keys(payload.portfolio_positioning).length > 0 ? (
+            <details className="rounded-b70-lg border border-[var(--b70-border)] bg-[var(--b70-card)]/60">
+              <summary className="cursor-pointer px-4 py-3 text-sm font-semibold text-[var(--b70-fg)]">
+                Portfolio positioning
+              </summary>
+              <div className="space-y-2 px-4 pb-4 text-xs text-[var(--b70-muted)]">
+                {Object.entries(payload.portfolio_positioning).map(([k, v]) => (
+                  <div key={k}>
+                    <span className="font-medium text-[var(--b70-fg)]">{k}</span>: {v.join(", ")}
+                  </div>
+                ))}
+              </div>
+            </details>
+          ) : null}
+
+          <details className="rounded-b70-lg border border-[var(--b70-border)] bg-[var(--b70-card)]/60">
+            <summary className="cursor-pointer px-4 py-3 text-sm font-semibold text-[var(--b70-fg)]">
+              Emerging signals
+            </summary>
+            <div className="space-y-2 px-4 pb-4 text-xs text-[var(--b70-muted)]">
+              {payload.recent_shifts?.map((s) => (
+                <p key={s}>{s}</p>
+              ))}
+              {payload.model_insights.map((m) => (
+                <p key={m}>{m}</p>
+              ))}
+            </div>
+          </details>
+        </div>
+      ) : null}
+
+      <form
+        onSubmit={onAnalyze}
+        className="space-y-2 rounded-b70-lg border border-[var(--b70-border)] bg-[var(--b70-card)]/40 p-4"
+      >
+        <label className="small font-medium text-[var(--b70-muted)]" htmlFor={`${formId}-deep`}>
+          Deep report (optional LLM narrative)
         </label>
         <div className="flex flex-col gap-2 sm:flex-row">
           <input
-            id={`${formId}-q`}
+            id={`${formId}-deep`}
             className={clsx(
               "min-w-0 flex-1 rounded-lg border border-[var(--b70-border)] bg-[var(--b70-bg)] px-3 py-2 text-sm",
             )}
-            placeholder="Ask about trends or risks…"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Optional — defaults to command query"
+            value={reportQuery}
+            onChange={(e) => setReportQuery(e.target.value)}
           />
           <button
             type="submit"
@@ -274,13 +597,8 @@ export function AIIntelligenceDashboard() {
           <div className="mt-3 space-y-3 text-sm">
             {analysis.query_intent?.intent ? (
               <p className="text-xs font-medium text-[var(--b70-crypto-blue)]">
-                Query intent: {analysis.query_intent.intent}
+                Intent {analysis.query_intent.intent}
                 {analysis.output_mode ? ` · ${analysis.output_mode}` : ""}
-              </p>
-            ) : null}
-            {analysis.market_regime ? (
-              <p className="text-xs uppercase tracking-wide text-[var(--b70-muted)]">
-                Query context · {analysis.market_regime}
               </p>
             ) : null}
             <p className="text-[var(--b70-fg)]">{analysis.summary}</p>
@@ -291,84 +609,23 @@ export function AIIntelligenceDashboard() {
                 ))}
               </ul>
             ) : null}
-            {analysis.key_trends.length > 0 ? (
-              <ul className="list-inside list-disc text-[var(--b70-muted)]">
-                {analysis.key_trends.map((t) => (
-                  <li key={t}>{t}</li>
-                ))}
-              </ul>
-            ) : null}
-            {analysis.risks.length > 0 ? (
-              <ul className="list-inside list-disc text-amber-600/90 dark:text-amber-400/90">
-                {analysis.risks.map((t) => (
-                  <li key={t}>{t}</li>
-                ))}
-              </ul>
-            ) : null}
             {analysis.formatted_report ? (
-              <pre className="max-h-72 overflow-auto whitespace-pre-wrap rounded-lg border border-[var(--b70-border)] bg-[var(--b70-bg)]/80 p-3 text-xs text-[var(--b70-muted)]">
-                {analysis.formatted_report}
-              </pre>
+              <details>
+                <summary className="cursor-pointer text-xs text-[var(--b70-muted)]">Full report</summary>
+                <pre className="mt-2 max-h-72 overflow-auto whitespace-pre-wrap rounded-lg border border-[var(--b70-border)] bg-[var(--b70-bg)]/80 p-3 text-xs text-[var(--b70-muted)]">
+                  {analysis.formatted_report}
+                </pre>
+              </details>
             ) : null}
           </div>
         ) : null}
       </form>
 
-      {loading ? (
-        <p className="small text-[var(--b70-muted)]">Loading opportunities…</p>
-      ) : null}
-      {error ? (
-        <p className="text-sm text-red-500">{error}</p>
-      ) : null}
+      <p className="text-center text-[10px] text-[var(--b70-muted)]">
+        Intelligence outputs are model interpretation — not financial advice.
+      </p>
 
-      <div className="grid gap-4 md:grid-cols-2">
-        {rows.map((o) => (
-          <Card key={`${o.asset_symbol}-${o.coingecko_id ?? o.name ?? ""}`} className="overflow-hidden">
-            <div className="flex gap-4 p-4">
-              <ScoreRing score={o.score} />
-              <div className="min-w-0 flex-1">
-                <div className="flex flex-wrap items-baseline gap-2">
-                  <span className="text-lg font-semibold">{o.asset_symbol}</span>
-                  {o.name ? (
-                    <span className="truncate text-sm text-[var(--b70-muted)]">{o.name}</span>
-                  ) : null}
-                </div>
-                <div className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-xs text-[var(--b70-muted)]">
-                  {o.market_cap != null ? <span>Mcap {formatCompactUsd(o.market_cap)}</span> : null}
-                  {o.price_change_24h != null ? (
-                    <span>24h {formatChangePct(o.price_change_24h)}</span>
-                  ) : null}
-                  {timeframe === "7d" && o.price_change_7d != null ? (
-                    <span>7d {formatChangePct(o.price_change_7d)}</span>
-                  ) : null}
-                  {o.risk_tier ? <span className="capitalize">Vol: {o.risk_tier}</span> : null}
-                  {o.confidence_score != null ? (
-                    <span>Conf {Math.round(o.confidence_score)}</span>
-                  ) : null}
-                  {o.probability_of_move != null ? (
-                    <span>Prob {Math.round(o.probability_of_move)}</span>
-                  ) : null}
-                  {o.cycle_stage ? <span>Stage {o.cycle_stage}</span> : null}
-                  {o.entry_signal && o.entry_signal !== "none" ? (
-                    <span>Entry {o.entry_signal}</span>
-                  ) : null}
-                </div>
-              </div>
-            </div>
-            <div className="space-y-2 border-t border-[var(--b70-border)] px-4 py-3">
-              {SIGNAL_ORDER.map((k) => (
-                <SignalBar
-                  key={k}
-                  label={k}
-                  value={o.signals[k] ?? 0}
-                />
-              ))}
-            </div>
-          </Card>
-        ))}
-      </div>
-
-      {!loading && !error && rows.length === 0 ? (
+      {!loading && !error && payload && !coinMode && payload.opportunities.length === 0 ? (
         <p className="text-sm text-[var(--b70-muted)]">No rows match the filters.</p>
       ) : null}
     </div>

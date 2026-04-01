@@ -30,6 +30,11 @@ from app.services.ai_intelligence.alpha_factors import (
 from app.services.ai_intelligence.hour_intel_client import hour_sentiment_to_0_100
 from app.services.ai_intelligence.pattern_snapshots import push_rank_snapshot, rank_delta_for_symbol
 from app.services.ai_intelligence.narrative_map import narratives_for_asset
+from app.services.ai_intelligence.report_builder import (
+    portfolio_buckets,
+    prediction_strings,
+    recent_shift_strings,
+)
 from app.services.ai_intelligence.query_intent import (
     QueryIntentResult,
     apply_intent_post_scores,
@@ -539,7 +544,16 @@ def fetch_intelligence_bundle(
         enqueue_prediction_records(pred_recs)
 
     for it in final:
+        sp = it.get("spot_price")
+        try:
+            it["current_price"] = float(sp) if sp is not None else None
+        except (TypeError, ValueError):
+            it["current_price"] = None
         it.pop("spot_price", None)
+
+    _preds = prediction_strings(ctx, ctx.market_regime)
+    _shifts = recent_shift_strings(final)
+    _portfolio = portfolio_buckets(final)
 
     logger.info(
         "ai_intel scored=%s skipped_mcap=%s synthetic=%s output=%s query_intent=%s",
@@ -557,6 +571,9 @@ def fetch_intelligence_bundle(
         "synthetic_fallback": synthetic,
         "model_insights": model_insights_bullets(),
         "query_intent": qi.to_log_dict(),
+        "predictions": _preds,
+        "recent_shifts": _shifts,
+        "portfolio_positioning": _portfolio,
         "_batch_context": ctx,
     }
 

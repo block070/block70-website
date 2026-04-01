@@ -8,7 +8,7 @@ export const metadata = {
 
 export default function AISearchPage() {
   return (
-    <div className="mx-auto w-full max-w-5xl px-4 py-8">
+    <div className="mx-auto w-full max-w-7xl px-4 py-8">
       <AIIntelligenceDashboard />
     </div>
   );

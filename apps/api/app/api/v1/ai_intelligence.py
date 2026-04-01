@@ -16,6 +16,7 @@ from app.services.ai_intelligence.hour_intel_client import (
     hour_summary_lines,
 )
 from app.services.ai_intelligence.news_signals import get_news_intel_aggregate_cached
+from app.services.ai_intelligence.coin_intel import build_coin_intel
 from app.services.ai_intelligence.opportunity_pipeline import (
     fetch_intelligence_bundle,
 )
@@ -45,13 +46,71 @@ def _cache_key_params(
     timeframe: str,
     min_mcap: float | None,
     risk: str | None,
+    query_normalized: str | None,
 ) -> dict[str, Any]:
     return {
         "limit": limit,
         "timeframe": timeframe,
         "min_mcap": min_mcap if min_mcap is not None else "none",
         "risk": risk or "none",
+        "query": query_normalized or "",
     }
+
+
+def _finalize_opportunities_response(
+    db: Session,
+    bundle: dict[str, Any],
+    *,
+    timeframe: str,
+    news_agg: Any,
+    hour_pl: dict[str, Any],
+    limit: int,
+    min_mcap: float | None,
+    risk: str | None,
+) -> dict[str, Any]:
+    public = {k: v for k, v in bundle.items() if k != "_batch_context"}
+    coin_intel = None
+    coin_fallback = False
+    qid = public.get("query_intent") or {}
+    intent = str(qid.get("intent") or "DISCOVERY")
+    focus_list = qid.get("focus_symbols") or []
+    primary_sym = focus_list[0] if focus_list else None
+    batch_ctx = bundle.get("_batch_context")
+
+    if intent in ("SPECIFIC_ASSET", "ANALYSIS") and primary_sym and batch_ctx is not None:
+        ps = str(primary_sym).upper()
+        primary = next(
+            (o for o in public["opportunities"] if str(o.get("asset_symbol") or "").upper() == ps),
+            None,
+        )
+        if primary is None:
+            bundle2 = fetch_intelligence_bundle(
+                limit=limit,
+                timeframe=timeframe,
+                min_mcap=min_mcap,
+                risk=risk,
+                news_scores=news_agg.scores,
+                news_mentions_24h=news_agg.mentions_24h,
+                hour_payload=hour_pl,
+                query_boost_symbols=frozenset(),
+                query_intent=parse_query_intent(""),
+            )
+            public = {k: v for k, v in bundle2.items() if k != "_batch_context"}
+            coin_fallback = True
+        else:
+            coin_intel = build_coin_intel(
+                db,
+                primary=primary,
+                opportunities=list(public.get("opportunities") or []),
+                batch_ctx=batch_ctx,
+                capital_rotation=list(public.get("capital_rotation") or []),
+                query_intent=dict(qid) if isinstance(qid, dict) else {},
+                timeframe=timeframe,
+            )
+
+    public["coin_intel"] = coin_intel
+    public["coin_fallback"] = coin_fallback
+    return public
 
 
 @router.get("/opportunities")
@@ -61,16 +120,20 @@ def get_opportunities(
     timeframe: Literal["24h", "7d"] = "24h",
     min_mcap: float | None = None,
     risk: Literal["low", "medium", "high"] | None = None,
+    query: str | None = None,
 ) -> dict[str, Any]:
     if min_mcap is not None and min_mcap < 0:
         raise HTTPException(status_code=400, detail="min_mcap must be non-negative")
-    params = _cache_key_params(limit, timeframe, min_mcap, risk)
+    qn = (query or "").strip()[:4000]
+    params = _cache_key_params(limit, timeframe, min_mcap, risk, qn)
     cached = market_cache_get("ai_intel_bundle", _CACHE_TTL, **params)
     if isinstance(cached, dict) and isinstance(cached.get("opportunities"), list):
         return cached
 
     news_agg = get_news_intel_aggregate_cached(db, hours=48)
     hour_pl = fetch_hour_intelligence_payload_cached()
+    qi = parse_query_intent(qn) if qn else parse_query_intent("")
+    boost = sector_symbols_for_query(qn) if qn else frozenset()
     bundle = fetch_intelligence_bundle(
         limit=limit,
         timeframe=timeframe,
@@ -79,9 +142,19 @@ def get_opportunities(
         news_scores=news_agg.scores,
         news_mentions_24h=news_agg.mentions_24h,
         hour_payload=hour_pl,
-        query_boost_symbols=frozenset(),
+        query_boost_symbols=boost,
+        query_intent=qi,
     )
-    public = {k: v for k, v in bundle.items() if k != "_batch_context"}
+    public = _finalize_opportunities_response(
+        db,
+        bundle,
+        timeframe=timeframe,
+        news_agg=news_agg,
+        hour_pl=hour_pl,
+        limit=limit,
+        min_mcap=min_mcap,
+        risk=risk,
+    )
     market_cache_set("ai_intel_bundle", _CACHE_TTL, public, **params)
     return public
 

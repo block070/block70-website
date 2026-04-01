@@ -207,3 +207,24 @@ body {
 .b70-header-validating .b70-live-dot {
   animation: b70-live-dot 0.9s ease-in-out infinite, b70-refresh-ring 1.2s ease-in-out infinite;
 }
+
+@keyframes b70-intel-card-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.b70-intel-card-respects-motion {
+  animation: b70-intel-card-in 0.45s ease-out both;
+}
+@media (prefers-reduced-motion: reduce) {
+  .b70-intel-card-respects-motion {
+    animation: none;
+    opacity: 1;
+    transform: none;
+  }
+}

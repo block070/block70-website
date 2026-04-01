@@ -42,6 +42,8 @@ export type AIIntelligenceOpportunity = {
   narrative_flow_boost?: number | null;
   narrative_tags?: string[] | null;
   intent_primary_match?: boolean | null;
+  current_price?: number | null;
+  confluence_flags?: string[] | null;
 };
 
 export type CapitalRotationRow = {
@@ -54,9 +56,42 @@ export type QueryIntentDebug = {
   intent?: string;
   output_mode?: string;
   filter_narratives?: string[] | null;
+  focus_symbols?: string[] | null;
   sort_mode?: string;
   prob_bias?: number;
   weight_mult?: Record<string, number>;
+};
+
+export type CoinIntelPrediction = {
+  direction: string;
+  horizon: string;
+  horizon_display: string;
+  strength: string;
+};
+
+export type CoinIntelPayload = {
+  hero_call: {
+    headline: string;
+    direction_label: string;
+    timeframe_label: string;
+    confidence_tier: string;
+  };
+  positioning_insight: { lines: string[] };
+  risk_context: { lines: string[] };
+  entry_context: { label: string; explanation: string } | null;
+  prediction: CoinIntelPrediction;
+  overview: Record<string, unknown>;
+  signals: { primary_driver: string; supporting: string[] };
+  relative_strength: { vs_btc_pct: number; vs_eth_pct: number; score: number };
+  narrative_flow: { narrative_id: string; phase: string | null }[];
+  news_insight: { lines: string[]; headline_count: number; sentiment_score: number | null };
+  headlines: { title: string; url: string; source: string; published_at: string | null }[];
+  related: {
+    narrative_leaders: Record<string, unknown>[];
+    earlier_stage: Record<string, unknown>[];
+  };
+  coin_page: { slug: string | null; href: string | null };
+  query_intent?: QueryIntentDebug;
 };
 
 export type AIIntelligenceOpportunitiesResponse = {
@@ -66,6 +101,11 @@ export type AIIntelligenceOpportunitiesResponse = {
   synthetic_fallback: boolean;
   model_insights: string[];
   query_intent?: QueryIntentDebug;
+  predictions?: string[];
+  recent_shifts?: string[];
+  portfolio_positioning?: Record<string, string[]>;
+  coin_intel?: CoinIntelPayload | null;
+  coin_fallback?: boolean;
 };
 
 export type GetOpportunitiesParams = {
@@ -73,6 +113,7 @@ export type GetOpportunitiesParams = {
   timeframe?: AIIntelligenceTimeframe;
   minMcap?: number;
   risk?: AIIntelligenceRisk | "";
+  query?: string;
 };
 
 function normalizeOpportunitiesPayload(data: unknown): AIIntelligenceOpportunitiesResponse {
@@ -95,6 +136,14 @@ function normalizeOpportunitiesPayload(data: unknown): AIIntelligenceOpportuniti
     query_intent: (o.query_intent && typeof o.query_intent === "object"
       ? (o.query_intent as QueryIntentDebug)
       : undefined),
+    predictions: Array.isArray(o.predictions) ? (o.predictions as string[]) : undefined,
+    recent_shifts: Array.isArray(o.recent_shifts) ? (o.recent_shifts as string[]) : undefined,
+    portfolio_positioning:
+      o.portfolio_positioning && typeof o.portfolio_positioning === "object"
+        ? (o.portfolio_positioning as Record<string, string[]>)
+        : undefined,
+    coin_intel: (o.coin_intel && typeof o.coin_intel === "object" ? (o.coin_intel as CoinIntelPayload) : null) ?? null,
+    coin_fallback: Boolean(o.coin_fallback),
   };
 }
 
@@ -106,6 +155,7 @@ export async function getAIIntelligenceOpportunities(
   if (params.timeframe) sp.set("timeframe", params.timeframe);
   if (params.minMcap != null && params.minMcap > 0) sp.set("min_mcap", String(params.minMcap));
   if (params.risk) sp.set("risk", params.risk);
+  if (params.query != null && params.query.trim()) sp.set("query", params.query.trim());
 
   const q = sp.toString();
   const path = `/api/ai-intelligence/opportunities${q ? `?${q}` : ""}`;
