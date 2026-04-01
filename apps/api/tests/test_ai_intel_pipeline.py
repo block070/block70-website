@@ -140,6 +140,55 @@ def test_query_intent_ai_sector_vs_best_crypto() -> None:
     assert b.filter_narratives is None
 
 
+def test_parse_intent_sole_token_xyo_when_coingecko_confirms(monkeypatch: pytest.MonkeyPatch) -> None:
+    from app.services.ai_intelligence.query_intent import parse_query_intent
+
+    def fake_search(q: str) -> list[dict]:
+        if str(q).strip().upper() == "XYO":
+            return [{"id": "xyo-network", "symbol": "xyo", "name": "XYO Network"}]
+        return []
+
+    monkeypatch.setattr("app.services.ai_intelligence.query_intent.search_coins", fake_search)
+    r = parse_query_intent("XYO", None)
+    assert r.intent == "SPECIFIC_ASSET"
+    assert "XYO" in r.focus_symbols
+
+
+def test_parse_intent_sole_token_pre_db_coin(monkeypatch: pytest.MonkeyPatch) -> None:
+    from unittest.mock import MagicMock
+
+    from app.services.ai_intelligence.query_intent import parse_query_intent
+
+    pre_row = MagicMock()
+    pre_row.symbol = "PRE"
+    qmock = MagicMock()
+    qmock.filter = MagicMock(return_value=qmock)
+    qmock.first = MagicMock(side_effect=[pre_row, None])
+
+    db = MagicMock()
+    db.query = MagicMock(return_value=qmock)
+
+    monkeypatch.setattr("app.services.ai_intelligence.query_intent.search_coins", lambda _q: [])
+
+    r = parse_query_intent("PRE", db)
+    assert r.intent == "SPECIFIC_ASSET"
+    assert r.focus_symbols == frozenset({"PRE"})
+
+
+def test_parse_intent_why_is_xyo_when_actionable(monkeypatch: pytest.MonkeyPatch) -> None:
+    from app.services.ai_intelligence.query_intent import parse_query_intent
+
+    def fake_search(q: str) -> list[dict]:
+        if str(q).strip().upper() == "XYO":
+            return [{"id": "xyo-network", "symbol": "xyo"}]
+        return []
+
+    monkeypatch.setattr("app.services.ai_intelligence.query_intent.search_coins", fake_search)
+    r = parse_query_intent("why is XYO pumping", None)
+    assert r.intent == "ANALYSIS"
+    assert "XYO" in r.focus_symbols
+
+
 def test_query_intent_strict_ticker_ada_and_dollar_prefix() -> None:
     from app.services.ai_intelligence.query_intent import parse_query_intent
 

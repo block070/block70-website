@@ -56,7 +56,7 @@ def _cache_key_params(
         "min_mcap": min_mcap if min_mcap is not None else "none",
         "risk": risk or "none",
         "query": query_normalized or "",
-        "intel_v": 3,
+        "intel_v": 4,
     }
 
 
@@ -91,9 +91,9 @@ def _finalize_opportunities_response(
             preserved_qi = dict(qid) if isinstance(qid, dict) else {}
             slug = resolve_coingecko_slug_for_ticker(db, ps)
             qi_parse = (
-                parse_query_intent(query_normalized)
+                parse_query_intent(query_normalized, db)
                 if (query_normalized or "").strip()
-                else parse_query_intent("")
+                else parse_query_intent("", db)
             )
             hydrated = (
                 build_opportunity_from_markets_snapshot(
@@ -186,7 +186,7 @@ def get_opportunities(
 
     news_agg = get_news_intel_aggregate_cached(db, hours=48)
     hour_pl = fetch_hour_intelligence_payload_cached()
-    qi = parse_query_intent(qn) if qn else parse_query_intent("")
+    qi = parse_query_intent(qn, db) if qn else parse_query_intent("", db)
     boost = sector_symbols_for_query(qn) if qn else frozenset()
     bundle = fetch_intelligence_bundle(
         limit=limit,
@@ -399,7 +399,7 @@ def post_analyze(body: AnalyzeRequest, db: Session = Depends(get_db)) -> dict[st
 
     news_agg = get_news_intel_aggregate_cached(db, hours=48)
     hour_pl = fetch_hour_intelligence_payload_cached()
-    qi = parse_query_intent(query)
+    qi = parse_query_intent(query, db)
     boost = sector_symbols_for_query(query)
     bundle = fetch_intelligence_bundle(
         limit=24,

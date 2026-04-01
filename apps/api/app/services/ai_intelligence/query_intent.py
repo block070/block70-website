@@ -7,7 +7,11 @@ import re
 from dataclasses import dataclass, field
 from typing import Any, Literal
 
+from sqlalchemy.orm import Session
+
+from app.models.coin import Coin
 from app.services.ai_intelligence.narrative_map import narratives_for_asset
+from app.services.connectors.coingecko_connector import search_coins
 
 logger = logging.getLogger(__name__)
 
@@ -53,6 +57,95 @@ def _tickers_in_query(q: str) -> frozenset[str]:
         if t in known:
             found.add(t)
     return frozenset(found)
+
+
+def _sole_query_token(raw: str) -> str | None:
+    parts = (raw or "").strip().split()
+    if len(parts) != 1:
+        return None
+    return parts[0].strip()
+
+
+def _expand_tickers_valid_sole_token(raw: str, tickers: frozenset[str], db: Session | None) -> frozenset[str]:
+    """
+    Tickers like XYO / PRE exist in our DB and on CoinGecko but are not in the static narrative map.
+    Treat a single-token query as SPECIFIC_ASSET when the token matches a listed coin (DB) or CG search.
+    """
+    tok = _sole_query_token(raw)
+    if not tok:
+        return tickers
+    sym_guess = tok.lstrip("$").upper()
+    slug_lo = tok.lstrip("$").lower()
+
+    if "-" in tok and db is not None:
+        try:
+            row = db.query(Coin).filter(Coin.slug == slug_lo).first()
+            if row and row.symbol:
+                su = str(row.symbol).strip().upper()
+                if su:
+                    return tickers | frozenset({su})
+        except Exception as e:
+            logger.debug("sole-token slug lookup %s: %s", slug_lo, e)
+        return tickers
+
+    if not re.fullmatch(r"[A-Za-z]{2,6}", sym_guess):
+        return tickers
+
+    if sym_guess in tickers:
+        return tickers
+
+    if db is not None:
+        try:
+            row = db.query(Coin).filter(Coin.symbol == sym_guess).first()
+            if row is None:
+                row = db.query(Coin).filter(Coin.slug == slug_lo).first()
+            if row is not None and row.symbol:
+                su = str(row.symbol).strip().upper()
+                if su:
+                    return tickers | frozenset({su})
+        except Exception as e:
+            logger.debug("sole-token db lookup %s: %s", sym_guess, e)
+
+    if len(sym_guess) < 3:
+        return tickers
+
+    try:
+        hits = search_coins(sym_guess) or []
+    except Exception as e:
+        logger.debug("sole-token search_coins %s: %s", sym_guess, e)
+        return tickers
+    sym_low = sym_guess.lower()
+    for h in hits:
+        if not isinstance(h, dict):
+            continue
+        if str(h.get("symbol") or "").strip().lower() == sym_low:
+            return tickers | frozenset({sym_guess})
+    return tickers
+
+
+def _symbol_actionable_as_focus(sym: str, db: Session | None) -> bool:
+    """Ticker can drive SPECIFIC_ASSET / ANALYSIS (why-is) even if not in static maps."""
+    su = (sym or "").strip().upper()
+    if not su:
+        return False
+    if su in _all_recognized_symbols():
+        return True
+    if db is not None:
+        try:
+            if db.query(Coin).filter(Coin.symbol == su).first():
+                return True
+        except Exception as e:
+            logger.debug("actionable focus db %s: %s", su, e)
+    try:
+        hits = search_coins(su) or []
+    except Exception as e:
+        logger.debug("actionable focus cg %s: %s", su, e)
+        return False
+    s_low = su.lower()
+    for h in hits:
+        if isinstance(h, dict) and str(h.get("symbol") or "").strip().lower() == s_low:
+            return True
+    return False
 
 
 def _sector_narratives_from_query(qlow: str) -> frozenset[str] | None:
@@ -155,10 +248,10 @@ def _leading_ticker_specific_asset_intent(raw: str, tickers: frozenset[str]) -> 
     return res
 
 
-def parse_query_intent(query: str) -> QueryIntentResult:
+def parse_query_intent(query: str, db: Session | None = None) -> QueryIntentResult:
     raw = (query or "").strip()
     qlow = raw.lower()
-    tickers = _tickers_in_query(raw)
+    tickers = _expand_tickers_valid_sole_token(raw, _tickers_in_query(raw), db)
     sector_tags = _sector_narratives_from_query(qlow)
 
     if re.search(
@@ -201,7 +294,7 @@ def parse_query_intent(query: str) -> QueryIntentResult:
     )
     if m_why:
         sym = m_why.group(1).upper()
-        if sym in _all_recognized_symbols():
+        if _symbol_actionable_as_focus(sym, db):
             peers = _peer_narratives_for_symbols(frozenset({sym}))
             return QueryIntentResult(
                 intent="ANALYSIS",
