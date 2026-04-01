@@ -19,6 +19,7 @@ import {
   getIntelSearchModeHintLabel,
   inferIntelSearchModeHint,
   INTEL_SEARCH_PLACEHOLDER_EXAMPLES,
+  isCoinTerminalLoadingHint,
 } from "@/lib/intelligence-search-hints";
 
 const SIGNAL_ORDER = [
@@ -257,6 +258,7 @@ export function AIIntelligenceDashboard() {
   const [reportQuery, setReportQuery] = useState("");
   const [placeholderExampleIndex, setPlaceholderExampleIndex] = useState(0);
   const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const fetchIdRef = useRef(0);
 
   const minMcapNum = useMemo(() => {
     const n = parseFloat(minMcap.replace(/,/g, ""));
@@ -264,8 +266,10 @@ export function AIIntelligenceDashboard() {
   }, [minMcap]);
 
   const load = useCallback(async () => {
+    const reqId = ++fetchIdRef.current;
     setLoading(true);
     setError(null);
+    setPayload(null);
     try {
       const data = await getAIIntelligenceOpportunities({
         limit,
@@ -274,12 +278,16 @@ export function AIIntelligenceDashboard() {
         risk: risk || undefined,
         query: activeQuery.trim() || undefined,
       });
+      if (reqId !== fetchIdRef.current) return;
       setPayload(data);
     } catch (e) {
+      if (reqId !== fetchIdRef.current) return;
       setError(e instanceof Error ? e.message : "Failed to load");
       setPayload(null);
     } finally {
-      setLoading(false);
+      if (reqId === fetchIdRef.current) {
+        setLoading(false);
+      }
     }
   }, [limit, timeframe, minMcapNum, risk, activeQuery]);
 
@@ -363,6 +371,12 @@ export function AIIntelligenceDashboard() {
 
   const predictionsFirst = intent === "PREDICTION";
 
+  const marketBundle = !loading && payload && !coinMode ? payload : null;
+  const showCoinLoadingSkeleton = Boolean(
+    loading && activeQuery.trim() && isCoinTerminalLoadingHint(activeQuery),
+  );
+  const showMarketLoadingSkeleton = Boolean(loading && !showCoinLoadingSkeleton);
+
   return (
     <div className="space-y-8">
       <header className="space-y-2">
@@ -409,58 +423,69 @@ export function AIIntelligenceDashboard() {
             </span>
           )}
         </div>
+        {loading && activeQuery.trim() ? (
+          <p className="text-xs text-[var(--b70-muted)]">
+            Searching: <span className="font-medium text-[var(--b70-fg)]">{activeQuery.trim()}</span>
+          </p>
+        ) : null}
         {payload?.coin_fallback && coinMode ? (
           <p className="text-xs text-amber-600 dark:text-amber-400">
             Coin intelligence batch: {focusSymbol ?? "asset"} was not in the ranked set — showing a neutral market
             slice. Intent stays single-asset.
           </p>
         ) : null}
-        {activeQuery.trim() && intent === "DISCOVERY" && !coinMode && !payload?.coin_fallback ? (
+        {activeQuery.trim() &&
+        !loading &&
+        payload &&
+        intent === "DISCOVERY" &&
+        !coinMode &&
+        !payload?.coin_fallback ? (
           <p className="text-xs text-[var(--b70-muted)]">Discovery ranking applied to your keywords.</p>
         ) : null}
       </form>
 
-      {payload && !coinMode ? (
+      {marketBundle ? (
         <div className="rounded-b70-lg border border-[var(--b70-border)] bg-[var(--b70-card)]/90 p-5 shadow-sm">
           <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[var(--b70-crypto-blue)]">
             Market call
           </p>
           <h2 className="mt-2 text-lg font-semibold leading-snug text-[var(--b70-fg)] md:text-xl">
-            {marketHeroLine(payload)}
+            {marketHeroLine(marketBundle)}
           </h2>
           <div className="mt-3 flex flex-wrap gap-2 text-xs">
             <span className="rounded-full border border-[var(--b70-border)] px-2.5 py-0.5 font-medium">
-              Regime {payload.market_regime}
+              Regime {marketBundle.market_regime}
             </span>
-            {payload.capital_rotation[0] ? (
+            {marketBundle.capital_rotation[0] ? (
               <span className="rounded-full border border-[var(--b70-border)] px-2.5 py-0.5 text-[var(--b70-muted)]">
-                {payload.capital_rotation[0].narrative_id} · {payload.capital_rotation[0].phase.replace(/_/g, " ")}
+                {marketBundle.capital_rotation[0].narrative_id} ·{" "}
+                {marketBundle.capital_rotation[0].phase.replace(/_/g, " ")}
               </span>
             ) : null}
-            {payload.predictions?.[0] ? (
+            {marketBundle.predictions?.[0] ? (
               <span className="rounded-full border border-emerald-500/30 bg-emerald-500/5 px-2.5 py-0.5 text-emerald-700 dark:text-emerald-300">
-                {payload.predictions[0]}
+                {marketBundle.predictions[0]}
               </span>
             ) : null}
           </div>
         </div>
       ) : null}
 
-      {payload && !coinMode ? (
+      {marketBundle ? (
         <aside className="rounded-b70-lg border border-dashed border-[var(--b70-border)] bg-[var(--b70-bg)]/40 px-4 py-3 text-sm text-[var(--b70-muted)]">
           <p className="text-[10px] font-semibold uppercase tracking-wide text-[var(--b70-crypto-blue)]">
             Why this layout
           </p>
-          <p className="mt-1">{whyThisMatters(payload.query_intent)}</p>
+          <p className="mt-1">{whyThisMatters(marketBundle.query_intent)}</p>
         </aside>
       ) : null}
 
-      {payload && !coinMode && (payload.synthetic_fallback || payload.capital_rotation.length > 0) ? (
+      {marketBundle && (marketBundle.synthetic_fallback || marketBundle.capital_rotation.length > 0) ? (
         <div className="flex flex-wrap gap-3 rounded-b70-lg border border-[var(--b70-border)] bg-[var(--b70-card)]/50 px-4 py-3 text-sm">
           <span className="font-medium text-[var(--b70-fg)]">
-            Meta: <span className="text-[var(--b70-muted)]">{payload.market_regime}</span>
+            Meta: <span className="text-[var(--b70-muted)]">{marketBundle.market_regime}</span>
           </span>
-          {payload.synthetic_fallback ? (
+          {marketBundle.synthetic_fallback ? (
             <span className="text-amber-600 dark:text-amber-400">Demo data (CoinGecko unavailable)</span>
           ) : null}
         </div>
@@ -522,7 +547,8 @@ export function AIIntelligenceDashboard() {
         </div>
         <button
           type="button"
-          className="rounded-lg bg-[var(--b70-crypto-blue)] px-4 py-2 text-sm font-medium text-white hover:opacity-90"
+          disabled={loading}
+          className="rounded-lg bg-[var(--b70-crypto-blue)] px-4 py-2 text-sm font-medium text-white hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
           onClick={() => void load()}
         >
           Refresh
@@ -543,7 +569,7 @@ export function AIIntelligenceDashboard() {
         </div>
       ) : null}
 
-      {!coinMode && loading ? (
+      {showMarketLoadingSkeleton ? (
         <div className="space-y-3">
           <Skeleton className="h-24 w-full rounded-b70-lg" />
           <div className="grid gap-4 md:grid-cols-2">
@@ -554,7 +580,7 @@ export function AIIntelligenceDashboard() {
         </div>
       ) : null}
 
-      {coinMode && loading ? (
+      {showCoinLoadingSkeleton ? (
         <div className="space-y-3">
           <Skeleton className="h-32 w-full rounded-b70-lg" />
           <Skeleton className="h-64 w-full rounded-b70-lg" />
@@ -563,15 +589,15 @@ export function AIIntelligenceDashboard() {
 
       {error ? <p className="text-sm text-red-500">{error}</p> : null}
 
-      {!coinMode && !loading && payload ? (
+      {marketBundle ? (
         <div className="space-y-4">
-          {predictionsFirst && payload.predictions && payload.predictions.length > 0 ? (
+          {predictionsFirst && marketBundle.predictions && marketBundle.predictions.length > 0 ? (
             <details open className="group rounded-b70-lg border border-[var(--b70-border)] bg-[var(--b70-card)]/80">
               <summary className="cursor-pointer px-4 py-3 text-sm font-semibold text-[var(--b70-fg)]">
                 Predictions
               </summary>
               <ul className="list-inside list-disc space-y-1 px-4 pb-4 text-sm text-[var(--b70-muted)]">
-                {payload.predictions.map((t) => (
+                {marketBundle.predictions.map((t) => (
                   <li key={t}>{t}</li>
                 ))}
               </ul>
@@ -583,7 +609,7 @@ export function AIIntelligenceDashboard() {
               Top opportunities
             </summary>
             <div className="grid gap-4 px-4 pb-4 md:grid-cols-2">
-              {payload.opportunities.map((o, index) => (
+              {marketBundle.opportunities.map((o, index) => (
                 <OpportunityIntelCard
                   key={`${o.asset_symbol}-${o.coingecko_id ?? index}`}
                   o={o}
@@ -595,13 +621,13 @@ export function AIIntelligenceDashboard() {
             </div>
           </details>
 
-          {!predictionsFirst && payload.predictions && payload.predictions.length > 0 ? (
+          {!predictionsFirst && marketBundle.predictions && marketBundle.predictions.length > 0 ? (
             <details open className="rounded-b70-lg border border-[var(--b70-border)] bg-[var(--b70-card)]/80">
               <summary className="cursor-pointer px-4 py-3 text-sm font-semibold text-[var(--b70-fg)]">
                 Predictions
               </summary>
               <ul className="list-inside list-disc space-y-1 px-4 pb-4 text-sm text-[var(--b70-muted)]">
-                {payload.predictions.map((t) => (
+                {marketBundle.predictions.map((t) => (
                   <li key={t}>{t}</li>
                 ))}
               </ul>
@@ -613,7 +639,7 @@ export function AIIntelligenceDashboard() {
               Capital rotation
             </summary>
             <ul className="space-y-1 px-4 pb-4 text-sm text-[var(--b70-muted)]">
-              {payload.capital_rotation.map((r) => (
+              {marketBundle.capital_rotation.map((r) => (
                 <li key={r.narrative_id}>
                   {r.narrative_id}: {r.phase.replace(/_/g, " ")}
                 </li>
@@ -621,13 +647,13 @@ export function AIIntelligenceDashboard() {
             </ul>
           </details>
 
-          {payload.portfolio_positioning && Object.keys(payload.portfolio_positioning).length > 0 ? (
+          {marketBundle.portfolio_positioning && Object.keys(marketBundle.portfolio_positioning).length > 0 ? (
             <details className="rounded-b70-lg border border-[var(--b70-border)] bg-[var(--b70-card)]/60">
               <summary className="cursor-pointer px-4 py-3 text-sm font-semibold text-[var(--b70-fg)]">
                 Portfolio positioning
               </summary>
               <div className="space-y-2 px-4 pb-4 text-xs text-[var(--b70-muted)]">
-                {Object.entries(payload.portfolio_positioning).map(([k, v]) => (
+                {Object.entries(marketBundle.portfolio_positioning).map(([k, v]) => (
                   <div key={k}>
                     <span className="font-medium text-[var(--b70-fg)]">{k}</span>: {v.join(", ")}
                   </div>
@@ -641,10 +667,10 @@ export function AIIntelligenceDashboard() {
               Emerging signals
             </summary>
             <div className="space-y-2 px-4 pb-4 text-xs text-[var(--b70-muted)]">
-              {payload.recent_shifts?.map((s) => (
+              {marketBundle.recent_shifts?.map((s) => (
                 <p key={s}>{s}</p>
               ))}
-              {payload.model_insights.map((m) => (
+              {marketBundle.model_insights.map((m) => (
                 <p key={m}>{m}</p>
               ))}
             </div>
@@ -709,7 +735,7 @@ export function AIIntelligenceDashboard() {
         Intelligence outputs are model interpretation — not financial advice.
       </p>
 
-      {!loading && !error && payload && !coinMode && payload.opportunities.length === 0 ? (
+      {!error && marketBundle && marketBundle.opportunities.length === 0 ? (
         <p className="text-sm text-[var(--b70-muted)]">No rows match the filters.</p>
       ) : null}
     </div>

@@ -156,6 +156,11 @@ export function getIntelSearchModeHintLabel(id: IntelSearchModeHint): string {
   return HINT_LABEL[id];
 }
 
+/** True while loading when UX should show the coin terminal skeleton (ticker / why / compare). */
+export function isCoinTerminalLoadingHint(activeQuery: string): boolean {
+  return inferIntelSearchModeHint(activeQuery) === "coin_analysis";
+}
+
 /** Infer mode hint from current draft query (while typing). */
 export function inferIntelSearchModeHint(raw: string): IntelSearchModeHint | null {
   const trimmed = raw.trim();
