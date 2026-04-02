@@ -1,5 +1,9 @@
 # Block70 Agents
 
+Agents are **product** background systems that generate opportunity data (opportunities, scores, market intel). They are **not** the same as how humans or Cursor-style tools run **operations** on this repo (rules, PRs, verification scripts). For **Cursor vs Paperclip-class orchestration**, company-role tooling, and in-repo agent guidance, see the root **[AGENTS.md](../AGENTS.md)** file.
+
+---
+
 Agents are background systems that generate opportunity data.
 
 Alpha Hunter

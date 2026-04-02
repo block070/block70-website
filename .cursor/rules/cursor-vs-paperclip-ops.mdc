@@ -1,0 +1,34 @@
+---
+description: Company roles / agent employees — Cursor in-repo vs Paperclip-class orchestration; scope and handoffs
+globs: "**/*"
+alwaysApply: false
+---
+
+# Cursor vs Paperclip-class tools (Block70 ops)
+
+**Authoritative detail:** root **`AGENTS.md`**. This rule is a short reminder for agents editing the codebase.
+
+## Scope (default)
+
+- **In-repo work:** Cursor (project rules, skills, Agent) + human review + gates in `AGENTS.md` (e.g. `verify:home`, `verify:macro`, `lint`, `build` from `apps/web`). See also [`.cursor/rules/agent-verification-gates.mdc`](agent-verification-gates.mdc) for web dashboard changes.
+- **“Agent employees” / formal company roles:** Means **process and optional external orchestration** (Paperclip-class tools), **not** building multi-tenant agent-role products **into** Block70 unless explicitly scoped as a separate product initiative.
+
+## Product “agents” vs tooling
+
+- **`docs/agents.md`** — **Product** pipelines (Alpha Hunter, Arbitrage Scanner, etc.).
+- **`AGENTS.md`** — **Repo / ops** guidance for people and coding agents.
+
+## When to use what
+
+| Use **Cursor** | Use **Paperclip-class** (evaluate; not default) |
+|----------------|---------------------------------------------------|
+| Shipping code in `apps/web`, `apps/api`, docs | Long non-code chains: research → draft → review → publish |
+| Rules under `.cursor/rules/`, optional user Skills | Explicit org roles, per-role budgets, approvals outside the IDE |
+
+## If code must change
+
+Route **code-changing** work through **Git** (branches/PRs) or a focused Cursor session; do not treat orchestrators as silent production editors. **Hybrid:** orchestrator → specs/tickets → Cursor implements here → merge/deploy.
+
+## Reference implementation
+
+Open-source example to evaluate: [paperclipai/paperclip](https://github.com/paperclipai/paperclip). Match API-key and spend risk to your tolerance before production use.

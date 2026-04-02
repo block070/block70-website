@@ -26,6 +26,8 @@ import {
 } from "@/lib/news/enrich";
 import { withTimeout } from "@/lib/with-timeout";
 import { fetchCoingeckoHomeMarketBundle } from "@/lib/market/coingecko-home-fallback";
+import fs from "node:fs";
+import path from "node:path";
 import type { Opportunity, SignalDto, WalletLeaderboardEntry } from "@/lib/types";
 
 /**
@@ -35,6 +37,30 @@ export const HOME_DASHBOARD_CACHE_SEC =
   process.env.NEXT_PUBLIC_DEMO_MODE === "true" ? 0 : 60;
 const FETCH_MS = 8_000;
 const COINS_PAGE_FETCH_MS = 12_000;
+
+// #region agent log
+function agentDebugNdjson(payload: Record<string, unknown>): void {
+  try {
+    const line =
+      JSON.stringify({ sessionId: "3a0a47", timestamp: Date.now(), ...payload }) + "\n";
+    const candidates = [
+      path.join(process.cwd(), "..", "..", "debug-3a0a47.log"),
+      path.join(process.cwd(), "..", "debug-3a0a47.log"),
+      path.join(process.cwd(), "debug-3a0a47.log"),
+    ];
+    for (const p of candidates) {
+      try {
+        fs.appendFileSync(p, line);
+        return;
+      } catch {
+        /* try next path */
+      }
+    }
+  } catch {
+    /* ignore */
+  }
+}
+// #endregion
 
 export type HeroNarrativeChip = {
   id: string;
@@ -1008,6 +1034,7 @@ export async function buildHomeDashboard(): Promise<HomeDashboardPayload> {
   let marketSourceNote = marketSource;
   /** Raw CoinGecko /coins/markets page when we fetched the home bundle — use for hero fills even if vk is a different slice. */
   let cgCoinsRaw: MarketCoin[] = [];
+  let enteredCgBundle = false;
   if (
     globalMcap == null ||
     globalVol == null ||
@@ -1015,6 +1042,7 @@ export async function buildHomeDashboard(): Promise<HomeDashboardPayload> {
     ethDom == null ||
     !vk.length
   ) {
+    enteredCgBundle = true;
     const cg = await fetchCoingeckoHomeMarketBundle(100);
     const tag = marketSourceNote ? `${marketSourceNote}+coingecko` : "coingecko-direct";
     marketSourceNote = tag;
@@ -1064,6 +1092,24 @@ export async function buildHomeDashboard(): Promise<HomeDashboardPayload> {
   globalVol = heroMetrics.volume24hUsd;
   btcDom = heroMetrics.btcDominancePct;
   ethDom = heroMetrics.ethDominancePct;
+
+  // #region agent log
+  agentDebugNdjson({
+    hypothesisId: "H1",
+    location: "build-home-dashboard.ts:post-hero-fill",
+    message: "hero pipeline snapshot",
+    data: {
+      summaryStatus: summaryRes.status,
+      enteredCgBundle,
+      vkLen: vk.length,
+      cgCoinsRawLen: cgCoinsRaw.length,
+      usedCgListForHero,
+      heroFillCoinsLen: heroFillCoins.length,
+      normalizedHeroFillLen: dashboardMarketCoins(heroFillCoins).length,
+      heroMetricsSnapshot: { ...heroMetrics },
+    },
+  });
+  // #endregion
 
   const sent = sentimentFromCoins(vk);
 

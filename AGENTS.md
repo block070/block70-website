@@ -45,6 +45,8 @@ Backend-only changes may use the API’s usual tests/lint if present; align with
 
 ## Orchestration (Paperclip-class) — evaluation, not default
 
+**Trial checklist (optional):** [docs/operations/orchestration-eval.md](docs/operations/orchestration-eval.md).
+
 **When it helps:** Longer non-code pipelines (research → draft → review → publish), explicit role names, reporting lines, per-role budgets, or human approvals **outside** the IDE.
 
 **When Cursor alone is enough:** Most code changes in this repo; use rules + scoped tasks + verification scripts + merge discipline.
