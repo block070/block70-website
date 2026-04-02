@@ -1,0 +1,16 @@
+---
+description: After apps/web dashboard or data-path changes, run verify scripts and build
+globs: apps/web/**/*
+alwaysApply: false
+---
+
+# Web change verification
+
+When edits materially affect **`apps/web`** dashboards, data fetching, or market routes (e.g. `/market`), run from **`apps/web`**:
+
+1. `npm run verify:home` — if home dashboard behavior may be affected.
+2. `npm run verify:macro` — if macro/market dashboard behavior may be affected.
+3. `npm run lint`
+4. `npm run build` before considering the change merge-ready.
+
+For **copy-only** or trivial styling with no data logic, lint alone may suffice; use judgment. Full detail: root **`AGENTS.md`**.

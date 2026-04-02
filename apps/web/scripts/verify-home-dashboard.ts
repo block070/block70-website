@@ -15,11 +15,13 @@ async function main() {
     );
   }
   if (cg.global?.total_market_cap_usd == null && cg.global?.total_volume_usd == null) {
-    throw new Error("CoinGecko /global returned no mcap/volume — homepage hero cannot populate from fallback.");
+    console.warn(
+      "[verify] CoinGecko /global has no mcap/volume — hero may still derive from /coins/markets.",
+    );
   }
   console.log(
     "[verify] CoinGecko OK:",
-    "mcap",
+    "global",
     cg.global?.total_market_cap_usd != null ? "yes" : "no",
     "coins",
     cg.coins.length,

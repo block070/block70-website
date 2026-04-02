@@ -19,9 +19,23 @@ logger = logging.getLogger(__name__)
 COINGECKO_API_BASE = os.getenv("COINGECKO_API_BASE", "https://api.coingecko.com/api/v3")
 
 
+def _coingecko_headers() -> Dict[str, str]:
+    headers: Dict[str, str] = {
+        "Accept": "application/json",
+        "User-Agent": "Block70/1.0 (https://block70.com)",
+    }
+    key = (os.getenv("COINGECKO_API_KEY") or "").strip()
+    if key:
+        if "pro-api.coingecko.com" in COINGECKO_API_BASE:
+            headers["x-cg-pro-api-key"] = key
+        else:
+            headers["x-cg-demo-api-key"] = key
+    return headers
+
+
 def _get(path: str, params: Optional[Dict[str, Any]] = None) -> Any:
     url = f"{COINGECKO_API_BASE}{path}"
-    resp = requests.get(url, params=params, timeout=10)
+    resp = requests.get(url, params=params, timeout=10, headers=_coingecko_headers())
     resp.raise_for_status()
     return resp.json()
 

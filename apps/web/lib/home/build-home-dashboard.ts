@@ -175,6 +175,60 @@ function dashboardMarketCoins(coins: MarketCoin[]): MarketCoin[] {
   return coins.map(normalizeDashboardCoin).filter((x): x is MarketCoin => x != null);
 }
 
+type HeroMetricsMutable = {
+  totalMarketCapUsd: number | null;
+  volume24hUsd: number | null;
+  btcDominancePct: number | null;
+  ethDominancePct: number | null;
+};
+
+/** BTC/ETH rows for dominance when the scanner slice omits majors or uses odd symbols. */
+function findBtcEthForDominance(list: MarketCoin[]): {
+  btc: MarketCoin | undefined;
+  eth: MarketCoin | undefined;
+} {
+  const norm = dashboardMarketCoins(list);
+  const btc =
+    norm.find((c) => (c.symbol || "").toUpperCase() === "BTC") ||
+    norm.find((c) => (c.slug || "").toLowerCase() === "bitcoin");
+  const eth =
+    norm.find((c) => (c.symbol || "").toUpperCase() === "ETH") ||
+    norm.find((c) => (c.slug || "").toLowerCase() === "ethereum");
+  return { btc, eth };
+}
+
+/**
+ * Derive hero snapshot from a cap-weighted list when /global (or FastAPI) omits totals.
+ * Uses the CoinGecko top-N list for fills even if the heatmap vk is a curated scanner slice.
+ */
+function fillHeroMetricsFromCoinUniverse(rawCoins: MarketCoin[], hero: HeroMetricsMutable): void {
+  const list = dashboardMarketCoins(rawCoins);
+  if (!list.length) return;
+
+  const mSum = list.reduce((s, c) => s + Math.max(0, c.market_cap ?? 0), 0);
+  const vSum = list.reduce((s, c) => s + Math.max(0, c.volume ?? 0), 0);
+
+  if (hero.totalMarketCapUsd == null && mSum > 0) {
+    hero.totalMarketCapUsd = mSum;
+  }
+  if (hero.volume24hUsd == null && vSum > 0) {
+    hero.volume24hUsd = vSum;
+  }
+
+  const { btc, eth } = findBtcEthForDominance(list);
+  const denom = mSum > 0 ? mSum : 0;
+  if (denom <= 0) return;
+
+  if (hero.btcDominancePct == null && btc != null && (btc.market_cap ?? 0) > 0) {
+    const p = ((btc.market_cap ?? 0) / denom) * 100;
+    if (Number.isFinite(p)) hero.btcDominancePct = p;
+  }
+  if (hero.ethDominancePct == null && eth != null && (eth.market_cap ?? 0) > 0) {
+    const p = ((eth.market_cap ?? 0) / denom) * 100;
+    if (Number.isFinite(p)) hero.ethDominancePct = p;
+  }
+}
+
 function sentimentFromCoins(coins: MarketCoin[]): {
   label: "bullish" | "bearish" | "neutral";
   score: number;
@@ -926,10 +980,10 @@ export async function buildHomeDashboard(): Promise<HomeDashboardPayload> {
     marketAsOf = s.as_of;
     marketSource = s.source;
     const g = s.global;
-    globalMcap = g?.total_market_cap_usd ?? null;
-    globalVol = g?.total_volume_usd ?? null;
-    btcDom = g?.btc_dominance_pct ?? null;
-    ethDom = g?.eth_dominance_pct ?? null;
+    globalMcap = toFiniteNumber(g?.total_market_cap_usd);
+    globalVol = toFiniteNumber(g?.total_volume_usd);
+    btcDom = toFiniteNumber(g?.btc_dominance_pct);
+    ethDom = toFiniteNumber(g?.eth_dominance_pct);
   }
 
   let vk: MarketCoin[] = [];
@@ -952,6 +1006,8 @@ export async function buildHomeDashboard(): Promise<HomeDashboardPayload> {
   }
 
   let marketSourceNote = marketSource;
+  /** Raw CoinGecko /coins/markets page when we fetched the home bundle — use for hero fills even if vk is a different slice. */
+  let cgCoinsRaw: MarketCoin[] = [];
   if (
     globalMcap == null ||
     globalVol == null ||
@@ -964,22 +1020,50 @@ export async function buildHomeDashboard(): Promise<HomeDashboardPayload> {
     marketSourceNote = tag;
     const g = cg.global;
     if (g) {
-      if (globalMcap == null && g.total_market_cap_usd != null) globalMcap = g.total_market_cap_usd;
-      if (globalVol == null && g.total_volume_usd != null) globalVol = g.total_volume_usd;
-      if (btcDom == null && g.btc_dominance_pct != null) btcDom = g.btc_dominance_pct;
-      if (ethDom == null && g.eth_dominance_pct != null) ethDom = g.eth_dominance_pct;
+      if (globalMcap == null) {
+        const v = toFiniteNumber(g.total_market_cap_usd);
+        if (v != null) globalMcap = v;
+      }
+      if (globalVol == null) {
+        const v = toFiniteNumber(g.total_volume_usd);
+        if (v != null) globalVol = v;
+      }
+      if (btcDom == null) {
+        const v = toFiniteNumber(g.btc_dominance_pct);
+        if (v != null) btcDom = v;
+      }
+      if (ethDom == null) {
+        const v = toFiniteNumber(g.eth_dominance_pct);
+        if (v != null) ethDom = v;
+      }
     }
     if (!vk.length && cg.coins.length) vk = dashboardMarketCoins(cg.coins);
+    if (cg.coins.length) cgCoinsRaw = cg.coins;
   }
 
-  if (btcDom == null && vk.length) {
-    const btc = vk.find((c) => (c.symbol || "").toUpperCase() === "BTC");
-    const eth = vk.find((c) => (c.symbol || "").toUpperCase() === "ETH");
-    const sum = vk.reduce((s, c) => s + (c.market_cap ?? 0), 0);
-    const sc = sum > 0 ? sum : 1;
-    if (btc?.market_cap != null) btcDom = (btc.market_cap / sc) * 100;
-    if (eth?.market_cap != null) ethDom = (eth.market_cap / sc) * 100;
+  const heroMetrics: HeroMetricsMutable = {
+    totalMarketCapUsd: globalMcap,
+    volume24hUsd: globalVol,
+    btcDominancePct: btcDom,
+    ethDominancePct: ethDom,
+  };
+  const usedCgListForHero = cgCoinsRaw.length > 0;
+  const heroFillCoins = usedCgListForHero ? cgCoinsRaw : vk;
+  fillHeroMetricsFromCoinUniverse(heroFillCoins, heroMetrics);
+  if (
+    usedCgListForHero &&
+    vk.length &&
+    (heroMetrics.totalMarketCapUsd == null ||
+      heroMetrics.volume24hUsd == null ||
+      heroMetrics.btcDominancePct == null ||
+      heroMetrics.ethDominancePct == null)
+  ) {
+    fillHeroMetricsFromCoinUniverse(vk, heroMetrics);
   }
+  globalMcap = heroMetrics.totalMarketCapUsd;
+  globalVol = heroMetrics.volume24hUsd;
+  btcDom = heroMetrics.btcDominancePct;
+  ethDom = heroMetrics.ethDominancePct;
 
   const sent = sentimentFromCoins(vk);
 
