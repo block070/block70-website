@@ -13,6 +13,10 @@ import {
 import { appendFileSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 
+import { getBackendApiBase, hostOf } from "../backend-api-base";
+
+export { getBackendApiBase, hostOf };
+
 const FETCH_MS = 25_000;
 
 export type BackendGetResult = {
@@ -240,91 +244,6 @@ function narrDbg(
   }).catch(() => {});
 }
 // #endregion
-
-function hostOf(urlish: string): string | null {
-  const s = urlish.trim();
-  if (!s) return null;
-  try {
-    const u = s.includes("://") ? new URL(s) : new URL(`https://${s}`);
-    return u.hostname.toLowerCase();
-  } catch {
-    return null;
-  }
-}
-
-/** Public hostname; TLS must include this in SAN. If Node reports cert/hostname mismatch, use API_SERVER_URL or NARRATIVES_HTTP_FALLBACK_BASE. */
-/** Production HTTPS origin for FastAPI when TLS is valid for api.block70.com. */
-const BLOCK70_PROD_API = "https://api.block70.com";
-
-/**
- * In development, call the live Next route on www (cert includes www SAN). Production
- * then uses API_SERVER_URL to reach Python, avoiding local TLS failure on api.block70.com.
- */
-const BLOCK70_DEV_RELAY_ORIGIN = "https://www.block70.com";
-
-/**
- * When no explicit API base env vars are set, infer the public FastAPI origin from the
- * deployed site URL (Block70 production only). Avoids an empty narratives dashboard when
- * `API_SERVER_URL` was omitted but `NEXT_PUBLIC_SITE_URL` points at block70.com.
- */
-function inferredApiBaseFromSiteUrl(): string {
-  for (const env of [
-    process.env.NEXT_PUBLIC_SITE_URL,
-    process.env.SITEMAP_BASE_URL,
-  ]) {
-    const h = hostOf(env?.replace(/\/$/, "") ?? "");
-    if (h === "block70.com" || h === "www.block70.com") {
-      return process.env.NODE_ENV === "development"
-        ? BLOCK70_DEV_RELAY_ORIGIN
-        : BLOCK70_PROD_API;
-    }
-  }
-  return "";
-}
-
-/**
- * Backend base for FastAPI only. Avoid using the Next marketing host here — it causes
- * recursive / wrong fetches when NEXT_PUBLIC_API_BASE_URL is mis-set to the web origin.
- */
-export function getBackendApiBase(): string {
-  const server = process.env.API_SERVER_URL?.replace(/\/$/, "") ?? "";
-  if (server) return server;
-
-  const pub = process.env.NEXT_PUBLIC_API_BASE_URL?.replace(/\/$/, "") ?? "";
-  if (!pub) {
-    const fromSite = inferredApiBaseFromSiteUrl();
-    if (fromSite) return fromSite;
-    if (process.env.NODE_ENV === "development") {
-      console.warn(
-        "[resolve-narratives] No API_SERVER_URL or NEXT_PUBLIC_API_BASE_URL; using www.block70.com relay (avoids broken api.block70.com TLS in dev). For direct FastAPI use API_SERVER_URL.",
-      );
-      return BLOCK70_DEV_RELAY_ORIGIN;
-    }
-    return "";
-  }
-
-  const pubHost = hostOf(pub);
-  if (!pubHost) return pub;
-
-  const candidates: string[] = [];
-  if (process.env.NEXT_PUBLIC_SITE_URL)
-    candidates.push(process.env.NEXT_PUBLIC_SITE_URL);
-  if (process.env.SITEMAP_BASE_URL) candidates.push(process.env.SITEMAP_BASE_URL);
-  if (process.env.VERCEL_URL)
-    candidates.push(`https://${process.env.VERCEL_URL}`);
-
-  for (const c of candidates) {
-    const h = hostOf(c.replace(/\/$/, ""));
-    if (h && h === pubHost) {
-      console.warn(
-        "[resolve-narratives] NEXT_PUBLIC_API_BASE_URL hostname matches site URL; refusing it as API base. Set API_SERVER_URL (or NARRATIVES_HTTP_FALLBACK_BASE for plain HTTP) to your FastAPI origin.",
-      );
-      return "";
-    }
-  }
-
-  return pub;
-}
 
 export type NarrativesIntelligenceMeta = {
   source:

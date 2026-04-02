@@ -2,12 +2,50 @@
  * Sanity-checks homepage market data without starting Next.
  * Run from apps/web: `npx tsx scripts/verify-home-dashboard.ts`
  */
+import { getBackendApiBase, hostOf } from "../lib/backend-api-base";
 import { buildHomeDashboard } from "../lib/home/build-home-dashboard";
 import { fetchCoingeckoHomeMarketBundle } from "../lib/market/coingecko-home-fallback";
 
 const DEMO_SOL_PRICE = 142.5;
 
+function assertApiBaseInferenceContract(): void {
+  if (hostOf("https://www.block70.com") !== "www.block70.com") {
+    throw new Error("[verify] hostOf(block70) regression");
+  }
+  const snap: Record<string, string | undefined> = {
+    NODE_ENV: process.env.NODE_ENV,
+    NEXT_PUBLIC_SITE_URL: process.env.NEXT_PUBLIC_SITE_URL,
+    API_SERVER_URL: process.env.API_SERVER_URL,
+    NEXT_PUBLIC_API_BASE_URL: process.env.NEXT_PUBLIC_API_BASE_URL,
+    VERCEL_URL: process.env.VERCEL_URL,
+  };
+  try {
+    delete process.env.API_SERVER_URL;
+    delete process.env.NEXT_PUBLIC_API_BASE_URL;
+    delete process.env.VERCEL_URL;
+    Object.assign(process.env, {
+      NODE_ENV: "production",
+      NEXT_PUBLIC_SITE_URL: "https://block70.com",
+    });
+    const b = getBackendApiBase();
+    if (b !== "https://api.block70.com") {
+      throw new Error(
+        `[verify] Expected inferred API https://api.block70.com (server fetchJson must use this), got "${b}"`,
+      );
+    }
+    console.log("[verify] Inferred production API base OK:", b);
+  } finally {
+    for (const k of Object.keys(snap)) {
+      const v = snap[k];
+      if (v === undefined) delete process.env[k];
+      else process.env[k] = v;
+    }
+  }
+}
+
 async function main() {
+  assertApiBaseInferenceContract();
+
   const cg = await fetchCoingeckoHomeMarketBundle(25);
   if (!cg.coins.length) {
     throw new Error(

@@ -13,6 +13,7 @@ import type {
   WalletLeaderboardEntry,
 } from "./types";
 import { getToken } from "./auth";
+import { getBackendApiBase } from "./backend-api-base";
 import { fetchRssDirectFallback } from "./news/rss-direct-fallback";
 import { isPaidBlock70Plan } from "./plan-tier";
 
@@ -47,17 +48,21 @@ export const API_BASE_URL =
     ? process.env.API_SERVER_URL || process.env.NEXT_PUBLIC_API_BASE_URL || ""
     : process.env.NEXT_PUBLIC_API_BASE_URL || "";
 
-/** Browser: same-origin `/api/v1/...` (Next proxy). Server: direct FastAPI URL. */
+/** Browser: same-origin `/api/v1/...` (Next proxy). Server: FastAPI via getBackendApiBase (not Vercel host). */
 function v1RequestUrl(path: string): string {
   const p = path.startsWith("/") ? path : `/${path}`;
   if (typeof window !== "undefined") {
     return p;
   }
+  const backend = getBackendApiBase().replace(/\/$/, "");
+  if (backend) return `${backend}${p}`;
   const base = (process.env.API_SERVER_URL || process.env.NEXT_PUBLIC_API_BASE_URL || "").replace(
     /\/$/,
     "",
   );
-  return base ? `${base}${p}` : p;
+  if (base) return `${base}${p}`;
+  const origin = getApiBaseUrl();
+  return origin ? `${origin}${p}` : p;
 }
 
 async function fetchV1Json<T>(path: string, init?: RequestInit): Promise<T> {
@@ -78,8 +83,14 @@ async function fetchV1Json<T>(path: string, init?: RequestInit): Promise<T> {
 }
 
 export async function fetchJson<T>(path: string, init?: RequestInit): Promise<T> {
-  const base = getApiBaseUrl();
-  const url = base ? `${base}${path.startsWith("/") ? "" : "/"}${path}` : path;
+  const p = path.startsWith("/") ? path : `/${path}`;
+  let url: string;
+  if (typeof window !== "undefined") {
+    url = p;
+  } else {
+    const backend = getBackendApiBase().replace(/\/$/, "");
+    url = backend ? `${backend}${p}` : `${getApiBaseUrl()}${p}`;
+  }
   const res = await fetch(url, {
     ...init,
     headers: {

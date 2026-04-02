@@ -2,7 +2,6 @@
 
 import dynamic from "next/dynamic";
 import Link from "next/link";
-import { useEffect } from "react";
 import useSWR from "swr";
 import { clsx } from "clsx";
 import { formatChangePct, formatCompactUsd } from "@/lib/format";
@@ -26,44 +25,10 @@ const MarketHeatmap = dynamic(
   },
 );
 
-// #region agent log
-const _AGENT_INGEST = "http://127.0.0.1:7428/ingest/b2bee36a-3f9b-42a9-b6fb-0dc54bacc543";
-function agentClientDebug(payload: Record<string, unknown>): void {
-  fetch(_AGENT_INGEST, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "X-Debug-Session-Id": "3a0a47",
-    },
-    body: JSON.stringify({ sessionId: "3a0a47", timestamp: Date.now(), ...payload }),
-  }).catch(() => {});
-}
-// #endregion
-
 const fetcher = async (url: string) => {
   const r = await fetch(url);
-  let j: HomeDashboardPayload | null = null;
-  try {
-    if (r.ok) j = (await r.json()) as HomeDashboardPayload;
-  } catch {
-    j = null;
-  }
-  // #region agent log
-  agentClientDebug({
-    hypothesisId: "H2",
-    location: "intelligence-dashboard.tsx:fetcher",
-    message: "dashboard fetch result",
-    data: {
-      url,
-      ok: r.ok,
-      status: r.status,
-      hasJson: j != null,
-      hero: j?.hero ?? null,
-    },
-  });
-  // #endregion
   if (!r.ok) throw new Error("Dashboard fetch failed");
-  return j as HomeDashboardPayload;
+  return r.json() as Promise<HomeDashboardPayload>;
 };
 
 function SentimentBadge({ sentiment, score }: { sentiment: string; score: number }) {
@@ -184,43 +149,12 @@ type IntelligenceDashboardProps = {
 export function IntelligenceDashboard({ initialData }: IntelligenceDashboardProps) {
   const { data, error, isLoading, isValidating } = useSWR("/api/home/dashboard", fetcher, {
     fallbackData: initialData,
-    /** Server already hydrated payload; avoid duplicate /api/home/dashboard on mount. */
-    revalidateOnMount: initialData == null,
+    /** Always revalidate on mount so a stale SSR payload (e.g. bad API base) refreshes quickly. */
+    revalidateOnMount: true,
     refreshInterval: 20_000,
     revalidateOnFocus: true,
     dedupingInterval: 10_000,
   });
-
-  useEffect(() => {
-    // #region agent log
-    agentClientDebug({
-      hypothesisId: "H4",
-      location: "intelligence-dashboard.tsx:initialData",
-      message: "SSR initialData hero",
-      data: {
-        hasInitial: initialData != null,
-        hero: initialData?.hero ?? null,
-      },
-    });
-    // #endregion
-  }, [initialData]);
-
-  useEffect(() => {
-    // #region agent log
-    agentClientDebug({
-      hypothesisId: "H3",
-      location: "intelligence-dashboard.tsx:swr",
-      message: "SWR snapshot",
-      data: {
-        hero: data?.hero ?? null,
-        isLoading,
-        isValidating,
-        err: error instanceof Error ? error.message : null,
-        revalidateOnMountDisabled: initialData != null,
-      },
-    });
-    // #endregion
-  }, [data, error, isLoading, isValidating, initialData]);
 
   const show = data;
   const bestOpp = show?.opportunities[0];
