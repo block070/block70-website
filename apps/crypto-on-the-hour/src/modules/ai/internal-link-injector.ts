@@ -1,7 +1,9 @@
 /**
  * Post-process SEO markdown: coin deep links, Related Coins, Latest signals blocks.
  * Slugs align with Block70 web (apps/web/lib/coin-symbol-slugs.ts).
+ * Fragment for “Latest signals” links follows PIPELINE_SLUG (default crypto-on-the-hour).
  */
+import { config } from "../../config.js";
 
 const SYMBOL_TO_SLUG: Record<string, string> = {
   BTC: "bitcoin",
@@ -145,7 +147,7 @@ export function buildLatestSignalsSection(symbols: string[]): string {
   const uniq = [...new Set(symbols.map((s) => s.toUpperCase()))].filter((s) => SYMBOL_TO_SLUG[s]);
   if (!uniq.length) return "";
 
-  const anchor = "#crypto-on-the-hour";
+  const anchor = `#${config.pipelineSlug}`;
 
   if (uniq.length === 1) {
     const sym = uniq[0]!;

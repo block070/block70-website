@@ -6,6 +6,7 @@ import { captureWorkerError, initSentry } from "../lib/sentry.js";
 import { createRedis } from "../queue/redis.js";
 import { getQueue, QUEUE_NAME } from "../queue/queues.js";
 import { runHourlyPipeline } from "../pipeline/hourly.runner.js";
+import { config } from "../config.js";
 import { HOURLY_JOB_NAME, registerHourlyRepeatableJob } from "../scheduler/hourly-schedule.js";
 
 initSentry("worker");
@@ -41,7 +42,7 @@ const worker = new Worker(
           error: msg,
         });
         captureWorkerError(e, { jobId: job.id, attempt });
-        void alertSlack(`Crypto On the Hour pipeline failed (attempt ${attempt}/${maxAttempts})`, {
+        void alertSlack(`${config.pipelineDisplayName} pipeline failed (attempt ${attempt}/${maxAttempts})`, {
           error: msg,
           jobId: String(job.id ?? ""),
         });

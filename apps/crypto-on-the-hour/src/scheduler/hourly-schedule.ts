@@ -12,7 +12,7 @@ export const HOURLY_CRON_PATTERN = "0 * * * *";
 export const HOURLY_JOB_NAME = "hourly";
 
 /** Stable id so repeat config does not duplicate across restarts. */
-export const HOURLY_REPEAT_JOB_ID = "repeat-hourly-crypto-on-the-hour";
+export const HOURLY_REPEAT_JOB_ID = `repeat-hourly-${config.pipelineSlug}`;
 
 export async function registerHourlyRepeatableJob(queue: Queue): Promise<void> {
   const pattern = config.pipelineCronPattern.trim() || HOURLY_CRON_PATTERN;

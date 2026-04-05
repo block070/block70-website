@@ -2,6 +2,7 @@
  * Optional observability — set SENTRY_DSN on API and worker processes.
  */
 import * as Sentry from "@sentry/node";
+import { config } from "../config.js";
 
 export function initSentry(service: "api" | "worker"): void {
   const dsn = process.env.SENTRY_DSN?.trim();
@@ -11,7 +12,7 @@ export function initSentry(service: "api" | "worker"): void {
     dsn,
     environment: process.env.NODE_ENV ?? "development",
     tracesSampleRate: 0.05,
-    initialScope: { tags: { service: `crypto-on-the-hour-${service}` } },
+    initialScope: { tags: { service: `${config.pipelineSlug}-${service}` } },
   });
 }
 

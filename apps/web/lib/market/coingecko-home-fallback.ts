@@ -97,17 +97,41 @@ export async function fetchCoingeckoMarketsTop(perPage = 100): Promise<MarketCoi
       return rows.map((r) => {
         const id = typeof r.id === "string" ? r.id : "";
         const sym = typeof r.symbol === "string" ? r.symbol.toUpperCase() : "";
-        const price = r.current_price;
+        const priceRaw = r.current_price;
+        const price =
+          typeof priceRaw === "number" && Number.isFinite(priceRaw)
+            ? priceRaw
+            : Number(priceRaw as string | number);
         const ch24 = r.price_change_percentage_24h;
         const ch7 = r.price_change_percentage_7d_in_currency ?? r.price_change_percentage_7d;
+        const mcapRaw = r.market_cap;
+        const volRaw = r.total_volume;
+        const market_cap =
+          typeof mcapRaw === "number" && Number.isFinite(mcapRaw)
+            ? mcapRaw
+            : Number(mcapRaw as string | number);
+        const volume =
+          typeof volRaw === "number" && Number.isFinite(volRaw)
+            ? volRaw
+            : Number(volRaw as string | number);
         return {
           name: typeof r.name === "string" ? r.name : sym || id,
           symbol: sym,
-          price: typeof price === "number" && Number.isFinite(price) ? price : null,
-          change_24h: typeof ch24 === "number" && Number.isFinite(ch24) ? ch24 : null,
-          change_7d: typeof ch7 === "number" && Number.isFinite(ch7) ? ch7 : null,
-          market_cap: typeof r.market_cap === "number" ? r.market_cap : null,
-          volume: typeof r.total_volume === "number" ? r.total_volume : null,
+          price: Number.isFinite(price) && price > 0 ? price : null,
+          change_24h:
+            typeof ch24 === "number" && Number.isFinite(ch24)
+              ? ch24
+              : Number.isFinite(Number(ch24))
+                ? Number(ch24)
+                : null,
+          change_7d:
+            typeof ch7 === "number" && Number.isFinite(ch7)
+              ? ch7
+              : Number.isFinite(Number(ch7))
+                ? Number(ch7)
+                : null,
+          market_cap: Number.isFinite(market_cap) && market_cap >= 0 ? market_cap : null,
+          volume: Number.isFinite(volume) && volume >= 0 ? volume : null,
           slug: id,
           logo_url: typeof r.image === "string" ? r.image : null,
         } satisfies MarketCoin;

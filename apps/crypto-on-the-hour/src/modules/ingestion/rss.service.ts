@@ -3,14 +3,18 @@
  */
 import crypto from "node:crypto";
 import Parser from "rss-parser";
+import { config } from "../../config.js";
 import { query } from "../../db/pool.js";
 import type { RawArticle, RssSource } from "../../types/domain.js";
 import type { IngestionSource, IngestedItem } from "./ingestion-source.js";
+import { syncRssFeedsFromEnvIfConfigured } from "./rss-feeds-env-sync.js";
 
-const parser = new Parser({
-  timeout: 20_000,
-  headers: { "User-Agent": "Block70-CryptoOnTheHour/1.0" },
-});
+function createRssParser(): Parser {
+  return new Parser({
+    timeout: 20_000,
+    headers: { "User-Agent": config.rssUserAgent },
+  });
+}
 
 export type { IngestionSource };
 
@@ -55,7 +59,7 @@ export async function upsertRawArticle(
 export class RssFeedIngestor implements IngestionSource {
   constructor(
     private source: RssSource,
-    private parserInstance: Parser = parser
+    private parserInstance: Parser = createRssParser()
   ) {}
 
   get name(): string {
@@ -81,11 +85,13 @@ export class RssFeedIngestor implements IngestionSource {
 
 /** Ingest all active RSS feeds and return counts. */
 export async function ingestAllRssFeeds(): Promise<{ fetched: number; inserted: number }> {
+  await syncRssFeedsFromEnvIfConfigured();
   const sources = await listActiveRssSources();
+  const rssParser = createRssParser();
   let fetched = 0;
   let inserted = 0;
   for (const src of sources) {
-    const ingestor = new RssFeedIngestor(src);
+    const ingestor = new RssFeedIngestor(src, rssParser);
     const items = await ingestor.fetchArticles();
     fetched += items.length;
     for (const it of items) {

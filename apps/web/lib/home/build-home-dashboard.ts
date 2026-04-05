@@ -25,7 +25,10 @@ import {
   sentimentForNews,
 } from "@/lib/news/enrich";
 import { withTimeout } from "@/lib/with-timeout";
-import { fetchCoingeckoHomeMarketBundle } from "@/lib/market/coingecko-home-fallback";
+import {
+  fetchCoingeckoHomeMarketBundle,
+  type CoingeckoGlobalNumbers,
+} from "@/lib/market/coingecko-home-fallback";
 import type { Opportunity, SignalDto, WalletLeaderboardEntry } from "@/lib/types";
 
 /**
@@ -35,6 +38,8 @@ export const HOME_DASHBOARD_CACHE_SEC =
   process.env.NEXT_PUBLIC_DEMO_MODE === "true" ? 0 : 60;
 const FETCH_MS = 8_000;
 const COINS_PAGE_FETCH_MS = 12_000;
+/** Same as macro dashboard — CoinGecko can be slower than FastAPI. */
+const CG_FETCH_MS = 20_000;
 
 export type HeroNarrativeChip = {
   id: string;
@@ -148,22 +153,36 @@ function toFiniteNumber(v: unknown): number | null {
 }
 
 /**
- * Normalize API/DB rows for dashboard use: missing 24h% or volume no longer drops the coin
- * (avoids empty market → demo prices when DB snapshot omits change_24h).
+ * Normalize API/DB rows for dashboard use — same numeric coercion as macro dashboard
+ * so string decimals and CG edge shapes do not empty the tape / hero totals.
  */
 function normalizeDashboardCoin(c: MarketCoin): MarketCoin | null {
-  const price = toFiniteNumber(c.price);
-  if (price == null || price <= 0) return null;
-  const rawMcap = toFiniteNumber(c.market_cap);
-  const rawVol = toFiniteNumber(c.volume);
-  const market_cap = rawMcap != null && rawMcap >= 0 ? rawMcap : 0;
-  const volume = rawVol != null && rawVol >= 0 ? rawVol : 0;
-  const chRaw = toFiniteNumber(c.change_24h);
-  const change_24h = chRaw ?? 0;
-  const ch7 = toFiniteNumber(c.change_7d);
+  const price =
+    typeof c.price === "number" && Number.isFinite(c.price) ? c.price : Number(c.price);
+  const rawMcap =
+    typeof c.market_cap === "number" && Number.isFinite(c.market_cap)
+      ? c.market_cap
+      : Number(c.market_cap);
+  const rawVol =
+    typeof c.volume === "number" && Number.isFinite(c.volume) ? c.volume : Number(c.volume);
+  const market_cap =
+    rawMcap != null && Number.isFinite(rawMcap) && rawMcap >= 0 ? rawMcap : 0;
+  const volume = rawVol != null && Number.isFinite(rawVol) && rawVol >= 0 ? rawVol : 0;
+  const priceOk = price != null && Number.isFinite(price) && price > 0;
+  /** Keep rows with mcap/volume for hero totals and dominance when price is oddly null (API/CG quirks). */
+  if (!priceOk && market_cap <= 0 && volume <= 0) return null;
+  const chRaw =
+    typeof c.change_24h === "number" && Number.isFinite(c.change_24h)
+      ? c.change_24h
+      : Number(c.change_24h);
+  const change_24h = chRaw != null && Number.isFinite(chRaw) ? chRaw : 0;
+  const ch7 =
+    typeof c.change_7d === "number" && Number.isFinite(c.change_7d)
+      ? c.change_7d
+      : Number(c.change_7d);
   return {
     ...c,
-    price,
+    price: priceOk ? price : null,
     market_cap,
     volume,
     change_24h,
@@ -953,6 +972,7 @@ export async function buildHomeDashboard(): Promise<HomeDashboardPayload> {
     categoriesRes,
     insightsRes,
     scannerRes,
+    cgBundleRes,
   ] = await Promise.allSettled([
     withTimeout(getMarketSummary(0), FETCH_MS),
     withTimeout(getMarketCoins({ limit: 120, page: 1 }), FETCH_MS),
@@ -964,6 +984,8 @@ export async function buildHomeDashboard(): Promise<HomeDashboardPayload> {
     withTimeout(getCategoryDirectory({ limit: 40, order: "market_cap" }), FETCH_MS),
     withTimeout(getInsightsTrending(), FETCH_MS),
     withTimeout(loadCoinsPageData({ limit: 120, offset: 0 }), COINS_PAGE_FETCH_MS),
+    /** Always in parallel (same as `/market` macro build) — conditional fetch was too easy to starve hero. */
+    withTimeout(fetchCoingeckoHomeMarketBundle(100), CG_FETCH_MS),
   ]);
 
   let marketCoins: MarketCoin[] = [];
@@ -1006,40 +1028,51 @@ export async function buildHomeDashboard(): Promise<HomeDashboardPayload> {
   }
 
   let marketSourceNote = marketSource;
-  /** Raw CoinGecko /coins/markets page when we fetched the home bundle — use for hero fills even if vk is a different slice. */
+  /** CoinGecko bundle loaded in parallel with summary (aligned with `buildMacroDashboard`). */
   let cgCoinsRaw: MarketCoin[] = [];
-  if (
-    globalMcap == null ||
-    globalVol == null ||
-    btcDom == null ||
-    ethDom == null ||
-    !vk.length
-  ) {
-    const cg = await fetchCoingeckoHomeMarketBundle(100);
-    const tag = marketSourceNote ? `${marketSourceNote}+coingecko` : "coingecko-direct";
-    marketSourceNote = tag;
-    const g = cg.global;
-    if (g) {
-      if (globalMcap == null) {
-        const v = toFiniteNumber(g.total_market_cap_usd);
-        if (v != null) globalMcap = v;
-      }
-      if (globalVol == null) {
-        const v = toFiniteNumber(g.total_volume_usd);
-        if (v != null) globalVol = v;
-      }
-      if (btcDom == null) {
-        const v = toFiniteNumber(g.btc_dominance_pct);
-        if (v != null) btcDom = v;
-      }
-      if (ethDom == null) {
-        const v = toFiniteNumber(g.eth_dominance_pct);
-        if (v != null) ethDom = v;
+  const cg =
+    cgBundleRes.status === "fulfilled" && cgBundleRes.value
+      ? cgBundleRes.value
+      : { global: null as CoingeckoGlobalNumbers | null, coins: [] as MarketCoin[] };
+  if (cg.coins.length) cgCoinsRaw = cg.coins;
+
+  const gn = cg.global;
+  let usedCoingeckoGlobal = false;
+  if (gn) {
+    if (globalMcap == null || globalMcap <= 0) {
+      const v = toFiniteNumber(gn.total_market_cap_usd);
+      if (v != null && v > 0) {
+        globalMcap = v;
+        usedCoingeckoGlobal = true;
       }
     }
-    if (!vk.length && cg.coins.length) vk = dashboardMarketCoins(cg.coins);
-    if (cg.coins.length) cgCoinsRaw = cg.coins;
+    if (globalVol == null || globalVol <= 0) {
+      const v = toFiniteNumber(gn.total_volume_usd);
+      if (v != null && v > 0) {
+        globalVol = v;
+        usedCoingeckoGlobal = true;
+      }
+    }
+    if (btcDom == null && gn.btc_dominance_pct != null) {
+      const v = toFiniteNumber(gn.btc_dominance_pct);
+      if (v != null) {
+        btcDom = v;
+        usedCoingeckoGlobal = true;
+      }
+    }
+    if (ethDom == null && gn.eth_dominance_pct != null) {
+      const v = toFiniteNumber(gn.eth_dominance_pct);
+      if (v != null) {
+        ethDom = v;
+        usedCoingeckoGlobal = true;
+      }
+    }
   }
+  if (usedCoingeckoGlobal) {
+    marketSourceNote = marketSourceNote ? `${marketSourceNote}+coingecko` : "coingecko-direct";
+  }
+
+  if (!vk.length && cgCoinsRaw.length) vk = dashboardMarketCoins(cgCoinsRaw);
 
   const heroMetrics: HeroMetricsMutable = {
     totalMarketCapUsd: globalMcap,
@@ -1064,6 +1097,30 @@ export async function buildHomeDashboard(): Promise<HomeDashboardPayload> {
   globalVol = heroMetrics.volume24hUsd;
   btcDom = heroMetrics.btcDominancePct;
   ethDom = heroMetrics.ethDominancePct;
+
+  /** Macro dashboard also derives dominance from the tape when globals are missing or zero. */
+  let btcPct = btcDom ?? 0;
+  let ethPct = ethDom ?? 0;
+  const domTape = dashboardMarketCoins(cgCoinsRaw.length ? cgCoinsRaw : vk);
+  if ((!btcPct || !ethPct) && domTape.length) {
+    const t = domTape.reduce((s, c) => s + (c.market_cap ?? 0), 0);
+    if (t > 0) {
+      const btcRow =
+        domTape.find((c) => (c.symbol || "").toUpperCase() === "BTC") ||
+        domTape.find((c) => (c.slug || "").toLowerCase() === "bitcoin");
+      const ethRow =
+        domTape.find((c) => (c.symbol || "").toUpperCase() === "ETH") ||
+        domTape.find((c) => (c.slug || "").toLowerCase() === "ethereum");
+      if (!btcPct && btcRow && (btcRow.market_cap ?? 0) > 0) {
+        btcPct = ((btcRow.market_cap ?? 0) / t) * 100;
+      }
+      if (!ethPct && ethRow && (ethRow.market_cap ?? 0) > 0) {
+        ethPct = ((ethRow.market_cap ?? 0) / t) * 100;
+      }
+    }
+  }
+  if (btcDom == null && btcPct > 0) btcDom = btcPct;
+  if (ethDom == null && ethPct > 0) ethDom = ethPct;
 
   const sent = sentimentFromCoins(vk);
 

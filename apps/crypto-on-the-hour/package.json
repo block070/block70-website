@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "build": "tsc",
+    "verify:pipeline": "npx tsx scripts/verify-pipeline-config.ts",
     "start": "node dist/index.js",
     "dev": "tsx watch src/index.ts",
     "worker": "tsx watch src/workers/index.ts",

@@ -65,6 +65,11 @@ export function getBackendApiBase(): string {
       console.warn(
         "[backend-api-base] NEXT_PUBLIC_API_BASE_URL hostname matches site URL; refusing it as API base. Set API_SERVER_URL to your FastAPI origin.",
       );
+      const inferred = inferredApiBaseFromSiteUrl();
+      if (inferred) return inferred;
+      if (pubHost === "www.block70.com" || pubHost === "block70.com") {
+        return BLOCK70_PROD_API;
+      }
       return "";
     }
   }

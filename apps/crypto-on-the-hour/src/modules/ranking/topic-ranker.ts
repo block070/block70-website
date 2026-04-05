@@ -4,26 +4,10 @@
 import { query } from "../../db/pool.js";
 import { config } from "../../config.js";
 
-const KEYWORDS = new Map<string, number>([
-  ["etf", 2],
-  ["sec", 2],
-  ["regulation", 1.5],
-  ["bitcoin", 1.2],
-  ["ethereum", 1.2],
-  ["hack", 2],
-  ["exploit", 2],
-  ["binance", 1.2],
-  ["coinbase", 1.2],
-  ["fed", 1.3],
-  ["rate", 1],
-  ["launch", 1],
-  ["mainnet", 1.2],
-]);
-
 function keywordBoost(headline: string): number {
   const h = headline.toLowerCase();
   let s = 0;
-  for (const [k, w] of KEYWORDS) if (h.includes(k)) s += w;
+  for (const [k, w] of config.topicRankKeywords) if (h.includes(k)) s += w;
   return s;
 }
 
