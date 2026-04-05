@@ -34,7 +34,7 @@ Run from **`apps/web`** after substantive frontend or dashboard changes, unless 
 
 | Command | Purpose |
 |--------|---------|
-| `npm run verify:home` | Home dashboard script (`scripts/verify-home-dashboard.ts`) |
+| `npm run verify:home` | Home dashboard script (`scripts/verify-home-dashboard.ts`); ops notes in [`docs/home-dashboard-reliability.md`](docs/home-dashboard-reliability.md) |
 | `npm run verify:macro` | Macro dashboard script (`scripts/verify-macro-dashboard.ts`) |
 | `npm run lint` | ESLint |
 | `npm run build` | Production build (`next build`) |

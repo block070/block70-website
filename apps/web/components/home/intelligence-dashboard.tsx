@@ -2,7 +2,7 @@
 
 import dynamic from "next/dynamic";
 import Link from "next/link";
-import { useEffect, useMemo } from "react";
+import { useMemo } from "react";
 import useSWR from "swr";
 import { clsx } from "clsx";
 import { formatChangePct, formatCompactUsd } from "@/lib/format";
@@ -178,29 +178,6 @@ export function IntelligenceDashboard({ initialData }: IntelligenceDashboardProp
 
   const show = useMemo(() => mergeHeroFromSsr(data, initialData), [data, initialData]);
 
-  // #region agent log
-  useEffect(() => {
-    if (!data || !initialData) return;
-    const droppedMcap =
-      data.hero.totalMarketCapUsd == null && initialData.hero.totalMarketCapUsd != null;
-    if (!droppedMcap) return;
-    fetch("http://127.0.0.1:7428/ingest/b2bee36a-3f9b-42a9-b6fb-0dc54bacc543", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "X-Debug-Session-Id": "3a0a47",
-      },
-      body: JSON.stringify({
-        sessionId: "3a0a47",
-        hypothesisId: "F",
-        location: "intelligence-dashboard.tsx:mergeHeroFromSsr",
-        message: "live SWR missing mcap; SSR had value (merge will backfill)",
-        timestamp: Date.now(),
-        runId: typeof window !== "undefined" ? "client" : "ssr",
-      }),
-    }).catch(() => {});
-  }, [data, initialData]);
-  // #endregion
   const bestOpp = show?.opportunities[0];
 
   return (
