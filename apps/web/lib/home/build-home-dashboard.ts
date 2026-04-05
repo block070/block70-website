@@ -26,10 +26,31 @@ import {
 } from "@/lib/news/enrich";
 import { withTimeout } from "@/lib/with-timeout";
 import {
+  fetchCoingeckoGlobal,
   fetchCoingeckoHomeMarketBundle,
+  fetchCoingeckoMarketsTop,
   type CoingeckoGlobalNumbers,
 } from "@/lib/market/coingecko-home-fallback";
 import type { Opportunity, SignalDto, WalletLeaderboardEntry } from "@/lib/types";
+import { getBackendApiBase } from "@/lib/backend-api-base";
+
+// #region agent log
+function agentLogHomeDash(data: Record<string, unknown>): void {
+  fetch("http://127.0.0.1:7428/ingest/b2bee36a-3f9b-42a9-b6fb-0dc54bacc543", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "X-Debug-Session-Id": "3a0a47",
+    },
+    body: JSON.stringify({
+      sessionId: "3a0a47",
+      timestamp: Date.now(),
+      runId: process.env.DEBUG_RUN_ID ?? "home-dash",
+      ...data,
+    }),
+  }).catch(() => {});
+}
+// #endregion
 
 /**
  * Advertised TTL for API/CDN caching (non-demo). Demo builds stay uncached (see getHomeDashboardPayload).
@@ -38,8 +59,8 @@ export const HOME_DASHBOARD_CACHE_SEC =
   process.env.NEXT_PUBLIC_DEMO_MODE === "true" ? 0 : 60;
 const FETCH_MS = 8_000;
 const COINS_PAGE_FETCH_MS = 12_000;
-/** Same as macro dashboard — CoinGecko can be slower than FastAPI. */
-const CG_FETCH_MS = 20_000;
+/** Same as macro dashboard — CoinGecko can be slower than FastAPI; sequential fallback also runs if bundle times out. */
+const CG_FETCH_MS = 32_000;
 
 export type HeroNarrativeChip = {
   id: string;
@@ -961,6 +982,32 @@ function mapMoverRow(c: MarketCoin): MoverRow {
 export async function buildHomeDashboard(): Promise<HomeDashboardPayload> {
   const generatedAt = new Date().toISOString();
 
+  const _bb = getBackendApiBase();
+  // #region agent log
+  agentLogHomeDash({
+    hypothesisId: "B",
+    location: "build-home-dashboard.ts:buildHomeDashboard:entry",
+    message: "backend API base for SSR fetches",
+    data: {
+      backendBaseEmpty: !_bb,
+      backendHost: _bb
+        ? (() => {
+            try {
+              return new URL(_bb).hostname;
+            } catch {
+              return "invalid-url";
+            }
+          })()
+        : null,
+      nodeEnv: process.env.NODE_ENV,
+      hasApiServerUrl: Boolean(process.env.API_SERVER_URL),
+      hasPublicApiBase: Boolean(process.env.NEXT_PUBLIC_API_BASE_URL),
+      vercelSha: process.env.VERCEL_GIT_COMMIT_SHA?.slice(0, 12) ?? null,
+      hypothesisA_buildMarker: "home-instr-v1",
+    },
+  });
+  // #endregion
+
   const [
     summaryRes,
     marketListRes,
@@ -987,6 +1034,49 @@ export async function buildHomeDashboard(): Promise<HomeDashboardPayload> {
     /** Always in parallel (same as `/market` macro build) — conditional fetch was too easy to starve hero. */
     withTimeout(fetchCoingeckoHomeMarketBundle(100), CG_FETCH_MS),
   ]);
+
+  const summaryRejectedReason =
+    summaryRes.status === "rejected"
+      ? summaryRes.reason instanceof Error
+        ? summaryRes.reason.message.slice(0, 220)
+        : String(summaryRes.reason).slice(0, 220)
+      : null;
+  const cgRejectedReason =
+    cgBundleRes.status === "rejected"
+      ? cgBundleRes.reason instanceof Error
+        ? cgBundleRes.reason.message.slice(0, 220)
+        : String(cgBundleRes.reason).slice(0, 220)
+      : null;
+  const cgEarlyStats =
+    cgBundleRes.status === "fulfilled" && cgBundleRes.value
+      ? {
+          globalPresent: Boolean(cgBundleRes.value.global),
+          coinsRaw: cgBundleRes.value.coins.length,
+          globalMcap: cgBundleRes.value.global?.total_market_cap_usd ?? null,
+          globalVol: cgBundleRes.value.global?.total_volume_usd ?? null,
+        }
+      : { globalPresent: false, coinsRaw: 0, globalMcap: null, globalVol: null };
+  // #region agent log
+  agentLogHomeDash({
+    hypothesisId: "C",
+    location: "build-home-dashboard.ts:buildHomeDashboard:afterParallel",
+    message: "parallel fetch outcomes",
+    data: {
+      summaryStatus: summaryRes.status,
+      summaryRejectedReason,
+      cgStatus: cgBundleRes.status,
+      cgRejectedReason,
+      ...cgEarlyStats,
+      summaryGlobals:
+        summaryRes.status === "fulfilled" && summaryRes.value
+          ? {
+              m: summaryRes.value.global?.total_market_cap_usd,
+              v: summaryRes.value.global?.total_volume_usd,
+            }
+          : null,
+    },
+  });
+  // #endregion
 
   let marketCoins: MarketCoin[] = [];
   let marketAsOf: string | undefined;
@@ -1036,7 +1126,34 @@ export async function buildHomeDashboard(): Promise<HomeDashboardPayload> {
       : { global: null as CoingeckoGlobalNumbers | null, coins: [] as MarketCoin[] };
   if (cg.coins.length) cgCoinsRaw = cg.coins;
 
-  const gn = cg.global;
+  let cgGlobalEffective: CoingeckoGlobalNumbers | null = cg.global;
+  const cgBundleWeak =
+    cgBundleRes.status === "rejected" || (!cg.global && !cg.coins.length);
+  if (cgBundleWeak) {
+    // #region agent log
+    agentLogHomeDash({
+      hypothesisId: "C",
+      location: "build-home-dashboard.ts:buildHomeDashboard:cgSequentialRecovery",
+      message: "CoinGecko parallel bundle weak; trying sequential global+markets",
+      data: {
+        cgRejected: cgBundleRes.status === "rejected",
+        recoveryReason: cgBundleRes.status === "rejected" ? cgRejectedReason : "empty-global-and-coins",
+      },
+    });
+    // #endregion
+    try {
+      const [gRec, coinsRec] = await Promise.all([
+        fetchCoingeckoGlobal(),
+        fetchCoingeckoMarketsTop(100),
+      ]);
+      if (gRec) cgGlobalEffective = gRec;
+      if (!cgCoinsRaw.length && coinsRec.length) cgCoinsRaw = coinsRec;
+    } catch {
+      /* keep prior state */
+    }
+  }
+
+  const gn = cgGlobalEffective;
   let usedCoingeckoGlobal = false;
   if (gn) {
     if (globalMcap == null || globalMcap <= 0) {
@@ -1121,6 +1238,24 @@ export async function buildHomeDashboard(): Promise<HomeDashboardPayload> {
   }
   if (btcDom == null && btcPct > 0) btcDom = btcPct;
   if (ethDom == null && ethPct > 0) ethDom = ethPct;
+
+  // #region agent log
+  agentLogHomeDash({
+    hypothesisId: "E",
+    location: "build-home-dashboard.ts:buildHomeDashboard:heroFinal",
+    message: "hero metrics after pipeline",
+    data: {
+      globalMcap,
+      globalVol,
+      btcDom,
+      ethDom,
+      vkLen: vk.length,
+      cgCoinsRawLen: cgCoinsRaw.length,
+      normalizedCgLen: dashboardMarketCoins(cgCoinsRaw).length,
+      usedCoingeckoGlobal,
+    },
+  });
+  // #endregion
 
   const sent = sentimentFromCoins(vk);
 

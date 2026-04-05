@@ -2,6 +2,7 @@
 
 import dynamic from "next/dynamic";
 import Link from "next/link";
+import { useEffect, useMemo } from "react";
 import useSWR from "swr";
 import { clsx } from "clsx";
 import { formatChangePct, formatCompactUsd } from "@/lib/format";
@@ -30,6 +31,25 @@ const fetcher = async (url: string) => {
   if (!r.ok) throw new Error("Dashboard fetch failed");
   return r.json() as Promise<HomeDashboardPayload>;
 };
+
+/** SWR revalidation can return null hero fields while SSR succeeded — keep SSR numbers as fallback. */
+function mergeHeroFromSsr(
+  live: HomeDashboardPayload | undefined,
+  ssr: HomeDashboardPayload | undefined,
+): HomeDashboardPayload | undefined {
+  if (!live) return ssr;
+  if (!ssr) return live;
+  return {
+    ...live,
+    hero: {
+      ...live.hero,
+      totalMarketCapUsd: live.hero.totalMarketCapUsd ?? ssr.hero.totalMarketCapUsd,
+      volume24hUsd: live.hero.volume24hUsd ?? ssr.hero.volume24hUsd,
+      btcDominancePct: live.hero.btcDominancePct ?? ssr.hero.btcDominancePct,
+      ethDominancePct: live.hero.ethDominancePct ?? ssr.hero.ethDominancePct,
+    },
+  };
+}
 
 function SentimentBadge({ sentiment, score }: { sentiment: string; score: number }) {
   const warm =
@@ -156,7 +176,31 @@ export function IntelligenceDashboard({ initialData }: IntelligenceDashboardProp
     dedupingInterval: 10_000,
   });
 
-  const show = data;
+  const show = useMemo(() => mergeHeroFromSsr(data, initialData), [data, initialData]);
+
+  // #region agent log
+  useEffect(() => {
+    if (!data || !initialData) return;
+    const droppedMcap =
+      data.hero.totalMarketCapUsd == null && initialData.hero.totalMarketCapUsd != null;
+    if (!droppedMcap) return;
+    fetch("http://127.0.0.1:7428/ingest/b2bee36a-3f9b-42a9-b6fb-0dc54bacc543", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Debug-Session-Id": "3a0a47",
+      },
+      body: JSON.stringify({
+        sessionId: "3a0a47",
+        hypothesisId: "F",
+        location: "intelligence-dashboard.tsx:mergeHeroFromSsr",
+        message: "live SWR missing mcap; SSR had value (merge will backfill)",
+        timestamp: Date.now(),
+        runId: typeof window !== "undefined" ? "client" : "ssr",
+      }),
+    }).catch(() => {});
+  }, [data, initialData]);
+  // #endregion
   const bestOpp = show?.opportunities[0];
 
   return (
