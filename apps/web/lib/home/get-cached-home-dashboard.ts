@@ -18,7 +18,7 @@ export async function getHomeDashboardPayload() {
   const ttl = Math.max(1, HOME_DASHBOARD_CACHE_SEC);
   const run = unstable_cache(
     async () => buildHomeDashboard(),
-    ["home-dashboard-payload-v5"],
+    ["home-dashboard-payload-v7"],
     { revalidate: ttl },
   );
   return run();

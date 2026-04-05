@@ -248,10 +248,12 @@ function fillHeroMetricsFromCoinUniverse(rawCoins: MarketCoin[], hero: HeroMetri
   const mSum = list.reduce((s, c) => s + Math.max(0, c.market_cap ?? 0), 0);
   const vSum = list.reduce((s, c) => s + Math.max(0, c.volume ?? 0), 0);
 
-  if (hero.totalMarketCapUsd == null && mSum > 0) {
+  const mcapMissing = hero.totalMarketCapUsd == null || hero.totalMarketCapUsd <= 0;
+  const volMissing = hero.volume24hUsd == null || hero.volume24hUsd <= 0;
+  if (mcapMissing && mSum > 0) {
     hero.totalMarketCapUsd = mSum;
   }
-  if (hero.volume24hUsd == null && vSum > 0) {
+  if (volMissing && vSum > 0) {
     hero.volume24hUsd = vSum;
   }
 
@@ -504,6 +506,17 @@ function fallbackNews(): NewsIntelRow[] {
     },
   ];
 }
+
+/**
+ * Last resort when Docker/host cannot reach FastAPI or CoinGecko and `vk` is empty (UI shows demo movers).
+ * Approximate order-of-magnitude only — set API_SERVER_URL / fix outbound HTTPS for accurate data.
+ */
+const ILLUSTRATIVE_GLOBAL_HERO = {
+  totalMarketCapUsd: 2_350_000_000_000,
+  volume24hUsd: 85_000_000_000,
+  btcDominancePct: 56.1,
+  ethDominancePct: 12.8,
+} as const;
 
 /** Illustrative rows only when market endpoints return nothing — avoid implying live prices. */
 const DEMO_GAINERS_LOSERS: { gainers: MoverRow[]; losers: MoverRow[] } = {
@@ -1256,6 +1269,76 @@ export async function buildHomeDashboard(): Promise<HomeDashboardPayload> {
     },
   });
   // #endregion
+
+  function heroMcapVolInvalid(m: number | null): boolean {
+    return m == null || !Number.isFinite(m) || m <= 0;
+  }
+  function heroDomInvalid(d: number | null): boolean {
+    return d == null || !Number.isFinite(d) || d <= 0;
+  }
+
+  let mcapBad = heroMcapVolInvalid(globalMcap);
+  let volBad = heroMcapVolInvalid(globalVol);
+  let btcBad = heroDomInvalid(btcDom);
+  let ethBad = heroDomInvalid(ethDom);
+
+  if (mcapBad || volBad || btcBad || ethBad) {
+    try {
+      const gLate = await fetchCoingeckoGlobal();
+      if (gLate) {
+        if (mcapBad && toFiniteNumber(gLate.total_market_cap_usd)) {
+          const v = toFiniteNumber(gLate.total_market_cap_usd);
+          if (v != null && v > 0) globalMcap = v;
+        }
+        if (volBad && toFiniteNumber(gLate.total_volume_usd)) {
+          const v = toFiniteNumber(gLate.total_volume_usd);
+          if (v != null && v > 0) globalVol = v;
+        }
+        if (btcBad && gLate.btc_dominance_pct != null) {
+          const v = toFiniteNumber(gLate.btc_dominance_pct);
+          if (v != null && v > 0) btcDom = v;
+        }
+        if (ethBad && gLate.eth_dominance_pct != null) {
+          const v = toFiniteNumber(gLate.eth_dominance_pct);
+          if (v != null && v > 0) ethDom = v;
+        }
+        marketSourceNote = marketSourceNote ? `${marketSourceNote}+coingecko-late` : "coingecko-late";
+      }
+    } catch {
+      /* ignore */
+    }
+    mcapBad = heroMcapVolInvalid(globalMcap);
+    volBad = heroMcapVolInvalid(globalVol);
+    btcBad = heroDomInvalid(btcDom);
+    ethBad = heroDomInvalid(ethDom);
+    if (mcapBad || volBad || btcBad || ethBad) {
+      if (mcapBad) globalMcap = ILLUSTRATIVE_GLOBAL_HERO.totalMarketCapUsd;
+      if (volBad) globalVol = ILLUSTRATIVE_GLOBAL_HERO.volume24hUsd;
+      if (btcBad) btcDom = ILLUSTRATIVE_GLOBAL_HERO.btcDominancePct;
+      if (ethBad) ethDom = ILLUSTRATIVE_GLOBAL_HERO.ethDominancePct;
+      marketSourceNote = marketSourceNote
+        ? `${marketSourceNote}+illustrative-fallback`
+        : "illustrative-fallback";
+      // #region agent log
+      agentLogHomeDash({
+        hypothesisId: "G",
+        location: "build-home-dashboard.ts:buildHomeDashboard:illustrativeHero",
+        message: "hero field(s) still invalid after late CG — illustrative fill (fix API/CG egress for live)",
+        data: {
+          globalMcap,
+          globalVol,
+          btcDom,
+          ethDom,
+          vkLen: vk.length,
+          fixedMcap: mcapBad,
+          fixedVol: volBad,
+          fixedBtc: btcBad,
+          fixedEth: ethBad,
+        },
+      });
+      // #endregion
+    }
+  }
 
   const sent = sentimentFromCoins(vk);
 
