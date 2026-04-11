@@ -6,6 +6,7 @@ import { Sparkles } from "lucide-react";
 import { getCurrentUser, getToken } from "@/lib/auth";
 import { effectivePlanForGating, isPaidBlock70Plan } from "@/lib/plan-tier";
 import { clsx } from "clsx";
+import { gaEvent } from "@/lib/analytics/gtag";
 
 /**
  * Fixed upgrade affordance for signed-in users still on a free-tier experience.
@@ -44,6 +45,7 @@ export function StickyUpgradePill() {
     >
       <Link
         href="/pricing"
+        onClick={() => gaEvent("upgrade_click", { location: "sticky_pill" })}
         className="pointer-events-auto inline-flex items-center gap-2 rounded-full border border-amber-500/40 bg-slate-950/95 px-4 py-2.5 text-sm font-semibold text-amber-100 shadow-lg shadow-amber-900/20 backdrop-blur hover:bg-amber-500/15"
       >
         <Sparkles className="h-4 w-4 text-amber-400" aria-hidden />

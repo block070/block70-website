@@ -1,0 +1,537 @@
+{
+  "$comment": "JSON Schema Draft 2020-12 semantics; $schema meta URI omitted so ajv-cli can load without bundled draft meta.",
+  "$id": "https://block70.local/schemas/n8n-local-agents-registry.json",
+  "title": "Block70 n8n local agents registry",
+  "type": "object",
+  "required": ["schemaVersion", "registryVersion", "server", "agents"],
+  "additionalProperties": false,
+  "properties": {
+    "schemaVersion": {
+      "type": "string",
+      "description": "JSON Schema contract version for this registry file shape."
+    },
+    "registryVersion": {
+      "type": "string",
+      "description": "Registry document content version."
+    },
+    "server": { "$ref": "#/$defs/server" },
+    "agents": {
+      "type": "array",
+      "minItems": 50,
+      "maxItems": 50,
+      "items": { "$ref": "#/$defs/agent" }
+    }
+  },
+  "$defs": {
+    "pathEntry": {
+      "type": "object",
+      "required": ["path", "requiredOwnership", "requiredPermissions"],
+      "additionalProperties": false,
+      "properties": {
+        "path": {
+          "type": "string",
+          "pattern": "^/home/jmiller/n8n_workspace/"
+        },
+        "requiredOwnership": { "type": "string", "enum": ["jmiller"] },
+        "requiredPermissions": { "type": "string", "enum": ["rwx"] }
+      }
+    },
+    "server": {
+      "type": "object",
+      "required": [
+        "configRoot",
+        "dataRoot",
+        "workflowsRoot",
+        "logsRoot",
+        "tickersFile",
+        "largeMediaRoot",
+        "defaultMaxRetries",
+        "defaultFallback",
+        "globalErrorHandling",
+        "runtime",
+        "modes"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "configRoot": { "$ref": "#/$defs/pathEntry" },
+        "dataRoot": { "$ref": "#/$defs/pathEntry" },
+        "workflowsRoot": { "$ref": "#/$defs/pathEntry" },
+        "logsRoot": { "$ref": "#/$defs/pathEntry" },
+        "tickersFile": { "$ref": "#/$defs/pathEntry" },
+        "largeMediaRoot": { "$ref": "#/$defs/pathEntry" },
+        "defaultMaxRetries": { "type": "integer", "minimum": 0 },
+        "defaultFallback": { "type": "string" },
+        "globalErrorHandling": {
+          "type": "object",
+          "required": [
+            "defaultAlertChannels",
+            "sharedDeadLetterPath",
+            "escalationWorkflowId"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "defaultAlertChannels": {
+              "type": "array",
+              "items": { "type": "string" }
+            },
+            "sharedDeadLetterPath": { "$ref": "#/$defs/pathEntry" },
+            "escalationWorkflowId": { "type": "string" }
+          }
+        },
+        "runtime": {
+          "type": "object",
+          "required": ["n8nVersion", "nodeVersion"],
+          "additionalProperties": false,
+          "properties": {
+            "n8nVersion": { "type": "string" },
+            "nodeVersion": { "type": "string" }
+          }
+        },
+        "modes": {
+          "type": "object",
+          "required": ["dryRun", "dryRunSkipsWrites", "dryRunValidates"],
+          "additionalProperties": false,
+          "properties": {
+            "dryRun": { "type": "boolean" },
+            "dryRunSkipsWrites": {
+              "type": "array",
+              "items": { "type": "string" }
+            },
+            "dryRunValidates": {
+              "type": "array",
+              "items": { "type": "string" }
+            }
+          }
+        }
+      }
+    },
+    "nullableString": {
+      "type": ["string", "null"]
+    },
+    "nullableNumber": {
+      "type": ["number", "null"]
+    },
+    "metadata": {
+      "type": "object",
+      "required": [
+        "version",
+        "createdAt",
+        "lastRunAt",
+        "lastSuccessfulRunAt",
+        "lastError",
+        "retryCount",
+        "lastOutputSummary"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "version": { "type": ["string", "null"] },
+        "createdAt": { "type": ["string", "null"] },
+        "lastRunAt": { "type": ["string", "null"] },
+        "lastSuccessfulRunAt": { "type": ["string", "null"] },
+        "lastError": { "type": ["string", "null"] },
+        "retryCount": { "type": ["integer", "null"], "minimum": 0 },
+        "lastOutputSummary": {
+          "oneOf": [
+            { "type": "null" },
+            {
+              "type": "object",
+              "required": ["type", "sizeBytes", "timestamp"],
+              "additionalProperties": false,
+              "properties": {
+                "type": { "type": "string" },
+                "sizeBytes": { "type": "number" },
+                "timestamp": { "type": "string" }
+              }
+            }
+          ]
+        }
+      }
+    },
+    "metrics": {
+      "type": "object",
+      "required": [
+        "lastExecutionDurationMs",
+        "lastOutputSizeBytes",
+        "successRate",
+        "failureRate"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "lastExecutionDurationMs": { "type": ["number", "null"] },
+        "lastOutputSizeBytes": { "type": ["number", "null"] },
+        "successRate": { "type": ["number", "null"] },
+        "failureRate": { "type": ["number", "null"] }
+      }
+    },
+    "schedule": {
+      "type": "object",
+      "required": ["type"],
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": ["hourly", "daily", "on_demand", "cron"]
+        },
+        "cronExpression": { "type": "string" }
+      }
+    },
+    "agent": {
+      "type": "object",
+      "required": [
+        "id",
+        "name",
+        "role",
+        "responsibilities",
+        "category",
+        "inputType",
+        "outputType",
+        "jobTitle",
+        "coreCompetencies",
+        "qualifications",
+        "paths",
+        "outputFormats",
+        "n8n",
+        "schedule",
+        "triggers",
+        "tasks",
+        "dynamicCapabilities",
+        "logging",
+        "errorHandling",
+        "metadata",
+        "metrics",
+        "modes",
+        "executionConcurrency",
+        "maxParallelRuns",
+        "maxOutputSizeBytes",
+        "runtime",
+        "security",
+        "archiving",
+        "simulateTrigger",
+        "validation",
+        "tickersExempt"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "type": "string", "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$" },
+        "name": { "type": "string", "minLength": 1 },
+        "role": { "type": "string" },
+        "responsibilities": {
+          "type": "array",
+          "minItems": 2,
+          "items": { "type": "string" }
+        },
+        "category": {
+          "type": "string",
+          "enum": [
+            "market_data",
+            "content_media",
+            "automation_workflow",
+            "ai_research",
+            "support_maintenance"
+          ]
+        },
+        "inputType": { "type": "string" },
+        "outputType": { "type": "string" },
+        "jobTitle": { "type": "string" },
+        "coreCompetencies": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "qualifications": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "paths": {
+          "type": "object",
+          "required": ["reads", "writes"],
+          "additionalProperties": false,
+          "properties": {
+            "reads": {
+              "type": "array",
+              "items": { "$ref": "#/$defs/pathEntry" }
+            },
+            "writes": {
+              "type": "array",
+              "items": { "$ref": "#/$defs/pathEntry" }
+            }
+          }
+        },
+        "outputFormats": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": ["json", "csv", "video", "audio", "image", "markdown"]
+          }
+        },
+        "n8n": {
+          "type": "object",
+          "required": [
+            "workflowFile",
+            "workflowId",
+            "primaryNodes",
+            "executeWorkflowTargets",
+            "integrations"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "workflowFile": { "type": "string" },
+            "workflowId": { "type": "string" },
+            "primaryNodes": {
+              "type": "array",
+              "minItems": 1,
+              "items": { "type": "string" }
+            },
+            "webhookPath": { "type": "string" },
+            "executeWorkflowTargets": {
+              "type": "array",
+              "items": { "type": "string" }
+            },
+            "integrations": {
+              "type": "object",
+              "required": [
+                "webhookPath",
+                "authType",
+                "timeoutMs",
+                "retryPolicy"
+              ],
+              "additionalProperties": false,
+              "properties": {
+                "webhookPath": { "type": "string" },
+                "authType": {
+                  "type": "string",
+                  "enum": ["none", "basic", "token"]
+                },
+                "timeoutMs": { "type": "integer", "minimum": 1 },
+                "retryPolicy": { "type": "object" }
+              }
+            }
+          }
+        },
+        "schedule": { "$ref": "#/$defs/schedule" },
+        "triggers": {
+          "type": "object",
+          "required": ["onComplete", "onError"],
+          "additionalProperties": false,
+          "properties": {
+            "onComplete": {
+              "type": "array",
+              "items": { "type": "string" }
+            },
+            "onError": {
+              "type": "array",
+              "items": { "type": "string" }
+            }
+          }
+        },
+        "tasks": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "required": [
+              "id",
+              "description",
+              "n8nNodeTypes",
+              "inputs",
+              "outputs"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "id": { "type": "string" },
+              "description": { "type": "string" },
+              "n8nNodeTypes": {
+                "type": "array",
+                "items": { "type": "string" }
+              },
+              "inputs": {
+                "type": "array",
+                "items": { "type": "string" }
+              },
+              "outputs": {
+                "type": "array",
+                "items": { "type": "string" }
+              }
+            }
+          }
+        },
+        "dynamicCapabilities": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "logging": {
+          "type": "object",
+          "required": [
+            "componentName",
+            "logFile",
+            "logLevel",
+            "rotation",
+            "appendOnlyTimestamps"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "componentName": { "type": "string" },
+            "logFile": { "type": "string" },
+            "logLevel": {
+              "type": "string",
+              "enum": ["info", "warn", "error"]
+            },
+            "rotation": {
+              "type": "object",
+              "required": ["maxSizeMb", "maxAgeDays", "archivePath"],
+              "additionalProperties": false,
+              "properties": {
+                "maxSizeMb": { "type": "number", "minimum": 1 },
+                "maxAgeDays": { "type": "integer", "minimum": 1 },
+                "archivePath": { "$ref": "#/$defs/pathEntry" }
+              }
+            },
+            "appendOnlyTimestamps": { "type": "boolean" }
+          }
+        },
+        "errorHandling": {
+          "type": "object",
+          "required": [
+            "strategy",
+            "maxRetries",
+            "backoffSeconds",
+            "fallbackAction",
+            "alertChannels",
+            "deadLetterPaths"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "strategy": {
+              "type": "string",
+              "enum": [
+                "retry_with_backoff",
+                "fallback_path",
+                "alert_only",
+                "retry_then_alert"
+              ]
+            },
+            "maxRetries": { "type": "integer", "minimum": 0 },
+            "backoffSeconds": {
+              "oneOf": [
+                { "type": "integer", "minimum": 0 },
+                {
+                  "type": "array",
+                  "items": { "type": "integer", "minimum": 0 }
+                }
+              ]
+            },
+            "fallbackAction": { "type": "string" },
+            "alertChannels": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "enum": ["slack", "discord", "email", "n8n_webhook"]
+              }
+            },
+            "deadLetterPaths": {
+              "type": "array",
+              "minItems": 1,
+              "items": { "$ref": "#/$defs/pathEntry" }
+            },
+            "retryPolicy": { "type": "object" },
+            "waiverReason": { "type": "string" }
+          }
+        },
+        "metadata": { "$ref": "#/$defs/metadata" },
+        "metrics": { "$ref": "#/$defs/metrics" },
+        "modes": {
+          "type": "object",
+          "required": ["dryRun", "dryRunSkipsWrites", "dryRunValidates"],
+          "additionalProperties": false,
+          "properties": {
+            "dryRun": { "type": "boolean" },
+            "dryRunSkipsWrites": {
+              "type": "array",
+              "items": { "type": "string" }
+            },
+            "dryRunValidates": {
+              "type": "array",
+              "items": { "type": "string" }
+            }
+          }
+        },
+        "diskRequirements": {
+          "type": "object",
+          "required": ["minFreeGb", "checkBeforeWrite"],
+          "additionalProperties": false,
+          "properties": {
+            "minFreeGb": { "type": "number", "minimum": 0 },
+            "checkBeforeWrite": { "type": "boolean" }
+          }
+        },
+        "fallbackPaths": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/pathEntry" }
+        },
+        "operationalNotes": { "type": "string" },
+        "executionConcurrency": { "type": "integer", "minimum": 1 },
+        "maxParallelRuns": { "type": "integer", "minimum": 1 },
+        "maxOutputSizeBytes": { "type": "integer", "minimum": 0 },
+        "diskQuotaBytes": { "type": "integer", "minimum": 0 },
+        "dependsOnAgents": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "executionOrder": { "type": "integer" },
+        "runtime": {
+          "type": "object",
+          "required": ["systemPackages"],
+          "additionalProperties": false,
+          "properties": {
+            "systemPackages": {
+              "type": "array",
+              "items": { "type": "string" }
+            },
+            "runtimeNotes": { "type": ["string", "null"] }
+          }
+        },
+        "security": {
+          "type": "object",
+          "required": ["sensitiveDataFields", "logRedactionRules"],
+          "additionalProperties": false,
+          "properties": {
+            "sensitiveDataFields": {
+              "type": "array",
+              "items": { "type": "string" }
+            },
+            "logRedactionRules": { "type": "string" }
+          }
+        },
+        "archiving": {
+          "type": "object",
+          "required": ["archivePath", "retentionDays"],
+          "additionalProperties": false,
+          "properties": {
+            "archivePath": { "$ref": "#/$defs/pathEntry" },
+            "retentionDays": { "type": "integer", "minimum": 0 }
+          }
+        },
+        "simulateTrigger": { "type": "boolean" },
+        "validation": {
+          "type": "object",
+          "required": ["scriptPath", "description"],
+          "additionalProperties": false,
+          "properties": {
+            "scriptPath": { "type": ["string", "null"] },
+            "description": { "type": "string" }
+          }
+        },
+        "tickersExempt": { "type": "boolean" },
+        "tickersExemptReason": { "type": "string" }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": { "tickersExempt": { "const": true } },
+            "required": ["tickersExempt"]
+          },
+          "then": { "required": ["tickersExemptReason"] }
+        }
+      ]
+    }
+  }
+}

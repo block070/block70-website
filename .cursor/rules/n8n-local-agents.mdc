@@ -1,0 +1,22 @@
+---
+description: Block70 local n8n agent registry — schema, paths, 50-agent roster
+globs: docs/n8n-local-agents/**/*
+alwaysApply: false
+---
+
+# n8n local agent registry
+
+When editing files under `docs/n8n-local-agents/`:
+
+1. **Schema:** Changes to `block70-n8n-agents-registry.json` must remain valid against `n8n-local-agents-schema.json`. After edits, run:
+   - `npx ajv-cli validate -s n8n-local-agents-schema.json -d block70-n8n-agents-registry.json`
+2. **Roster:** Do not add or remove agents without an explicit product decision; the registry must keep **exactly 50** agents matching the locked display-name roster in the master plan.
+3. **Paths:** Every filesystem path must use **pathEntry** shape: `path` under `/home/jmiller/n8n_workspace/`, `requiredOwnership: "jmiller"`, `requiredPermissions: "rwx"`. Do not invent other roots except documented `largeMediaRoot` mounts.
+4. **Secrets:** Never commit API keys, tokens, or webhook secrets. Use placeholders (`REPLACE_WITH_*`) and n8n Credentials on the host.
+5. **Uniqueness:** Preserve unique `logging.logFile` and `n8n.workflowFile` / `workflowId` patterns per agent.
+6. **Metadata:** Each agent must retain full `metadata` and `metrics` key sets (nullable values allowed).
+7. **Tickers:** No static ticker arrays; use `tickers.json` path for symbol consumers; if `tickersExempt: true`, include `tickersExemptReason`.
+8. **Versioning:** Bump `registryVersion` for registry edits; `schemaVersion` for schema-breaking changes; per-agent `metadata.version` when that agent’s spec changes.
+9. **Media / disk:** Content agents that write media must keep `diskRequirements` / `maxOutputSizeBytes` / `diskQuotaBytes` consistent with the plan.
+10. **Regeneration:** If the roster constants in `scripts/build-registry.mjs` change, run `node scripts/build-registry.mjs`, then Prettier and AJV as in `README.md`.
+11. **Host workflow exports:** When documenting or describing n8n workflow JSON on the Linux host, the canonical path is **`/home/jmiller/n8n_workspace/workflows/<agent-id>.json`** where **`<agent-id>`** matches the registry agent **`id`** (must align with **`n8n.workflowFile`**). Use this naming for every new deployment; do not use ad-hoc filenames like `pilot-*.json` on the server for production agent bindings unless explicitly a smoke-test-only copy.

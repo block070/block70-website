@@ -28,6 +28,14 @@ This file is for **people and coding agents** (e.g. Cursor) working **in this re
 - **`apps/api`** — FastAPI backend, opportunity APIs, connectors.
 - **`docs/`** — Product and architecture docs.
 
+### Web analytics (GA4)
+
+- Set `NEXT_PUBLIC_GA_MEASUREMENT_ID` in deployment env; ops notes in [`docs/google-analytics-block70.md`](docs/google-analytics-block70.md).
+
+### Local n8n operational agents (50-agent registry)
+
+- Registry, JSON Schema, validation, and operator notes: [`docs/n8n-local-agents/README.md`](docs/n8n-local-agents/README.md). Cursor rule: [`.cursor/rules/n8n-local-agents.mdc`](.cursor/rules/n8n-local-agents.mdc).
+
 ### Gates for agent-executable tasks (especially `apps/web`)
 
 Run from **`apps/web`** after substantive frontend or dashboard changes, unless the change is trivial (e.g. copy-only):

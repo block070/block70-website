@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import { Inter, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
+import { GoogleAnalytics } from "@/components/analytics/google-analytics";
 import { AppLayout } from "@/components/layout/app-layout";
 import { ThemeProvider } from "@/contexts/theme-context";
 
@@ -33,6 +34,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
       </head>
       <body className="min-h-screen bg-[var(--b70-bg)] text-[var(--b70-text)] antialiased">
         <ThemeProvider>
+          <GoogleAnalytics />
           <AppLayout>{children}</AppLayout>
         </ThemeProvider>
       </body>

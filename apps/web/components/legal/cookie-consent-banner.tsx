@@ -2,22 +2,25 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
-
-const STORAGE_KEY = "block70-cookie-consent";
+import {
+  COOKIE_CONSENT_ACCEPT_EVENT,
+  COOKIE_CONSENT_STORAGE_KEY,
+} from "@/lib/analytics/consent";
 
 export function CookieConsentBanner() {
   const [accepted, setAccepted] = useState<boolean | null>(null);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
-    const stored = localStorage.getItem(STORAGE_KEY);
+    const stored = localStorage.getItem(COOKIE_CONSENT_STORAGE_KEY);
     setAccepted(stored === "accepted");
   }, []);
 
   function accept() {
     if (typeof window === "undefined") return;
-    localStorage.setItem(STORAGE_KEY, "accepted");
+    localStorage.setItem(COOKIE_CONSENT_STORAGE_KEY, "accepted");
     setAccepted(true);
+    window.dispatchEvent(new CustomEvent(COOKIE_CONSENT_ACCEPT_EVENT));
   }
 
   if (accepted !== false) return null;

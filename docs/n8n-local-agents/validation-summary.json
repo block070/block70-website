@@ -1,0 +1,28 @@
+{
+  "generatedAt": "2026-04-02T00:00:00.000Z",
+  "schemaVersion": "1.0.0",
+  "registryVersion": "1.0.0",
+  "parseOk": true,
+  "ajvOk": true,
+  "lintOk": true,
+  "prettierCheck": true,
+  "agentCount": 50,
+  "rosterCategories": {
+    "market_data": 10,
+    "content_media": 10,
+    "automation_workflow": 10,
+    "ai_research": 10,
+    "support_maintenance": 10
+  },
+  "ajvErrors": [],
+  "lintErrors": [],
+  "missingPaths": [],
+  "metricsKeyCoverage": true,
+  "concurrencyDefined": true,
+  "quotaDefinedForMedia": true,
+  "webhookFieldsComplete": true,
+  "sensitiveFieldsFlagged": true,
+  "archiveRetentionPresent": true,
+  "issues": [],
+  "notes": "Repository checks (parse, AJV, Prettier) passed in CI/dev. Server-side path ownership, chown, df/disk, live webhooks, and §20.2–20.7 simulations must be run on the jmiller n8n host before production binding."
+}

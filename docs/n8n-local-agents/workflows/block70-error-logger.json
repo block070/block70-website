@@ -1,0 +1,76 @@
+{
+  "id": "d1e2f3a4-b5c6-4789-a012-3456789abcde",
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "name": "Block70 — Error Logger",
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "f1e2d3c4-b5a6-4789-8012-abcdef012345",
+      "name": "Error Trigger",
+      "type": "n8n-nodes-base.errorTrigger",
+      "typeVersion": 1,
+      "position": [240, 300]
+    },
+    {
+      "parameters": {
+        "operation": "toJson",
+        "mode": "each",
+        "binaryPropertyName": "data",
+        "options": {
+          "format": true,
+          "fileName": "error-logger-dump.json",
+          "encoding": "utf8"
+        }
+      },
+      "id": "a2b3c4d5-e6f7-4890-a123-456789abcdef",
+      "name": "Convert error to JSON file",
+      "type": "n8n-nodes-base.convertToFile",
+      "typeVersion": 1.1,
+      "position": [480, 300]
+    },
+    {
+      "parameters": {
+        "operation": "write",
+        "fileName": "/home/jmiller/n8n_workspace/data/logs/dead-letter-shared/error-logger-latest.json",
+        "dataPropertyName": "data",
+        "options": {}
+      },
+      "id": "b3c4d5e6-f7a8-4901-b234-567890abcdef",
+      "name": "Read/Write Files — dead-letter JSON",
+      "type": "n8n-nodes-base.readWriteFile",
+      "typeVersion": 1.1,
+      "position": [720, 300]
+    }
+  ],
+  "connections": {
+    "Error Trigger": {
+      "main": [
+        [
+          {
+            "node": "Convert error to JSON file",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Convert error to JSON file": {
+      "main": [
+        [
+          {
+            "node": "Read/Write Files — dead-letter JSON",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {}
+}
