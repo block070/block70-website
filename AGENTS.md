@@ -35,6 +35,7 @@ This file is for **people and coding agents** (e.g. Cursor) working **in this re
 ### Local n8n operational agents (50-agent registry)
 
 - Registry, JSON Schema, validation, and operator notes: [`docs/n8n-local-agents/README.md`](docs/n8n-local-agents/README.md). Cursor rule: [`.cursor/rules/n8n-local-agents.mdc`](.cursor/rules/n8n-local-agents.mdc).
+- **Wave 1 deploy from Windows:** run [`docs/n8n-local-agents/RUN-WAVE1-SYNC.ps1`](docs/n8n-local-agents/RUN-WAVE1-SYNC.ps1) (uploads repo workflows + remote import). Do not treat scattered manual `scp` snippets as the default path — see [`docs/n8n-local-agents/EXACT-COMMANDS-WAVE1.md`](docs/n8n-local-agents/EXACT-COMMANDS-WAVE1.md).
 
 ### Gates for agent-executable tasks (especially `apps/web`)
 

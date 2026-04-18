@@ -68,6 +68,30 @@ export function alignOhlcvBars(bars: OHLCVBar[], timeframe: ChartTimeframeKey): 
   return order.sort((a, b) => a - b).map((t) => buckets.get(t)!);
 }
 
+/** Shared headers for public API calls — a real UA helps avoid lazy WAF rejects. */
+const PUBLIC_UA =
+  "block70-web/1.0 (+https://block70.com; chart-fallback)";
+
+/**
+ * Fetch helper that retries once on 429 with a short backoff. Returns the final
+ * Response (caller decides how to react). Uses `cache: "no-store"` on the retry
+ * so we don't pin a rate-limited response in the Next fetch cache.
+ */
+async function fetchWithRetry(
+  url: string,
+  init: RequestInit & { next?: { revalidate?: number } } = {}
+): Promise<Response> {
+  const headers = {
+    accept: "application/json",
+    "user-agent": PUBLIC_UA,
+    ...(init.headers as Record<string, string> | undefined),
+  };
+  const first = await fetch(url, { ...init, headers });
+  if (first.status !== 429) return first;
+  await new Promise((r) => setTimeout(r, 750));
+  return fetch(url, { ...init, headers, cache: "no-store" });
+}
+
 function toBinancePair(symbol: string): string {
   const s = symbol.replace(/[^A-Za-z0-9]/g, "").toUpperCase();
   if (s.endsWith("USDT")) return s;
@@ -111,7 +135,7 @@ export async function fetchBinanceOHLCV(
   const tf = TF_MAP[timeframe];
   const pair = toBinancePair(symbol);
   const url = `https://api.binance.com/api/v3/klines?symbol=${encodeURIComponent(pair)}&interval=${tf.binanceInterval}&limit=${tf.binanceLimit}`;
-  const res = await fetch(url, { next: { revalidate: 60 } });
+  const res = await fetchWithRetry(url, { next: { revalidate: 60 } });
   if (!res.ok) throw new Error(`Binance ${res.status}`);
   const data = (await res.json()) as unknown;
   if (!Array.isArray(data)) throw new Error("Binance invalid response");
@@ -155,7 +179,7 @@ export async function fetchCoinbaseOHLCV(
   const span = tf.binanceLimit * gran;
   const start = now - span;
   const url = `https://api.exchange.coinbase.com/products/${encodeURIComponent(product)}/candles?granularity=${gran}&start=${start}&end=${now}`;
-  const res = await fetch(url, { next: { revalidate: 60 } });
+  const res = await fetchWithRetry(url, { next: { revalidate: 60 } });
   if (!res.ok) throw new Error(`Coinbase ${res.status}`);
   const data = (await res.json()) as unknown;
   return parseCoinbaseCandles(data);
@@ -178,13 +202,82 @@ function parseGeckoOhlc(raw: unknown): OHLCVBar[] {
   return out.sort((a, b) => a.time - b.time);
 }
 
+/** Pick the right CoinGecko base URL + auth header given the available key. */
+function geckoEndpoint(path: string): { url: string; headers: Record<string, string> } {
+  const key = process.env.COINGECKO_API_KEY?.trim();
+  if (key) {
+    return {
+      url: `https://pro-api.coingecko.com/api/v3${path}`,
+      headers: { "x-cg-pro-api-key": key },
+    };
+  }
+  return {
+    url: `https://api.coingecko.com/api/v3${path}`,
+    headers: {},
+  };
+}
+
 export async function fetchCoinGeckoOHLCV(coinId: string, timeframe: ChartTimeframeKey): Promise<OHLCVBar[]> {
   const days = TF_MAP[timeframe].geckoDays;
-  const url = `https://api.coingecko.com/api/v3/coins/${encodeURIComponent(coinId)}/ohlc?vs_currency=usd&days=${days}`;
-  const res = await fetch(url, { next: { revalidate: 120 } });
-  if (!res.ok) throw new Error(`CoinGecko ${res.status}`);
+  const { url, headers } = geckoEndpoint(
+    `/coins/${encodeURIComponent(coinId)}/ohlc?vs_currency=usd&days=${days}`
+  );
+  const res = await fetchWithRetry(url, { headers, next: { revalidate: 120 } });
+  if (!res.ok) throw new Error(`CoinGecko ohlc ${res.status}`);
   const data = (await res.json()) as unknown;
   return parseGeckoOhlc(data);
+}
+
+/**
+ * CoinGecko `/market_chart` fallback — broader coverage than `/ohlc` and the
+ * only price source for many long-tail tokens (e.g. GameFi, DEX-only). We
+ * receive a series of `[timestamp_ms, price]` points; each point becomes a
+ * synthetic single-print bar (open=high=low=close=price). Volume, when we can
+ * align it on the same timestamp, comes from `total_volumes`. Downstream
+ * `alignOhlcvBars` will bucket these into the requested timeframe, producing
+ * real OHLC behaviour from many small prints.
+ */
+export async function fetchCoinGeckoMarketChart(
+  coinId: string,
+  timeframe: ChartTimeframeKey
+): Promise<OHLCVBar[]> {
+  const days = TF_MAP[timeframe].geckoDays;
+  const { url, headers } = geckoEndpoint(
+    `/coins/${encodeURIComponent(coinId)}/market_chart?vs_currency=usd&days=${days}`
+  );
+  const res = await fetchWithRetry(url, { headers, next: { revalidate: 120 } });
+  if (!res.ok) throw new Error(`CoinGecko market_chart ${res.status}`);
+  const data = (await res.json()) as {
+    prices?: unknown;
+    total_volumes?: unknown;
+  };
+  const prices = Array.isArray(data.prices) ? data.prices : [];
+  const volumes = Array.isArray(data.total_volumes) ? data.total_volumes : [];
+
+  const volByMs = new Map<number, number>();
+  for (const row of volumes) {
+    if (!Array.isArray(row) || row.length < 2) continue;
+    const ms = Number(row[0]);
+    const v = Number(row[1]);
+    if (Number.isFinite(ms) && Number.isFinite(v)) volByMs.set(ms, v);
+  }
+
+  const out: OHLCVBar[] = [];
+  for (const row of prices) {
+    if (!Array.isArray(row) || row.length < 2) continue;
+    const ms = Number(row[0]);
+    const price = Number(row[1]);
+    if (!Number.isFinite(ms) || !Number.isFinite(price)) continue;
+    out.push({
+      time: Math.floor(ms / 1000),
+      open: price,
+      high: price,
+      low: price,
+      close: price,
+      volume: volByMs.get(ms) ?? 0,
+    });
+  }
+  return out.sort((a, b) => a.time - b.time);
 }
 
 function packAligned(
@@ -218,12 +311,27 @@ export async function fetchOHLCVWithFallback(
   }
 
   if (geckoCoinId && geckoCoinId.trim()) {
+    const id = geckoCoinId.trim().toLowerCase();
     try {
-      const ohlcv = await fetchCoinGeckoOHLCV(geckoCoinId.trim().toLowerCase(), timeframe);
+      const ohlcv = await fetchCoinGeckoOHLCV(id, timeframe);
       if (ohlcv.length) return packAligned(ohlcv, timeframe, "coingecko");
-      errors.push("CoinGecko empty");
+      errors.push("CoinGecko ohlc empty");
     } catch (e) {
-      errors.push(`CoinGecko: ${e instanceof Error ? e.message : "fail"}`);
+      errors.push(`CoinGecko ohlc: ${e instanceof Error ? e.message : "fail"}`);
+    }
+
+    // `/market_chart` has much broader coverage than `/ohlc` — most long-tail
+    // tokens only expose price series here. Synthesized bars are still useful
+    // because the frontend defaults to line mode, and bucketing via
+    // `alignOhlcvBars` collapses many prints into real candles for candle mode.
+    try {
+      const ohlcv = await fetchCoinGeckoMarketChart(id, timeframe);
+      if (ohlcv.length) return packAligned(ohlcv, timeframe, "coingecko-market-chart");
+      errors.push("CoinGecko market_chart empty");
+    } catch (e) {
+      errors.push(
+        `CoinGecko market_chart: ${e instanceof Error ? e.message : "fail"}`
+      );
     }
   }
 

@@ -31,38 +31,21 @@ You already proved: Docker mounts, **`N8N_RESTRICT_FILE_ACCESS_TO`**, HTTP → f
 
 The **pilot** import was the starting point for the same behavior as **`crypto-data-collector`** (CoinGecko → market file). Once it works in n8n, that workflow **is** your crypto collector — you only **rename the export file** to `crypto-data-collector.json` (you do not pull that filename from git).
 
-**Fix `crypto-data-collector` now (you already have the working workflow in n8n):**
+**Export `crypto-data-collector.json` (you already have the working workflow in n8n):**
 
-1. In n8n, open the workflow that writes **`crypto-data-collector-latest.json`**.
-2. **⋯** menu → **Download** (export workflow JSON).
-3. On the server, replace any ad-hoc name with the canonical filename:
+1. Copy the workflow **UUID** from the n8n URL when that workflow is open.
+2. **From your PC (PowerShell),** run the script — no manual `scp` ([EXACT-COMMANDS-WAVE1.md](./EXACT-COMMANDS-WAVE1.md) §6):
 
-   ```bash
-   # If you saved the download in ~/Downloads or home:
-   mv ~/Downloads/workflow.json /home/jmiller/n8n_workspace/workflows/crypto-data-collector.json
-   # adjust the source path to wherever the file landed; or use scp from your PC:
-   # scp .\crypto-data-collector.json jmiller@SERVER:/home/jmiller/n8n_workspace/workflows/crypto-data-collector.json
+   ```powershell
+   Set-Location C:\block70\docs\n8n-local-agents\scripts
+   .\n8n-export-workflow-from-pc.ps1 -WorkflowId 'PASTE-UUID-HERE' -AgentId 'crypto-data-collector'
    ```
 
-4. Confirm:
+3. On the host: `ls -la /home/jmiller/n8n_workspace/workflows/crypto-data-collector.json`
 
-   ```bash
-   ls -la /home/jmiller/n8n_workspace/workflows/crypto-data-collector.json
-   ```
+Optional: delete duplicate pilot exports on the server if you no longer need them (keep git copies under `docs/n8n-local-agents/workflows/` as templates).
 
-5. Optional: delete or ignore older exports such as **`block70-pilot-coin-gecko.json`** on the server if you no longer need them (keep a copy in git under `docs/n8n-local-agents/workflows/` if you still use it as a template).
-
-**If `mv ~/workflow.json` fails:** that path was only an example. Use the **real** download path (often `ls ~/Downloads/*.json`) or export from the container (no browser file needed):
-
-```bash
-docker exec -u node n8n n8n export:workflow \
-  --id=WORKFLOW_ID_FROM_N8N_URL \
-  --output=/home/jmiller/n8n_workspace/workflows/crypto-data-collector.json
-```
-
-The workflow id is the UUID in the n8n URL when the workflow is open. Replace `n8n` with your container name if needed.
-
-**For the next agents:** duplicate/adjust the workflow in n8n → export → always save as **`…/workflows/<agent-id>.json`** using the registry **`id`**.
+**For other agents:** same script with **`-AgentId`** set to the registry **`id`**. Appendix (manual `docker exec` export) is in **EXACT-COMMANDS-WAVE1.md** only if the script fails.
 
 ---
 
@@ -118,7 +101,7 @@ Replace `n8n` with your container name from `docker ps` if needed. Alternatively
 
 In the n8n UI: **Settings** (instance) → **Error workflow** → select **Block70 — Error Logger**.
 
-If that entry is **grayed out**, open the error-logger workflow → **⋯** → **Workflow settings** → set **This workflow can be called by** to **Any workflow** (or equivalent), save, then retry the instance **Error workflow** picker. Details: [EXACT-COMMANDS-WAVE1.md](./EXACT-COMMANDS-WAVE1.md) §4b.
+If that entry is **grayed out**, you usually **will not** see **This workflow can be called by** on an Error Trigger workflow (that setting is for sub-workflows). Instead: set **Error workflow** on **Block70 Pilot** / crypto workflow → **Block70 — Error Logger**, or use instance **Settings → Error workflow**. Details: [EXACT-COMMANDS-WAVE1.md](./EXACT-COMMANDS-WAVE1.md) §4c.
 
 Confirm the handler with a **failing production execution** (not only manual test — Error Trigger is built for real failures). See **EXACT-COMMANDS-WAVE1.md** §5.
 

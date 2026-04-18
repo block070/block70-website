@@ -7,12 +7,16 @@
 | Tag | Meaning |
 |-----|--------|
 | **`[HOST]`** | SSH session on the Ubuntu server, as `jmiller`, normal shell (`bash`). |
-| **`[PC]`** | Your Windows machine, **PowerShell** (for `scp` only). |
+| **`[PC]`** | Your Windows machine, **PowerShell** (run **`RUN-WAVE1-SYNC.ps1`** / **`wave1-sync-from-pc.ps1`** / **`n8n-export-workflow-from-pc.ps1`**). |
 | **`[BROWSER]`** | Web UI only — no terminal. |
 
 **Operator LAN (this repo):** n8n host **`192.168.0.164`**. Change commands below only if your server IP differs. Replace `n8n` with your container name **only** if `docker ps` shows a different name.
 
 **Agents / Cursor:** This file is the operator source of truth for Wave 1 commands. Do not paraphrase; point here.
+
+**Wave 1 and “only two workflows”:** The repo only contains **two** importable JSON files (**error-logger** + **pilot**). That is expected. **`crypto-data-collector`** and **`api-scheduler`** are **not** in git — you build them in the UI and export with [`scripts/n8n-export-workflow-from-pc.ps1`](./scripts/n8n-export-workflow-from-pc.ps1) (§6).
+
+**Operator rule (human + Cursor):** Do **not** treat manual `scp` / copy-paste `docker exec` as the primary path for Wave 1 deploy. **Run the scripts** below. Appendix at the end of this file is for debugging only.
 
 ---
 
@@ -45,60 +49,40 @@ sudo chown -R 1000:1000 /home/jmiller/n8n_workspace/data/logs/dead-letter-shared
 
 ---
 
-## 2) Put `block70-error-logger.json` on the server
+## 2) Upload + import **both** repo workflows (error-logger + pilot)
 
-The import in step 3 reads this **exact** path:
+Scripts perform upload (`scp`), place files under `/home/jmiller/n8n_workspace/workflows/`, and run `docker exec … n8n import:workflow` for **`block70-error-logger.json`** and **`block70-pilot-coin-gecko.json`**.
 
-`/home/jmiller/n8n_workspace/workflows/block70-error-logger.json`
+### **`[PC]`** (default — Windows PowerShell)
 
-### 2A — Block70 repo already on the server
-
-**`[HOST]`** — adjust `BLOCK70` if your clone lives elsewhere.
-
-```bash
-export BLOCK70=/home/jmiller/block70
-cp "${BLOCK70}/docs/n8n-local-agents/workflows/block70-error-logger.json" \
-  /home/jmiller/n8n_workspace/workflows/block70-error-logger.json
-```
-
-If the path is wrong, find the file:
-
-```bash
-find /home/jmiller -name 'block70-error-logger.json' 2>/dev/null
-```
-
-Then `cp` from that directory to `/home/jmiller/n8n_workspace/workflows/block70-error-logger.json`.
-
-### 2B — Repo only on your PC (no clone on server)
-
-**`[PC]`** — from the folder that contains `docs` (or use full path to the file).
+One command (change `C:\block70` if your clone lives elsewhere):
 
 ```powershell
-scp C:\block70\docs\n8n-local-agents\workflows\block70-error-logger.json jmiller@192.168.0.164:/home/jmiller/n8n_workspace/workflows/block70-error-logger.json
+powershell -ExecutionPolicy Bypass -File C:\block70\docs\n8n-local-agents\RUN-WAVE1-SYNC.ps1
 ```
 
-**`[HOST]`** — verify:
+Same thing, explicit:
+
+```powershell
+Set-Location C:\block70\docs\n8n-local-agents\scripts
+.\wave1-sync-from-pc.ps1
+```
+
+Optional: `-Server 192.168.0.164 -User jmiller -Container n8n`
+
+Requires **OpenSSH Client** (`ssh`, `scp` in PATH). Re-running may **duplicate** workflows in n8n — remove duplicates in the UI if needed.
+
+### **`[HOST]`** (Block70 repo cloned on the server; no PC)
 
 ```bash
-test -f /home/jmiller/n8n_workspace/workflows/block70-error-logger.json && echo OK || echo MISSING
+cd /path/to/block70/docs/n8n-local-agents/scripts
+chmod +x wave1-import-on-host.sh
+N8N_CONTAINER=n8n ./wave1-import-on-host.sh
 ```
 
 ---
 
-## 3) Import error-logger workflow into n8n
-
-The `n8n` CLI runs **inside** the container. This is **`[HOST]`** with `docker exec` (not a login shell inside the container).
-
-**`[HOST]`**
-
-```bash
-docker exec -u node n8n n8n import:workflow \
-  --input=/home/jmiller/n8n_workspace/workflows/block70-error-logger.json
-```
-
-After import, copy the **latest** JSON from this repo to the server again if you edited it locally, then re-run the command above (or use **Import from File** in the UI).
-
-### 3b) Missing the third node (no **Read/Write Files** on canvas)
+### 2b) Missing the third node (no **Read/Write Files** on canvas)
 
 There is **no** palette entry called “Write dead letter …”. The third step is the core node **Read/Write Files from Disk** (n8n’s default label on the canvas is often **Read/Write Files from Disk**; our workflow renames it to **Read/Write Files — dead-letter JSON**).
 
@@ -128,22 +112,19 @@ Requires **`N8N_RESTRICT_FILE_ACCESS_TO`** to include `/home/jmiller/n8n_workspa
 
 ### 4b) Canvas is **empty** (no nodes) but the workflow name exists
 
-If **Block70 — Error Logger** opens to a **blank canvas**, it is **not** a valid error handler. Re-import [workflows/block70-error-logger.json](./workflows/block70-error-logger.json) (`docker exec … import:workflow` from §3). Delete duplicate empty workflows if the import created a second entry. You must see **Error Trigger** → **Convert error to JSON file** → **Read/Write Files — dead-letter JSON** (or §3b) on the canvas before continuing.
+If **Block70 — Error Logger** opens to a **blank canvas**, it is **not** a valid error handler. Re-run **§2** (`RUN-WAVE1-SYNC.ps1` or `wave1-import-on-host.sh`). Delete duplicate empty workflows if the import created a second entry. You must see **Error Trigger** → **Convert error to JSON file** → **Read/Write Files — dead-letter JSON** (or §2b) on the canvas before continuing.
 
-### 4c) If **Block70 — Error Logger** is grayed out / not selectable
+### 4c) No **“This workflow can be called by”** in Settings (normal)
 
-n8n 2.x can **disable** workflows in that list unless they are allowed to be **invoked by other workflows** (same idea as sub-workflow “who may call this”).
+That control is for **sub-workflows** (workflows called via **Execute Workflow** / caller policy). **Error Trigger** error-handler workflows often **do not** show it — your UI can match the screenshot and still be correct. **You do not need that field** to use **Block70 — Error Logger** as the handler for other workflows.
 
-**`[BROWSER]`**
+**`[BROWSER]`** — If **Block70 — Error Logger** is grayed in an **Error workflow** picker:
 
-1. Open the **Block70 — Error Logger** workflow (canvas).
-2. **⋯** (top right) → **Settings** (workflow settings modal — **not** the gear for the whole instance).
-3. Find **This workflow can be called by** (wording may vary slightly by version).
-4. Set it to **Any workflow** / **All workflows** / the most permissive option (not “none” or a single named workflow).
-5. **Save** the modal.
-6. Go back to **Settings** (instance gear) → **Error workflow** and select **Block70 — Error Logger** again.
+1. Confirm the canvas has **Error Trigger** first (§2 / §4b).
+2. Wire the handler from the **consumer** workflow: open **Block70 Pilot — CoinGecko to disk** (or crypto collector) → **⋯** → **Settings** → **Error workflow** → **Block70 — Error Logger** → **Save**.
+3. Optionally set the **instance** default: **Settings** (sidebar gear) → **Error workflow** → **Block70 — Error Logger**.
 
-If it is still grayed: confirm the **first** node on the canvas is **Error Trigger** (re-import `block70-error-logger.json` if the graph was broken). As a fallback, set the error workflow **per workflow**: open e.g. **Crypto Data Collector** → **⋯** → **Settings** → **Error workflow** → pick **Block70 — Error Logger** (same “can be called by” fix applies).
+On **Block70 — Error Logger** itself, **Error workflow** = **No workflow** (as in your screenshot) is **correct** — do not point the error logger at itself.
 
 ### 4d) Dropdown shows **exactly one** workflow and it is **grayed**
 
@@ -157,7 +138,7 @@ For **“Error workflow” on workflow X**, n8n only offers workflows that start
 2. Open your **main** workflow (e.g. pilot / **Crypto Data Collector**) — **not** the error logger.
 3. **⋯** → **Settings** → **Error workflow** → choose **Block70 — Error Logger** (should be **not** grayed when the current canvas is **not** the error logger).
 
-For a **global** default: use the **top-level** **Settings** (gear in the **sidebar / user menu**, not the three dots on the canvas). If that list still grays the only option, do §4b ( **This workflow can be called by** → **Any workflow** on the error logger), confirm **Error Trigger** is **not disabled**, then **upgrade n8n** (older 2.x had error-workflow UI bugs; see [n8n #24299](https://github.com/n8n-io/n8n/issues/24299)).
+For a **global** default: use the **top-level** **Settings** (gear in the **sidebar / user menu**, not the three dots on the canvas). If that list still misbehaves, confirm **Error Trigger** exists and is not disabled, set the handler from the **pilot** workflow (§4c), then consider upgrading n8n (older 2.x had error-workflow UI quirks; see [n8n #24299](https://github.com/n8n-io/n8n/issues/24299)).
 
 ---
 
@@ -177,44 +158,29 @@ ls -la /home/jmiller/n8n_workspace/data/logs/dead-letter-shared/error-logger-lat
 
 ---
 
-## 6) Export `crypto-data-collector.json` (canonical backup filename)
+## 6) Export a built workflow to `…/workflows/<agent-id>.json` (e.g. crypto-data-collector)
 
-Live workflow stays in n8n’s DB; this writes the **registry-aligned** export file.
+Live workflow stays in n8n’s DB; exporting writes the **registry-aligned** file on the server.
 
-### 6A — Get workflow UUID from the browser
+### 6A — UUID from the browser
 
 **`[BROWSER]`**
 
-1. Open the workflow that writes **`crypto-data-collector-latest.json`**.
-2. Copy the UUID from the URL. Example:  
+1. Open the workflow (e.g. the one that writes **`crypto-data-collector-latest.json`**).
+2. Copy the UUID from the URL, e.g.  
    `http://192.168.0.164:5678/workflow/aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee`  
-   → UUID is `aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee`.
+   → UUID = `aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee`.
 
-### 6B — Export file on the server (no download folder)
-
-**`[HOST]`** — paste your real UUID instead of `PASTE_WORKFLOW_UUID_HERE`:
-
-```bash
-docker exec -u node n8n n8n export:workflow \
-  --id=PASTE_WORKFLOW_UUID_HERE \
-  --output=/home/jmiller/n8n_workspace/workflows/crypto-data-collector.json
-```
-
-**`[HOST]`** — verify:
-
-```bash
-ls -la /home/jmiller/n8n_workspace/workflows/crypto-data-collector.json
-```
-
-### 6C — Alternative: you downloaded JSON from n8n UI to the PC
-
-**`[PC]`**
+### 6B — **`[PC]`** — one script (no manual `scp` of the JSON)
 
 ```powershell
-scp C:\path\to\your-downloaded-workflow.json jmiller@192.168.0.164:/home/jmiller/n8n_workspace/workflows/crypto-data-collector.json
+Set-Location C:\block70\docs\n8n-local-agents\scripts
+.\n8n-export-workflow-from-pc.ps1 `
+  -WorkflowId 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee' `
+  -AgentId 'crypto-data-collector'
 ```
 
-(Use the real path where the browser saved the file, e.g. `C:\Users\YOUR_WINDOWS_USER\Downloads\workflow.json`.)
+Use the same pattern for **`api-scheduler`** (change **`-AgentId`**). Optional: `-Server 192.168.0.164 -User jmiller -Container n8n`.
 
 **`[HOST]`** — verify:
 
@@ -226,22 +192,21 @@ ls -la /home/jmiller/n8n_workspace/workflows/crypto-data-collector.json
 
 ## 7) What is *not* done by commands
 
-- **`api-scheduler`:** Build that workflow in the n8n UI, then export with the same pattern as step 6, output path:  
-  `/home/jmiller/n8n_workspace/workflows/api-scheduler.json`
+- **`api-scheduler`:** Build in the n8n UI, then **§6** with `-AgentId 'api-scheduler'`.
 - **Duplicates in n8n:** Delete extra copies in the UI; keep one global Error workflow.
 
 ---
 
-## Quick reference: same docker exec pattern later
+## Appendix — manual `docker exec` (only if scripts fail)
 
-**Import any file already under `/home/jmiller/n8n_workspace/workflows/`:**
+**Import** one file already on the host:
 
 ```bash
 docker exec -u node n8n n8n import:workflow \
   --input=/home/jmiller/n8n_workspace/workflows/SOME_FILE.json
 ```
 
-**Export by UUID to canonical name:**
+**Export** by UUID on the host (replace UUID and filename):
 
 ```bash
 docker exec -u node n8n n8n export:workflow \
@@ -249,4 +214,4 @@ docker exec -u node n8n n8n export:workflow \
   --output=/home/jmiller/n8n_workspace/workflows/AGENT_ID.json
 ```
 
-**`[HOST]`** for both.
+Replace `n8n` with your container name if different.

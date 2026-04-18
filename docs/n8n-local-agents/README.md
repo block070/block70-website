@@ -17,6 +17,10 @@ Operational registry for **50** local n8n agents on host paths under `/home/jmil
 | **`crypto-data-collector.json`** | **Not in git by default.** Create on the server by **exporting** your n8n workflow (evolved from the pilot) to `/home/jmiller/n8n_workspace/workflows/crypto-data-collector.json`. See [AGENT-ROLLOUT.md](./AGENT-ROLLOUT.md) (“Git repo vs server”). |
 | [validation-summary.json](./validation-summary.json) | Machine-readable summary |
 | [scripts/build-registry.mjs](./scripts/build-registry.mjs) | Regenerates `block70-n8n-agents-registry.json` after edits to roster/constants |
+| [RUN-WAVE1-SYNC.ps1](./RUN-WAVE1-SYNC.ps1) | **PC — run this:** one command to upload both Wave 1 JSON files + import on host ([EXACT-COMMANDS-WAVE1.md](./EXACT-COMMANDS-WAVE1.md) §2) |
+| [scripts/wave1-sync-from-pc.ps1](./scripts/wave1-sync-from-pc.ps1) | Called by `RUN-WAVE1-SYNC.ps1`; same behavior if run directly |
+| [scripts/wave1-import-on-host.sh](./scripts/wave1-import-on-host.sh) | **Host:** import both repo workflows via `docker exec` (no PC) |
+| [scripts/n8n-export-workflow-from-pc.ps1](./scripts/n8n-export-workflow-from-pc.ps1) | **PC:** SSH + export workflow UUID → canonical `…/workflows/<agent-id>.json` (§6) |
 
 ## Working directory
 

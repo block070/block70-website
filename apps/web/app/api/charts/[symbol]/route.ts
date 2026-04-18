@@ -6,9 +6,18 @@ import {
 
 const TIMEFRAMES = new Set<string>(["1M", "5M", "1H", "4H", "1D", "7D"]);
 
-/** Short-lived server cache to avoid duplicate external calls within a minute */
+/**
+ * Two TTLs on the same entry:
+ *  - `MEM_TTL_MS` — fresh window; serve cached payload directly.
+ *  - `STALE_TTL_MS` — grace window; serve stale only if upstream is currently
+ *    failing, with a `X-Chart-Stale: 1` header so callers can tell.
+ *
+ * This keeps the UI chart populated across transient CoinGecko 429s and short
+ * upstream outages instead of blanking to an error state.
+ */
 const memCache = new Map<string, { at: number; payload: Record<string, unknown> }>();
 const MEM_TTL_MS = 55_000;
+const STALE_TTL_MS = 30 * 60_000;
 
 export async function GET(
   request: NextRequest,
@@ -68,9 +77,28 @@ export async function GET(
     });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "Chart data unavailable";
+
+    // Prefer serving a stale-but-valid cached response over an error when we
+    // have one in the grace window — upstream blips shouldn't blank a chart.
+    if (hit && Date.now() - hit.at < STALE_TTL_MS) {
+      return NextResponse.json(hit.payload, {
+        headers: {
+          "Cache-Control": "public, s-maxage=30, stale-while-revalidate=300",
+          "X-Chart-Stale": "1",
+        },
+      });
+    }
+
+    // No cache to fall back on. We still return 200 so the browser console
+    // isn't polluted with red 502s — the client already renders this shape as
+    // an empty-state with an explanatory message. Reserve non-2xx for genuine
+    // server bugs (validation, misconfiguration), not "upstream had no data".
     return NextResponse.json(
       { ohlcv: [], source: null, timeframe, error: msg },
-      { status: 502 }
+      {
+        status: 200,
+        headers: { "Cache-Control": "public, s-maxage=15, stale-while-revalidate=60" },
+      }
     );
   }
 }
