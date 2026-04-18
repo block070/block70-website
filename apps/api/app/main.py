@@ -73,6 +73,14 @@ from app.api.v1.ai_intelligence import router as ai_intelligence_router
 from app.api.v1.news import router as news_router
 from app.api.v1.search import router as search_router
 from app.api.v1.status import router as status_router, status_public_router
+from app.api.v1.upland import (
+    entitlements_router as upland_entitlements_router,
+    saved_searches_router as upland_saved_searches_router,
+    api_keys_router as upland_api_keys_router,
+    billing_router as upland_billing_router,
+    portfolio_router as upland_portfolio_router,
+    alerts_router as upland_alerts_router,
+)
 from app.api.articles import router as articles_router
 from app.agents.arbitrage_agent import run_arbitrage_scan
 from app.jobs.scheduler import create_scheduler
@@ -166,6 +174,12 @@ app.include_router(events_router)
 app.include_router(liquidity_router)
 app.include_router(auth_router)
 app.include_router(billing_router)
+app.include_router(upland_billing_router)
+app.include_router(upland_entitlements_router)
+app.include_router(upland_saved_searches_router)
+app.include_router(upland_api_keys_router)
+app.include_router(upland_portfolio_router)
+app.include_router(upland_alerts_router)
 app.include_router(usage_summary_router)
 app.include_router(chains_router)
 app.include_router(charts_router)

@@ -1,0 +1,203 @@
+{
+  "id": "b7f1c8e0-8d11-4e5a-9f24-8899aabbccdd",
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "name": "Block70 Upland Property Sync",
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes",
+              "minutesInterval": 15
+            }
+          ]
+        }
+      },
+      "id": "11111111-1111-4111-8111-111111111111",
+      "name": "1 Cron 15m",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.1,
+      "position": [240, 300]
+    },
+    {
+      "parameters": {
+        "url": "={{$env.BLOCK70_WEB_URL}}/api/upland/ingest/status",
+        "options": {
+          "timeout": 10000
+        },
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth"
+      },
+      "id": "22222222-2222-4222-8222-222222222222",
+      "name": "2 Check status",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [480, 300],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "upland-ingest-secret",
+          "name": "Upland Ingest Secret"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "cond-no-running",
+              "leftValue": "={{$json.runs?.[0]?.status ?? 'ok'}}",
+              "rightValue": "running",
+              "operator": { "type": "string", "operation": "notEquals" }
+            }
+          ]
+        }
+      },
+      "id": "33333333-3333-4333-8333-333333333333",
+      "name": "3 Skip if running",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [720, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$env.BLOCK70_WEB_URL}}/api/upland/ingest/trigger",
+        "sendBody": true,
+        "contentType": "json",
+        "jsonBody": "={\n  \"source\": \"{{$env.UPLAND_INGEST_SOURCE || 'upland_official'}}\",\n  \"runId\": \"n8n-{{$now.toISO()}}\"\n}",
+        "options": {
+          "timeout": 540000
+        },
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth"
+      },
+      "id": "44444444-4444-4444-8444-444444444444",
+      "name": "4 Trigger ingestion",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [960, 220],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "upland-ingest-secret",
+          "name": "Upland Ingest Secret"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "cond-weights-stale",
+              "leftValue": "={{$json.dealScoreVersionCurrent ?? 0}}",
+              "rightValue": "={{$json.dealScoreVersionTarget ?? 0}}",
+              "operator": { "type": "number", "operation": "notEquals" }
+            }
+          ]
+        }
+      },
+      "id": "55555555-5555-4555-8555-555555555555",
+      "name": "5 Need score recompute?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [1200, 220]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$env.BLOCK70_WEB_URL}}/api/upland/deal-score/recompute",
+        "sendBody": true,
+        "contentType": "json",
+        "jsonBody": "={}",
+        "options": {
+          "timeout": 540000
+        },
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth"
+      },
+      "id": "66666666-6666-4666-8666-666666666666",
+      "name": "6 Recompute deal score",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1440, 160],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "upland-ingest-secret",
+          "name": "Upland Ingest Secret"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "REFRESH MATERIALIZED VIEW CONCURRENTLY property_search_view;\nREFRESH MATERIALIZED VIEW CONCURRENTLY city_stats_view;",
+        "options": {}
+      },
+      "id": "77777777-7777-4777-8777-777777777777",
+      "name": "7 Refresh materialized views",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [1680, 220],
+      "credentials": {
+        "postgres": {
+          "id": "supabase-upland-pooler",
+          "name": "Supabase Upland (pooler)"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "content": "Run book:\n- BLOCK70_WEB_URL: https://block70.com\n- httpHeaderAuth 'Upland Ingest Secret' must set X-Upland-Ingest-Secret header.\n- BLOCK70_UPLAND_INGEST_SECRET env var must match on the web app.\n- Postgres creds: Supabase Upland pooler (read-write role, not the service role).\n- Pause this workflow by toggling active=false. The web app will 503 ingest calls if UPLAND_INGEST_ENABLED=false -- that is the kill switch.",
+        "height": 240,
+        "width": 460
+      },
+      "id": "88888888-8888-4888-8888-888888888888",
+      "name": "Run book",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [240, 540]
+    }
+  ],
+  "connections": {
+    "1 Cron 15m": {
+      "main": [[{ "node": "2 Check status", "type": "main", "index": 0 }]]
+    },
+    "2 Check status": {
+      "main": [[{ "node": "3 Skip if running", "type": "main", "index": 0 }]]
+    },
+    "3 Skip if running": {
+      "main": [
+        [{ "node": "4 Trigger ingestion", "type": "main", "index": 0 }],
+        []
+      ]
+    },
+    "4 Trigger ingestion": {
+      "main": [[{ "node": "5 Need score recompute?", "type": "main", "index": 0 }]]
+    },
+    "5 Need score recompute?": {
+      "main": [
+        [{ "node": "6 Recompute deal score", "type": "main", "index": 0 }],
+        [{ "node": "7 Refresh materialized views", "type": "main", "index": 0 }]
+      ]
+    },
+    "6 Recompute deal score": {
+      "main": [[{ "node": "7 Refresh materialized views", "type": "main", "index": 0 }]]
+    }
+  },
+  "pinData": {}
+}

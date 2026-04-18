@@ -85,6 +85,11 @@ from .exchange import Exchange, ExchangeClick
 from .exchange_affiliate_link import ExchangeAffiliateLink
 from .chart_snapshot import ChartSnapshot
 from .ohlcv_candle import OhlcvCandle
+from .product_entitlement import ProductEntitlement
+from .upland_saved_search import UplandSavedSearch
+from .upland_usage_daily import UplandUsageDaily
+from .upland_api_key import UplandApiKey
+from .upland_portfolio_watch import UplandPortfolioWatch
 
 __all__ = [
     "Opportunity",
@@ -194,5 +199,10 @@ __all__ = [
     "ExchangeAffiliateLink",
     "ChartSnapshot",
     "OhlcvCandle",
+    "ProductEntitlement",
+    "UplandSavedSearch",
+    "UplandUsageDaily",
+    "UplandApiKey",
+    "UplandPortfolioWatch",
 ]
 

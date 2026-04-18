@@ -240,6 +240,8 @@ def generate_access_token(
     email: str,
     plan_type: str | None = None,
     expires_in_hours: int = 24,
+    upland_tier: str | None = None,
+    upland_features: list[str] | None = None,
 ) -> str:
     now = datetime.now(timezone.utc)
     exp = now + timedelta(hours=expires_in_hours)
@@ -251,6 +253,10 @@ def generate_access_token(
         "type": "access",
         "plan_type": (plan_type or "free").lower().strip(),
     }
+    if upland_tier:
+        payload["upland_tier"] = upland_tier.lower().strip()
+    if upland_features is not None:
+        payload["upland_features"] = list(upland_features)
     secret = _get_jwt_secret()
     token = jwt.encode(payload, secret, algorithm="HS256")
     # pyjwt>=2 returns str, older versions may return bytes

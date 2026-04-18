@@ -1,0 +1,167 @@
+// Upland Property Search — Supabase (Postgres) data plane.
+//
+// Prisma owns the three write tables: properties, property_assets, vehicles.
+// The search path reads from the `property_search_view` materialized view,
+// represented below as the read-only `PropertySearch` model. The mat view and
+// its indexes are created/refreshed by raw SQL migrations (see
+// prisma/migrations/), NOT by prisma migrate.
+//
+// Keep this schema in sync with docs/upland-property-search.md.
+
+generator client {
+  provider = "prisma-client-js"
+  // Placed alongside node_modules so Next.js can import from @prisma/client.
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")      // pooled (Supabase pgBouncer) for runtime
+  directUrl = env("DIRECT_URL")        // direct connection for migrations + REFRESH MATERIALIZED VIEW
+}
+
+// -----------------------------------------------------------------------------
+// Upland property tables
+// -----------------------------------------------------------------------------
+
+model Property {
+  id                 String    @id @default(cuid())
+  uplandId           String    @unique                 @map("upland_id")
+  address            String
+  city               String
+  state              String?
+  country            String    @default("US")
+  neighborhood       String?
+  price              Decimal?  @db.Decimal(20, 6)
+  mintPrice          Decimal?  @db.Decimal(20, 6)      @map("mint_price")
+  markupPercentage   Float?                             @map("markup_percentage")
+  yieldPerMonth      Decimal?  @db.Decimal(20, 6)      @map("yield_per_month")
+  forSale            Boolean   @default(false)          @map("for_sale")
+  owner              String?
+  lat                Float?
+  lng                Float?
+  collection         String?
+  raw                Json?
+  dealScore          Float?                             @map("deal_score")
+  dealScoreVersion   Int?                               @map("deal_score_version")
+  isHiddenGem        Boolean   @default(false)          @map("is_hidden_gem")
+  dealScoreUpdatedAt DateTime?                          @map("deal_score_updated_at")
+  createdAt          DateTime  @default(now())          @map("created_at")
+  updatedAt          DateTime  @updatedAt               @map("updated_at")
+
+  assets       PropertyAsset?
+  vehicles     Vehicle[]
+  changeEvents ChangeEvent[]
+
+  @@index([city])
+  @@index([neighborhood])
+  @@index([forSale])
+  @@index([price])
+  @@index([owner])
+  @@map("properties")
+}
+
+model PropertyAsset {
+  id            String   @id @default(cuid())
+  propertyId    String   @unique                        @map("property_id")
+  property      Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  hasStructure  Boolean  @default(false)                @map("has_structure")
+  structureType String?                                   @map("structure_type")
+  hasVehicle    Boolean  @default(false)                @map("has_vehicle")
+  vehicleCount  Int      @default(0)                    @map("vehicle_count")
+  updatedAt     DateTime @updatedAt                     @map("updated_at")
+
+  @@map("property_assets")
+}
+
+model Vehicle {
+  id         String   @id @default(cuid())
+  propertyId String                                     @map("property_id")
+  property   Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  name       String?
+  type       String
+  rarity     String?
+  raw        Json?
+
+  @@index([propertyId])
+  @@index([rarity])
+  @@map("vehicles")
+}
+
+model IngestionRun {
+  id                 String    @id @default(cuid())
+  source             String
+  startedAt          DateTime  @default(now())          @map("started_at")
+  finishedAt         DateTime?                           @map("finished_at")
+  status             String
+  propertiesSeen     Int       @default(0)              @map("properties_seen")
+  propertiesUpserted Int       @default(0)              @map("properties_upserted")
+  error              String?
+
+  @@index([source, startedAt])
+  @@map("ingestion_runs")
+}
+
+// change_events drives the n8n webhook fan-out. One row per detected diff.
+model ChangeEvent {
+  id             String    @id @default(cuid())
+  propertyId     String                                  @map("property_id")
+  property       Property  @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  kind           String
+  oldValue       Json?                                   @map("old_value")
+  newValue       Json?                                   @map("new_value")
+  ingestionRunId String?                                 @map("ingestion_run_id")
+  createdAt      DateTime  @default(now())               @map("created_at")
+  processedAt    DateTime?                               @map("processed_at")
+  webhookStatus  String?                                 @map("webhook_status")
+
+  @@index([propertyId, createdAt(sort: Desc)])
+  @@map("change_events")
+}
+
+// -----------------------------------------------------------------------------
+// Read-only view models — managed via raw SQL; @@ignore keeps them out of
+// prisma migrate plans while still exposing typed reads via the client.
+// -----------------------------------------------------------------------------
+
+/// Read projection used by the search page. Joins properties + property_assets.
+model PropertySearch {
+  id                String   @id
+  address           String
+  city              String
+  state             String?
+  country           String
+  neighborhood      String?
+  price             Decimal?
+  mintPrice         Decimal? @map("mint_price")
+  markupPercentage  Float?   @map("markup_percentage")
+  yieldPerMonth     Decimal? @map("yield_per_month")
+  forSale           Boolean  @map("for_sale")
+  owner             String?
+  lat               Float?
+  lng               Float?
+  hasStructure      Boolean  @map("has_structure")
+  structureType     String?  @map("structure_type")
+  hasVehicle        Boolean  @map("has_vehicle")
+  vehicleCount      Int      @map("vehicle_count")
+  dealScore         Float?   @map("deal_score")
+  isHiddenGem       Boolean  @map("is_hidden_gem")
+  updatedAt         DateTime @map("updated_at")
+
+  @@map("property_search_view")
+  @@ignore
+}
+
+/// City multi-select facet. Keyed on (city, state, country).
+model CityStats {
+  city               String
+  state              String?
+  country            String
+  propertyCount      Int  @map("property_count")
+  forSaleCount       Int  @map("for_sale_count")
+  withVehicleCount   Int  @map("with_vehicle_count")
+  withStructureCount Int  @map("with_structure_count")
+
+  @@id([city, country, state])
+  @@map("city_stats_view")
+  @@ignore
+}

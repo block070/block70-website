@@ -171,6 +171,47 @@ def handle_webhook(db: Session, *, payload: bytes, sig_header: str) -> None:
     except stripe.error.SignatureVerificationError as exc:
         raise ValueError("Invalid Stripe webhook signature") from exc
 
+    # -- Route Upland add-on SKUs into product_entitlements ----------------
+    from app.services.billing.upland_stripe import (  # local import to avoid cycle
+        handle_upland_checkout_completed,
+        handle_upland_subscription_event,
+        upland_tier_from_price_id,
+    )
+
+    data_obj = event.get("data", {}).get("object", {}) or {}
+    upland_tier: str | None = None
+    metadata = (data_obj.get("metadata") or {})
+    if metadata.get("product_key") == "upland":
+        upland_tier = (metadata.get("upland_tier") or "").lower().strip() or None
+
+    if upland_tier is None:
+        line_items = (
+            data_obj.get("items", {}).get("data", [])
+            or data_obj.get("line_items", {}).get("data", [])
+            or []
+        )
+        for item in line_items:
+            price_obj = item.get("price") or {}
+            maybe = upland_tier_from_price_id(price_obj.get("id"))
+            if maybe:
+                upland_tier = maybe
+                break
+
+    if upland_tier:
+        if event["type"] == "checkout.session.completed":
+            handle_upland_checkout_completed(db, event)
+            return
+        if event["type"] in {
+            "customer.subscription.created",
+            "customer.subscription.updated",
+            "customer.subscription.deleted",
+        }:
+            handle_upland_subscription_event(db, event, upland_tier=upland_tier)
+            return
+        # Unhandled Upland events fall through silently (no-op).
+        return
+
+    # -- Global plan events ------------------------------------------------
     if event["type"] == "checkout.session.completed":
         _handle_checkout_session_completed(db, event)
         return

@@ -160,6 +160,79 @@ MIGRATIONS = [
         updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
     )""",
     "CREATE UNIQUE INDEX IF NOT EXISTS uq_notification_delivery_user_day_ch ON notification_delivery_daily (user_id, day_utc, channel)",
+    # --- Upland monetization: product_entitlements (add-on SKUs) -----------
+    """CREATE TABLE IF NOT EXISTS product_entitlements (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        product_key VARCHAR(32) NOT NULL,
+        tier VARCHAR(16) NOT NULL,
+        stripe_customer_id VARCHAR(255),
+        stripe_subscription_id VARCHAR(255),
+        stripe_price_id VARCHAR(255),
+        status VARCHAR(32) NOT NULL DEFAULT 'pending',
+        current_period_start TIMESTAMP WITH TIME ZONE,
+        current_period_end TIMESTAMP WITH TIME ZONE,
+        trial_end TIMESTAMP WITH TIME ZONE,
+        canceled_at TIMESTAMP WITH TIME ZONE,
+        created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
+    )""",
+    "CREATE UNIQUE INDEX IF NOT EXISTS uq_product_entitlements_user_product ON product_entitlements (user_id, product_key)",
+    "CREATE INDEX IF NOT EXISTS ix_product_entitlements_user_id ON product_entitlements (user_id)",
+    "CREATE INDEX IF NOT EXISTS ix_product_entitlements_product_key ON product_entitlements (product_key)",
+    "CREATE INDEX IF NOT EXISTS ix_product_entitlements_tier ON product_entitlements (tier)",
+    "CREATE INDEX IF NOT EXISTS ix_product_entitlements_status ON product_entitlements (status)",
+    "CREATE INDEX IF NOT EXISTS ix_product_entitlements_stripe_sub ON product_entitlements (stripe_subscription_id)",
+    # --- Upland saved searches (Pro+) --------------------------------------
+    """CREATE TABLE IF NOT EXISTS upland_saved_searches (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        name VARCHAR(128) NOT NULL,
+        filters JSONB NOT NULL,
+        alert_channel VARCHAR(16) NOT NULL DEFAULT 'none',
+        created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
+    )""",
+    "CREATE INDEX IF NOT EXISTS ix_upland_saved_searches_user_id ON upland_saved_searches (user_id)",
+    "CREATE INDEX IF NOT EXISTS ix_upland_saved_searches_user_created ON upland_saved_searches (user_id, created_at)",
+    # --- Upland daily usage rollup -----------------------------------------
+    """CREATE TABLE IF NOT EXISTS upland_usage_daily (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        day_utc DATE NOT NULL,
+        metric VARCHAR(32) NOT NULL,
+        count INTEGER NOT NULL DEFAULT 0,
+        tier VARCHAR(16) NOT NULL DEFAULT 'free',
+        created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
+    )""",
+    "CREATE UNIQUE INDEX IF NOT EXISTS uq_upland_usage_user_day_metric ON upland_usage_daily (user_id, day_utc, metric)",
+    "CREATE INDEX IF NOT EXISTS ix_upland_usage_user_id ON upland_usage_daily (user_id)",
+    "CREATE INDEX IF NOT EXISTS ix_upland_usage_day_utc ON upland_usage_daily (day_utc)",
+    # --- Upland Elite-tier API keys ----------------------------------------
+    """CREATE TABLE IF NOT EXISTS upland_api_keys (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        label VARCHAR(128) NOT NULL,
+        key_hash VARCHAR(128) NOT NULL UNIQUE,
+        key_prefix VARCHAR(32) NOT NULL,
+        revoked BOOLEAN NOT NULL DEFAULT FALSE,
+        last_used_at TIMESTAMP WITH TIME ZONE,
+        created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+        revoked_at TIMESTAMP WITH TIME ZONE
+    )""",
+    "CREATE INDEX IF NOT EXISTS ix_upland_api_keys_user_id ON upland_api_keys (user_id)",
+    "CREATE INDEX IF NOT EXISTS ix_upland_api_keys_prefix ON upland_api_keys (key_prefix)",
+    # --- Upland portfolio wallet watches (Elite) ---------------------------
+    """CREATE TABLE IF NOT EXISTS upland_portfolio_watches (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        owner_wallet VARCHAR(128) NOT NULL,
+        label VARCHAR(128) NOT NULL DEFAULT '',
+        created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
+    )""",
+    "CREATE UNIQUE INDEX IF NOT EXISTS uq_upland_watch_user_owner ON upland_portfolio_watches (user_id, owner_wallet)",
+    "CREATE INDEX IF NOT EXISTS ix_upland_watch_user_id ON upland_portfolio_watches (user_id)",
+    "CREATE INDEX IF NOT EXISTS ix_upland_watch_owner_wallet ON upland_portfolio_watches (owner_wallet)",
 ]
 
 

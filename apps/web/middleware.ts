@@ -8,6 +8,15 @@ const PROTECTED_PATTERNS = [
   /^\/smartwallets\/(bitcoin|ethereum|solana)\/[^/]+(?:\/.*)?$/,
 ];
 
+// Upland add-on surfaces that require an authenticated user at minimum.
+// Server-side entitlement checks still run on every API route -- this is a
+// coarse UX gate, not a security boundary.
+const UPLAND_AUTH_REQUIRED_PATTERNS = [
+  /^\/coins\/upland\/property-search\/alerts(?:\/.*)?$/,
+  /^\/coins\/upland\/property-search\/portfolio(?:\/.*)?$/,
+  /^\/coins\/upland\/property-search\/saved(?:\/.*)?$/,
+];
+
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
@@ -18,6 +27,20 @@ export function middleware(request: NextRequest) {
         ? "/crypto-on-the-hour"
         : `/crypto-on-the-hour${pathname.slice("/crypto-hour".length)}`;
     return NextResponse.redirect(url, 308);
+  }
+
+  const isUplandAuthRequired = UPLAND_AUTH_REQUIRED_PATTERNS.some((p) => p.test(pathname));
+  if (isUplandAuthRequired) {
+    const session = request.cookies.get("block70_session")?.value;
+    if (!session) {
+      const url = request.nextUrl.clone();
+      url.pathname = "/login";
+      url.searchParams.set("next", pathname);
+      return NextResponse.redirect(url);
+    }
+    // Tier enforcement still happens server-side (the API routes) -- we don't
+    // read JWT claims in edge middleware to keep this synchronous + cheap.
+    return NextResponse.next();
   }
 
   const isProtected = PROTECTED_PATTERNS.some((pattern) => pattern.test(pathname));
@@ -34,6 +57,14 @@ export function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/wallets/:path*", "/smartwallets/:path*", "/crypto-hour", "/crypto-hour/:path*"],
+  matcher: [
+    "/wallets/:path*",
+    "/smartwallets/:path*",
+    "/crypto-hour",
+    "/crypto-hour/:path*",
+    "/coins/upland/property-search/alerts/:path*",
+    "/coins/upland/property-search/portfolio/:path*",
+    "/coins/upland/property-search/saved/:path*",
+  ],
 };
 

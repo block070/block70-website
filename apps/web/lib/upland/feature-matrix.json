@@ -1,0 +1,46 @@
+{
+  "$comment": "Source of truth for the Upland feature matrix. Imported by both apps/web/lib/upland/entitlements.ts (TS) and apps/api/app/services/upland/entitlements.py (Python) via a parity test fixture. Changing this file requires updating both sides; a CI check asserts parity.",
+  "version": 1,
+  "features": {
+    "upland_basic_search":      ["free", "pro", "elite"],
+    "upland_deal_score":        ["pro",  "elite"],
+    "upland_vehicle_filter":    ["pro",  "elite"],
+    "upland_hidden_gems_feed":  ["pro",  "elite"],
+    "upland_advanced_filters":  ["pro",  "elite"],
+    "upland_saved_searches":    ["pro",  "elite"],
+    "upland_realtime_alerts":   ["elite"],
+    "upland_api_access":        ["elite"],
+    "upland_portfolio_tracking": ["elite"],
+    "upland_early_access_data": ["elite"]
+  },
+  "limits": {
+    "free": {
+      "maxPageSize":         20,
+      "maxPageIndex":        3,
+      "maxCities":           1,
+      "allowedSortBy":       ["recent", "price"],
+      "dailySearchCap":      50,
+      "anonDailySearchCap":  20,
+      "savedSearchesMax":    0,
+      "apiRateLimitPerMin":  0
+    },
+    "pro": {
+      "maxPageSize":         100,
+      "maxPageIndex":        1000000,
+      "maxCities":           10,
+      "allowedSortBy":       ["recent", "price", "yield", "markup", "vehicles", "deal"],
+      "dailySearchCap":      5000,
+      "savedSearchesMax":    10,
+      "apiRateLimitPerMin":  0
+    },
+    "elite": {
+      "maxPageSize":         100,
+      "maxPageIndex":        1000000,
+      "maxCities":           50,
+      "allowedSortBy":       ["recent", "price", "yield", "markup", "vehicles", "deal"],
+      "dailySearchCap":      50000,
+      "savedSearchesMax":    50,
+      "apiRateLimitPerMin":  60
+    }
+  }
+}
