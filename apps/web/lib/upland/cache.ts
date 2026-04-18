@@ -8,8 +8,12 @@
 // Keys follow the plan: `upland:props:v1:<sha1(canonicalized-filters)>`.
 // Invalidation uses SCAN + DEL on a single prefix so the ingestion layer can
 // call `invalidateUplandCache()` at the end of every run.
+//
+// NOTE: no `import "server-only"` here — the ingestion orchestrator pulls
+// this in from prisma/seed.ts and n8n-invoked CLI paths. The module is a
+// thin Redis/LRU wrapper with no client-side surface, so the guard only
+// blocked legitimate Node callers without adding real safety.
 
-import "server-only";
 import { createHash } from "node:crypto";
 
 const CACHE_KEY_PREFIX = "upland:props:v1:";

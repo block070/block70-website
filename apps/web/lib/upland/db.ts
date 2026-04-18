@@ -4,8 +4,12 @@
 // we would leak a new PrismaClient instance per file change and Supabase
 // would quickly run out of connections. Pattern cribbed from Prisma's own
 // "Best practice for instantiating Prisma Client" docs.
+//
+// NOTE: intentionally no `import "server-only"` here. PrismaClient relies on
+// native modules + network access, so Next.js will already fail to bundle it
+// into Client Components — the extra guard only blocks legitimate Node-side
+// callers (e.g. prisma/seed.ts, CLI scripts) without adding any real safety.
 
-import "server-only";
 import { PrismaClient } from "@prisma/client";
 
 declare global {
