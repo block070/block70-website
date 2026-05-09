@@ -28,6 +28,13 @@ export type NormalizedProperty = {
   mintPrice: number | null;
   yieldPerMonth: number | null;
   forSale: boolean;
+  /**
+   * Distinguishes how a "for sale" property is available:
+   *   - 'player': listed by another Upland player on the marketplace
+   *   - 'mint': available to mint directly from Upland ("Unlocked")
+   *   - null: owned and not listed, or locked
+   */
+  sellerType: "player" | "mint" | null;
   owner: string | null;
   lat: number | null;
   lng: number | null;

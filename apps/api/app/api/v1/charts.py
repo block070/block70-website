@@ -20,7 +20,7 @@ def get_chart_data(
     limit: int = Query(1000, ge=1, le=1000, description="Max candles to return"),
 ) -> dict:
     """
-    Fetch OHLCV chart data. Priority: Binance.com → Coinbase → Binance.US → CoinGecko.
+    Fetch OHLCV chart data. Priority: Coinbase → Binance.US → CoinGecko.
     symbol: base ticker (BTC, ETH) or slug (bitcoin, ethereum).
     """
     try:

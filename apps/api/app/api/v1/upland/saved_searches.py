@@ -5,6 +5,7 @@ from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
+from starlette.responses import Response
 
 from app.core.auth_middleware import get_current_user
 from app.db import get_db
@@ -113,7 +114,7 @@ def delete_saved_search(
     saved_search_id: int,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
-) -> None:
+) -> Response:
     _require_saved_searches(db, current_user)
     row: Optional[UplandSavedSearch] = (
         db.query(UplandSavedSearch)
@@ -127,4 +128,4 @@ def delete_saved_search(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
     db.delete(row)
     db.commit()
-    return None
+    return Response(status_code=status.HTTP_204_NO_CONTENT)

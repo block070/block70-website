@@ -15,7 +15,11 @@
 
 import { uplandPrisma } from "../db";
 import { invalidateUplandCache } from "../cache";
-import { createSource, type SourceName } from "./sources";
+import {
+  createSource,
+  type CreateSourceOptions,
+  type SourceName,
+} from "./sources";
 import { upsertNormalizedProperty } from "./upsert";
 import { ingestionLogger } from "./logger";
 
@@ -24,6 +28,12 @@ export type IngestionTriggerOptions = {
   maxPages?: number;
   /** Short-circuit lock acquisition -- used by the n8n drift guard's recompute path. */
   skipLock?: boolean;
+  /** Explicit prop_ids for the upland-official source. */
+  propIds?: string[];
+  /** Override the per-request sleep (ms) for the upland-official source. */
+  rateLimitMs?: number;
+  /** Strict mode: abort on any per-id fetch failure. */
+  strict?: boolean;
 };
 
 export type IngestionRunSummary = {
@@ -89,7 +99,12 @@ export async function runIngestion(
   opts: IngestionTriggerOptions = {},
 ): Promise<IngestionRunSummary> {
   const startedAt = new Date();
-  const source = createSource(opts.source);
+  const sourceOpts: CreateSourceOptions = {
+    propIds: opts.propIds,
+    rateLimitMs: opts.rateLimitMs,
+    strict: opts.strict,
+  };
+  const source = createSource(opts.source, sourceOpts);
   const lock = opts.skipLock ? null : (getRedisLockClient() ?? localLock);
 
   if (lock) {

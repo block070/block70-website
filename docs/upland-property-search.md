@@ -37,10 +37,14 @@ flowchart LR
 | `DIRECT_URL` | yes | Direct Postgres URL for Prisma migrations |
 | `REDIS_URL` | optional | Enables Redis cache + rate limits. In-memory fallback otherwise. |
 | `BLOCK70_UPLAND_INGEST_SECRET` | yes in prod | Required on `X-Upland-Ingest-Secret` header for `/api/upland/ingest/*` and `/api/upland/deal-score/recompute`. |
-| `UPLAND_INGEST_ENABLED` | yes in prod | Kill switch. Set to `false` to return 503 from ingest endpoints. |
-| `UPLAND_SOURCE` | yes | `mock` or `upland_official`. Mock is default and safe. |
-| `UPLAND_API_BASE_URL` | when `UPLAND_SOURCE=upland_official` | Reverse-engineered endpoint. |
-| `UPLAND_API_TOKEN` | when `UPLAND_SOURCE=upland_official` | Bearer token. |
+| `UPLAND_INGEST_ENABLED` | yes in prod | Kill switch. Set to `1` to allow the `upland-official` source to run. |
+| `UPLAND_SOURCE` | yes | `mock` or `upland-official`. Mock is default and safe. |
+| `UPLAND_API_BASE_URL` | when `UPLAND_SOURCE=upland-official` | Base URL for the internal Upland API. Default `https://api.prod.upland.me`. |
+| `UPLAND_API_TOKEN` | when `UPLAND_SOURCE=upland-official` | Bearer JWT captured from `play.upland.me`. Treat as a live credential -- rotate immediately if exposed. |
+| `UPLAND_PROPERTY_IDS` | optional | Comma/whitespace-separated list of `prop_id`s to hydrate. Overridden per-request by the trigger body's `propIds`. |
+| `UPLAND_APP_VERSION` | optional | `appversion` header the Upland edge expects. Default `0.14.1007`; bump if the web app is updated. |
+| `UPLAND_RATE_LIMIT_MS` | optional | Sleep between detail calls. Default `500` (~2 req/s). |
+| `UPLAND_PAGE_SIZE` | optional | Detail ids per ingestion page. Default `50`. |
 | `BLOCK70_INTERNAL_API_URL` | optional | Internal URL for `apps/web` to reach FastAPI without egress. Falls back to `NEXT_PUBLIC_API_URL`. |
 | `NEXT_PUBLIC_API_URL` | yes | Public FastAPI base URL. |
 
@@ -85,6 +89,8 @@ Credentials referenced by the workflow at
 
 ## Running ingestion manually
 
+### Mock data (always safe)
+
 ```bash
 curl -X POST \
   -H "X-Upland-Ingest-Secret: $BLOCK70_UPLAND_INGEST_SECRET" \
@@ -92,6 +98,77 @@ curl -X POST \
   -d '{"source":"mock"}' \
   https://block70.com/api/upland/ingest/trigger
 ```
+
+### Real Upland data (per-property detail)
+
+The `upland-official` source hydrates properties one at a time by calling
+`GET {UPLAND_API_BASE_URL}/api/properties/{prop_id}`. This is the same endpoint
+the play.upland.me web app uses when a user clicks a parcel. It returns
+everything Block70 needs: `full_address`, `city`, `state`, `price`, `status`,
+`yield_per_hour`, `owner_username`, `building`, `centerlat`/`centerlng`, etc.
+
+Prerequisites:
+
+1. `UPLAND_INGEST_ENABLED=1`, `UPLAND_API_TOKEN=<fresh JWT>` set on the web app.
+2. At least one prop_id to hydrate. Provide via either:
+   - `UPLAND_PROPERTY_IDS` env var (persistent seed list), or
+   - `propIds` field in the trigger body (overrides + extends the env list).
+
+```bash
+curl -X POST \
+  -H "X-Upland-Ingest-Secret: $BLOCK70_UPLAND_INGEST_SECRET" \
+  -H "Content-Type: application/json" \
+  -d '{
+        "source": "upland-official",
+        "propIds": [
+          "80257908844220",
+          "80257908844221",
+          "80257908844222"
+        ]
+      }' \
+  https://block70.com/api/upland/ingest/trigger
+```
+
+Finding prop_ids today (bbox list endpoint is not yet wired):
+
+1. Open https://play.upland.me, sign in, and pan to the area you want.
+2. In DevTools -> Network, filter for `api.prod.upland.me`.
+3. Click any parcel. The request to `/api/properties/<id>` is the detail call
+   we're using. Copy the `<id>` values for every parcel you want.
+4. Drop them into `propIds` or `UPLAND_PROPERTY_IDS`.
+
+Status -> seller_type mapping:
+
+| Upland `status` | `for_sale` | `seller_type` |
+| --- | --- | --- |
+| `For sale` | `true` | `player` (marketplace listing) |
+| `Unlocked` | `true` | `mint` (buy from Upland) |
+| `Owned` / `Locked` / other | `false` | `null` |
+
+Security notes:
+
+- `UPLAND_API_TOKEN` is a live credential. Never paste it into chat, git, or
+  tickets. If it leaks, rotate it immediately by logging out of play.upland.me
+  on the origin device.
+- The source sends the same headers the Upland web client does (`appversion`,
+  `origin`, `referer`, `locale`, `platform`). Overrides are available via
+  `UPLAND_APP_VERSION`, `UPLAND_ORIGIN`, `UPLAND_REFERER`, `UPLAND_LOCALE`,
+  `UPLAND_PLATFORM`, `UPLAND_USER_AGENT`.
+- 401/403 from upland.me aborts the run (token rejected). 429/5xx backs off
+  with 0ms / 750ms / 2500ms retries. Other 4xx fails fast.
+
+Not yet implemented (follow-ups):
+
+- **Bbox discovery.** Paste the URL + response body for the request Upland
+  makes when you pan/zoom the map (the one that returns an array with
+  `prop_id`, `boundaries`, `status`, `models`, ...). We'll add a
+  `UPLAND_BBOX_LIST_PATH` driven discovery mode so operators don't need to
+  collect ids by hand.
+- **Developer API fallback.** The sanctioned
+  [Developer API](https://docs.developers.upland.me/upland-developers/api-definitions/generic-endpoints)
+  exposes `GET /properties?cityId=X` with basic auth. It doesn't return price
+  or status, so it can't replace the detail source, but it's a candidate for
+  bulk id discovery.
 
 Status:
 

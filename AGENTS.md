@@ -28,6 +28,10 @@ This file is for **people and coding agents** (e.g. Cursor) working **in this re
 - **`apps/api`** — FastAPI backend, opportunity APIs, connectors.
 - **`docs/`** — Product and architecture docs.
 
+### NAS: full dashboard + warehouse (single host)
+
+- Single-machine layout (Timescale vs app Postgres, env splits, proxy, systemd): [`docs/operations/nas-full-dashboard.md`](docs/operations/nas-full-dashboard.md).
+
 ### Web analytics (GA4)
 
 - Set `NEXT_PUBLIC_GA_MEASUREMENT_ID` in deployment env; ops notes in [`docs/google-analytics-block70.md`](docs/google-analytics-block70.md).

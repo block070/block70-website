@@ -1,5 +1,11 @@
+from pathlib import Path
 from typing import List
 import os
+
+from dotenv import load_dotenv
+
+# Load apps/api/.env before any module reads os.getenv (DATABASE_URL, MARKET_DATA_DATABASE_URL).
+load_dotenv(Path(__file__).resolve().parents[1] / ".env")
 
 from fastapi import FastAPI, Depends
 from fastapi.middleware.cors import CORSMiddleware
@@ -23,6 +29,7 @@ from app.api.v1.share_cards import router as share_cards_router
 from app.api.v1.narratives import router as narratives_router
 from app.api.v1.airdrops import router as airdrops_router
 from app.api.v1.market import router as market_router
+from app.api.v1.market_warehouse import router as market_warehouse_router
 from app.api.v1.alpha import router as alpha_router
 from app.api.v1.radar import router as radar_router
 from app.api.v1.signals import router as signals_router
@@ -158,6 +165,7 @@ app.include_router(share_cards_router)
 app.include_router(narratives_router)
 app.include_router(airdrops_router)
 app.include_router(market_router)
+app.include_router(market_warehouse_router)
 app.include_router(alpha_router)
 app.include_router(radar_router)
 app.include_router(signals_router)

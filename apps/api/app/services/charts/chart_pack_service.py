@@ -15,7 +15,6 @@ from sqlalchemy.orm import Session
 
 from app.db import engine
 from app.models.coin import Coin
-from app.services.charts.binance_com import fetch_binance_com_klines
 from app.services.charts.chart_service import get_ohlcv
 from app.services.charts.indicators import (
     compute_indicators_for_ohlcv,
@@ -81,14 +80,12 @@ def _fetch_ohlcv_with_source(
     ticker: str, coin_slug: str, timeframe: str, limit: int
 ) -> tuple[list[dict[str, Any]], str]:
     tf = (timeframe or "1h").lower().strip()
-    bn = fetch_binance_com_klines(ticker, tf) if ticker else None
-    if bn:
-        data = bn[-limit:] if len(bn) > limit else bn
-        return data, "binance"
+    # Same providers as get_ohlcv — no api.binance.com (same ~1000 bar cap elsewhere; 451 geo noise).
     if ticker:
         data = get_ohlcv(ticker, tf, limit)
         if data:
-            return data, "fallback_exchanges"
+            trimmed = data[-limit:] if len(data) > limit else data
+            return trimmed, "fallback_exchanges"
     # CoinGecko and other fallbacks key off coingecko-style slug
     slug = (coin_slug or "").strip().lower()
     if slug:

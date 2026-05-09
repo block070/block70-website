@@ -78,7 +78,7 @@
         "url": "={{$env.BLOCK70_WEB_URL}}/api/upland/ingest/trigger",
         "sendBody": true,
         "contentType": "json",
-        "jsonBody": "={\n  \"source\": \"{{$env.UPLAND_INGEST_SOURCE || 'upland_official'}}\",\n  \"runId\": \"n8n-{{$now.toISO()}}\"\n}",
+        "jsonBody": "={\n  \"source\": \"{{$env.UPLAND_INGEST_SOURCE || 'upland-official'}}\",\n  \"runId\": \"n8n-{{$now.toISO()}}\"\n}",
         "options": {
           "timeout": 540000
         },

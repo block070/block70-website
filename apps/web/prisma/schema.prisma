@@ -36,6 +36,7 @@ model Property {
   markupPercentage   Float?                             @map("markup_percentage")
   yieldPerMonth      Decimal?  @db.Decimal(20, 6)      @map("yield_per_month")
   forSale            Boolean   @default(false)          @map("for_sale")
+  sellerType         String?                              @map("seller_type")
   owner              String?
   lat                Float?
   lng                Float?
@@ -136,6 +137,7 @@ model PropertySearch {
   markupPercentage  Float?   @map("markup_percentage")
   yieldPerMonth     Decimal? @map("yield_per_month")
   forSale           Boolean  @map("for_sale")
+  sellerType        String?  @map("seller_type")
   owner             String?
   lat               Float?
   lng               Float?

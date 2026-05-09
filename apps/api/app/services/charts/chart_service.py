@@ -8,7 +8,6 @@ from __future__ import annotations
 import logging
 from typing import Any
 
-from app.services.charts.binance_com import fetch_binance_com_klines
 from app.services.charts.ohlcv_align import align_ohlcv_bar_times
 from app.services.charts.symbol_resolve import guess_ticker
 from app.services.connectors.chart_cache import chart_cache_get, chart_cache_set
@@ -16,7 +15,7 @@ from app.services.connectors.chart_cache import chart_cache_get, chart_cache_set
 logger = logging.getLogger(__name__)
 
 # Timeframe → (granularity_seconds, default_candle_limit, cache_ttl)
-# Default 1000 matches Binance max klines for long MAs and fuller chart history.
+# Default 1000 matches typical exchange candle caps for long MAs and fuller chart history.
 TIMEFRAME_CONFIG = {
     "1m": (60, 1000, 30),
     "5m": (300, 1000, 60),
@@ -82,7 +81,7 @@ def get_ohlcv(symbol: str, timeframe: str, limit: int = 1000) -> list[OHLCVRecor
 
     ticker = guess_ticker(sym_upper, sym_lower)
     cg_id = _SYMBOL_TO_COINGECKO.get(sym_lower, sym_lower)
-    # Hyphenated / unknown tickers are usually CoinGecko ids — try CG before Binance
+    # Hyphenated / unknown tickers are usually CoinGecko ids — try CG before spot exchanges
     # to avoid wrong USDT pairs or empty chains for long-tail assets.
     try_cg_first = ("-" in sym_lower) or (ticker == "")
 
@@ -93,30 +92,21 @@ def get_ohlcv(symbol: str, timeframe: str, limit: int = 1000) -> list[OHLCVRecor
             _ohlcv_cache_set(cache_key, data, ttl)
             return data
 
-    # 0) Binance.com (global spot, USDT pairs)
-    if ticker:
-        bn_rows = fetch_binance_com_klines(ticker, tf)
-        if bn_rows:
-            raw = bn_rows[-limit:] if len(bn_rows) > limit else bn_rows
-            data = align_ohlcv_bar_times(raw, tf)
-            _ohlcv_cache_set(cache_key, data, ttl)
-            return data
-
-    # 1) Coinbase
+    # Coinbase → Binance.US → CoinGecko (no api.binance.com: same ~1000 bar cap, geo 451 risk)
     data = _fetch_coinbase_ohlcv(sym_upper, granularity_sec, limit)
     if data:
         data = align_ohlcv_bar_times(data, tf)
         _ohlcv_cache_set(cache_key, data, ttl)
         return data
 
-    # 2) Binance.US
+    # Binance.US
     data = _fetch_binance_ohlcv(sym_upper, sym_lower, tf, granularity_sec, limit)
     if data:
         data = align_ohlcv_bar_times(data, tf)
         _ohlcv_cache_set(cache_key, data, ttl)
         return data
 
-    # 3) CoinGecko (close-only, synthesize OHLC)
+    # CoinGecko (close-only, synthesize OHLC)
     data = _fetch_coingecko_ohlcv(cg_id, tf, limit)
     if data:
         data = align_ohlcv_bar_times(data, tf)
