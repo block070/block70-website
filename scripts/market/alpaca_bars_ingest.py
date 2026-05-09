@@ -8,14 +8,16 @@ Prerequisites:
   - Table `bars_1m` with columns at least:
       ts timestamptz, asset_class text, exchange text, symbol text,
       open, high, low, close, volume double precision
-  - A unique constraint on (ts, asset_class, exchange, symbol) for ON CONFLICT (see sql snippet in docs)
+  - A unique constraint on (ts, asset_class, exchange, symbol) only if you pass --on-conflict
+    (see scripts/market/sql/bars_1m_unique.sql). Default dedupe uses WHERE NOT EXISTS and works
+    on compressed hypertables without that index.
 
 Usage:
   set MARKET_DATA_DATABASE_URL=postgresql://...
   set APCA_API_KEY_ID=...
   set APCA_API_SECRET_KEY=...
   python3 scripts/market/alpaca_bars_ingest.py --symbols-file data/market/sp500/constituents.csv \\
-      --start 2025-05-01 --end 2025-05-09 --sleep 0.2
+      --start 2025-05-01 --end 2025-05-09 --chunk-days 7 --sleep 0.2
 
 Feed: set ALPACA_DATA_FEED=sip or iex (default iex). SIP requires the appropriate Alpaca data subscription.
 """
@@ -27,7 +29,7 @@ import csv
 import os
 import sys
 import time
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 from urllib.parse import quote, urlparse, urlunparse
@@ -88,6 +90,14 @@ def fetch_bars_page(
         params["page_token"] = page_token
     url = f"{ALPACA_DATA_BASE}/v2/stocks/{enc}/bars"
     r = session.get(url, params=params, timeout=120)
+    if r.status_code == 401:
+        raise RuntimeError(
+            f"Alpaca returned 401 Unauthorized for {symbol}. "
+            "Use valid APCA_API_KEY_ID + APCA_API_SECRET_KEY from "
+            "https://app.alpaca.markets/paper/dashboard/overview (paper) or live dashboard — "
+            "paper and live keys differ. Paste full strings (no literal '...'). "
+            f"Body: {r.text[:500]}"
+        )
     if r.status_code == 403:
         raise RuntimeError(
             f"Alpaca returned 403 for {symbol}. Check data subscription and ALPACA_DATA_FEED "
@@ -124,14 +134,29 @@ def upsert_bars(
     *,
     asset_class: str,
     exchange: str,
+    use_on_conflict: bool,
 ) -> int:
     if not bars:
         return 0
-    sql = """
-        INSERT INTO bars_1m (ts, asset_class, exchange, symbol, open, high, low, close, volume)
-        VALUES (%(ts)s, %(asset_class)s, %(exchange)s, %(symbol)s, %(open)s, %(high)s, %(low)s, %(close)s, %(volume)s)
-        ON CONFLICT (ts, asset_class, exchange, symbol) DO NOTHING
-    """
+    if use_on_conflict:
+        sql = """
+            INSERT INTO bars_1m (ts, asset_class, exchange, symbol, open, high, low, close, volume)
+            VALUES (%(ts)s, %(asset_class)s, %(exchange)s, %(symbol)s, %(open)s, %(high)s, %(low)s, %(close)s, %(volume)s)
+            ON CONFLICT (ts, asset_class, exchange, symbol) DO NOTHING
+        """
+    else:
+        # Works on compressed hypertables where CREATE UNIQUE INDEX is not allowed.
+        sql = """
+            INSERT INTO bars_1m (ts, asset_class, exchange, symbol, open, high, low, close, volume)
+            SELECT %(ts)s, %(asset_class)s, %(exchange)s, %(symbol)s, %(open)s, %(high)s, %(low)s, %(close)s, %(volume)s
+            WHERE NOT EXISTS (
+                SELECT 1 FROM bars_1m b
+                WHERE b.asset_class = %(asset_class)s
+                  AND b.exchange = %(exchange)s
+                  AND b.symbol = %(symbol)s
+                  AND b.ts = %(ts)s
+            )
+        """
     inserted = 0
     with conn.cursor() as cur:
         for b in bars:
@@ -168,7 +193,20 @@ def main() -> int:
     p.add_argument("--exchange", default="ALPACA")
     p.add_argument("--limit", type=int, default=10000)
     p.add_argument("--max-symbols", type=int, default=0, help="0 = all symbols in file")
+    p.add_argument(
+        "--chunk-days",
+        type=int,
+        default=0,
+        metavar="N",
+        help="Split [start,end) into N-day windows (recommended for large history). 0 = single window.",
+    )
     p.add_argument("--dry-run", action="store_true")
+    p.add_argument(
+        "--on-conflict",
+        action="store_true",
+        help="Use ON CONFLICT DO NOTHING (needs UNIQUE on ts+asset_class+exchange+symbol). "
+        "Default uses WHERE NOT EXISTS so compressed hypertables work without that index.",
+    )
     args = p.parse_args()
 
     key = os.getenv("APCA_API_KEY_ID") or os.getenv("ALPACA_API_KEY_ID")
@@ -186,8 +224,22 @@ def main() -> int:
     if args.max_symbols > 0:
         symbols = symbols[: args.max_symbols]
 
-    start_dt = datetime.combine(date.fromisoformat(args.start), datetime.min.time(), tzinfo=timezone.utc)
-    end_dt = datetime.combine(date.fromisoformat(args.end), datetime.min.time(), tzinfo=timezone.utc)
+    range_start = datetime.combine(date.fromisoformat(args.start), datetime.min.time(), tzinfo=timezone.utc)
+    range_end = datetime.combine(date.fromisoformat(args.end), datetime.min.time(), tzinfo=timezone.utc)
+    if range_start >= range_end:
+        print("--start must be before --end (end is exclusive)", file=sys.stderr)
+        return 1
+
+    chunks: list[tuple[datetime, datetime]] = []
+    if args.chunk_days and args.chunk_days > 0:
+        step = timedelta(days=args.chunk_days)
+        cursor = range_start
+        while cursor < range_end:
+            nxt = min(cursor + step, range_end)
+            chunks.append((cursor, nxt))
+            cursor = nxt
+    else:
+        chunks = [(range_start, range_end)]
 
     session = requests.Session()
     session.headers.update(
@@ -206,36 +258,46 @@ def main() -> int:
 
     total_rows = 0
     try:
-        for i, sym in enumerate(symbols):
-            token: str | None = None
-            sym_bars: list[dict[str, Any]] = []
-            while True:
-                payload = fetch_bars_page(
-                    session,
-                    sym,
-                    timeframe=args.timeframe,
-                    start=start_dt,
-                    end=end_dt,
-                    feed=args.feed,
-                    limit=args.limit,
-                    page_token=token,
-                )
-                chunk = payload.get("bars") or []
-                sym_bars.extend(chunk)
-                token = payload.get("next_page_token")
-                if not token:
-                    break
+        for ci, (start_dt, end_dt) in enumerate(chunks):
+            if len(chunks) > 1:
+                print(f"--- chunk {ci + 1}/{len(chunks)}: {start_dt.date()} .. {end_dt.date()} (end exclusive) ---")
+            for i, sym in enumerate(symbols):
+                token: str | None = None
+                sym_bars: list[dict[str, Any]] = []
+                while True:
+                    payload = fetch_bars_page(
+                        session,
+                        sym,
+                        timeframe=args.timeframe,
+                        start=start_dt,
+                        end=end_dt,
+                        feed=args.feed,
+                        limit=args.limit,
+                        page_token=token,
+                    )
+                    chunk_bars = payload.get("bars") or []
+                    sym_bars.extend(chunk_bars)
+                    token = payload.get("next_page_token")
+                    if not token:
+                        break
 
-            if args.dry_run:
-                print(f"{sym}: would insert {len(sym_bars)} bars")
-            else:
-                assert conn is not None
-                n = upsert_bars(conn, sym, sym_bars, asset_class=args.asset_class, exchange=args.exchange)
-                total_rows += n
-                print(f"{sym}: inserted {n} new rows ({len(sym_bars)} fetched)")
+                if args.dry_run:
+                    print(f"{sym}: would insert {len(sym_bars)} bars")
+                else:
+                    assert conn is not None
+                    n = upsert_bars(
+                        conn,
+                        sym,
+                        sym_bars,
+                        asset_class=args.asset_class,
+                        exchange=args.exchange,
+                        use_on_conflict=args.on_conflict,
+                    )
+                    total_rows += n
+                    print(f"{sym}: inserted {n} new rows ({len(sym_bars)} fetched)")
 
-            if args.sleep and i + 1 < len(symbols):
-                time.sleep(args.sleep)
+                if args.sleep and i + 1 < len(symbols):
+                    time.sleep(args.sleep)
     finally:
         if conn is not None:
             conn.close()

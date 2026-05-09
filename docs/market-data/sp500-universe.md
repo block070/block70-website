@@ -22,6 +22,14 @@ python3 scripts/market/fetch_sp500_constituents.py
 
 On Ubuntu/Debian, use **`python3`**. There is often no `python` unless you install the **`python-is-python3`** package (`sudo apt install python-is-python3`).
 
+**PEP 668 (Ubuntu 24.04+):** `pip install --user` may be blocked. Prefer **`apt`** packages for the fetch script:
+
+```bash
+sudo apt install -y python3-requests python3-bs4
+```
+
+For `alpaca_bars_ingest.py`, add **`python3-psycopg2`**. Alternatively use a **venv** (`python3 -m venv .venv && source .venv/bin/activate && pip install …`).
+
 Commit `data/market/sp500/constituents.csv` when it changes.
 
 **Source:** [Wikipedia — List of S&P 500 companies](https://en.wikipedia.org/wiki/List_of_S%26P_500_companies). Verify critical symbols against your broker/data vendor if needed.
@@ -34,7 +42,9 @@ Ingest assumes **`bars_1m`** includes:
 
 Rows are written with **`asset_class = equity`** and **`exchange = ALPACA`** (match existing warehouse conventions).
 
-For **`ON CONFLICT (ts, asset_class, exchange, symbol) DO NOTHING`**, create a matching unique constraint or primary key (see `scripts/market/sql/bars_1m_unique.sql`). If your schema differs, edit the `INSERT` in `alpaca_bars_ingest.py`.
+By default the ingest script uses **`INSERT ... WHERE NOT EXISTS`** so you **do not** need a unique index. That avoids Timescale errors when **`bars_1m`** has **compression** enabled (`CREATE UNIQUE INDEX` is not allowed on compressed hypertables in many setups).
+
+Optional faster path: add a unique constraint on `(ts, asset_class, exchange, symbol)` and run ingest with **`--on-conflict`** (uses **`ON CONFLICT DO NOTHING`**). See `scripts/market/sql/bars_1m_unique.sql` — skip it if compression blocks index creation.
 
 ## Run Alpaca backfill (NAS or dev machine)
 
@@ -50,13 +60,18 @@ export ALPACA_DATA_FEED=iex
 
 Pick a **UTC date range**. `--end` is an **exclusive** calendar day boundary (script converts to midnight UTC); request one trading day with `--start 2026-05-08 --end 2026-05-09`.
 
+For **long history**, use **`--chunk-days`** so each Alpaca request window stays smaller (recommended with ~500 symbols):
+
 ```bash
 python3 scripts/market/alpaca_bars_ingest.py \
   --symbols-file data/market/sp500/constituents.csv \
-  --start 2026-05-01 \
-  --end 2026-05-09 \
+  --start 2026-04-01 \
+  --end 2026-05-10 \
+  --chunk-days 7 \
   --sleep 0.25
 ```
+
+Dependencies on Ubuntu (system Python): **`sudo apt install -y python3-requests python3-psycopg2`** (`requests` may already be installed).
 
 Smoke-test without DB writes:
 
@@ -66,6 +81,7 @@ python3 scripts/market/alpaca_bars_ingest.py --dry-run --start 2026-05-08 --end 
 
 **Notes:**
 
+- **401 Unauthorized:** Wrong or mismatched Alpaca keys — copy **API Key ID** and **Secret Key** from the Alpaca dashboard (**Paper** vs **Live** use **different** keys). Do not use placeholder `...` in `export`.
 - **Rate limits:** use `--sleep` so ~500 symbols do not burst Alpaca limits.
 - **History depth:** max lookback for intraday bars depends on your **Alpaca market data** plan; start with short windows.
 - **Feed:** `ALPACA_DATA_FEED=sip` vs `iex` affects coverage; align with your subscription.
