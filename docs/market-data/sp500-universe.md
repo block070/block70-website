@@ -39,6 +39,7 @@ Commit `data/market/sp500/constituents.csv` when it changes.
 Ingest assumes **`bars_1m`** includes:
 
 - `ts` (timestamptz), `asset_class`, `exchange`, `symbol`, `open`, `high`, `low`, `close`, `volume`
+- **`source` (text, NOT NULL)** — set via **`--source`** or **`MARKET_BARS_SOURCE`** (script default **`alpaca`**). Match whatever your crypto rows use if you standardize labels.
 
 Rows are written with **`asset_class = equity`** and **`exchange = ALPACA`** (match existing warehouse conventions).
 

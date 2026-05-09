@@ -7,7 +7,8 @@ Prerequisites:
   - MARKET_DATA_DATABASE_URL (warehouse Timescale; psycopg2 URL)
   - Table `bars_1m` with columns at least:
       ts timestamptz, asset_class text, exchange text, symbol text,
-      open, high, low, close, volume double precision
+      open, high, low, close, volume double precision, source text NOT NULL
+    Use `--source` or env `MARKET_BARS_SOURCE` (default `alpaca`).
   - A unique constraint on (ts, asset_class, exchange, symbol) only if you pass --on-conflict
     (see scripts/market/sql/bars_1m_unique.sql). Default dedupe uses WHERE NOT EXISTS and works
     on compressed hypertables without that index.
@@ -134,21 +135,22 @@ def upsert_bars(
     *,
     asset_class: str,
     exchange: str,
+    source: str,
     use_on_conflict: bool,
 ) -> int:
     if not bars:
         return 0
     if use_on_conflict:
         sql = """
-            INSERT INTO bars_1m (ts, asset_class, exchange, symbol, open, high, low, close, volume)
-            VALUES (%(ts)s, %(asset_class)s, %(exchange)s, %(symbol)s, %(open)s, %(high)s, %(low)s, %(close)s, %(volume)s)
+            INSERT INTO bars_1m (ts, asset_class, exchange, symbol, open, high, low, close, volume, source)
+            VALUES (%(ts)s, %(asset_class)s, %(exchange)s, %(symbol)s, %(open)s, %(high)s, %(low)s, %(close)s, %(volume)s, %(source)s)
             ON CONFLICT (ts, asset_class, exchange, symbol) DO NOTHING
         """
     else:
         # Works on compressed hypertables where CREATE UNIQUE INDEX is not allowed.
         sql = """
-            INSERT INTO bars_1m (ts, asset_class, exchange, symbol, open, high, low, close, volume)
-            SELECT %(ts)s, %(asset_class)s, %(exchange)s, %(symbol)s, %(open)s, %(high)s, %(low)s, %(close)s, %(volume)s
+            INSERT INTO bars_1m (ts, asset_class, exchange, symbol, open, high, low, close, volume, source)
+            SELECT %(ts)s, %(asset_class)s, %(exchange)s, %(symbol)s, %(open)s, %(high)s, %(low)s, %(close)s, %(volume)s, %(source)s
             WHERE NOT EXISTS (
                 SELECT 1 FROM bars_1m b
                 WHERE b.asset_class = %(asset_class)s
@@ -170,6 +172,7 @@ def upsert_bars(
                 "low": float(b["l"]),
                 "close": float(b["c"]),
                 "volume": float(b.get("v") or 0),
+                "source": source,
             }
             cur.execute(sql, row)
             inserted += cur.rowcount
@@ -206,6 +209,11 @@ def main() -> int:
         action="store_true",
         help="Use ON CONFLICT DO NOTHING (needs UNIQUE on ts+asset_class+exchange+symbol). "
         "Default uses WHERE NOT EXISTS so compressed hypertables work without that index.",
+    )
+    p.add_argument(
+        "--source",
+        default=os.getenv("MARKET_BARS_SOURCE", "alpaca"),
+        help="Value for bars_1m.source (NOT NULL). Env: MARKET_BARS_SOURCE. Default: alpaca",
     )
     args = p.parse_args()
 
@@ -291,6 +299,7 @@ def main() -> int:
                         sym_bars,
                         asset_class=args.asset_class,
                         exchange=args.exchange,
+                        source=args.source,
                         use_on_conflict=args.on_conflict,
                     )
                     total_rows += n
