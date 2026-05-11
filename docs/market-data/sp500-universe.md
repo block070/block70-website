@@ -102,9 +102,7 @@ Compare symbol count to `SELECT COUNT(DISTINCT symbol) FROM ...` vs ~500 in `con
 
 ## Automation
 
-Point your NAS **cron/systemd** ingest at:
+**Daily crypto + equity:** [`scripts/market/daily_market_bars_ingest.py`](../../scripts/market/daily_market_bars_ingest.py) (Coinbase symbols from warehouse + Alpaca S&P CSV). NAS install: [`docs/operations/nas-full-dashboard.md`](../operations/nas-full-dashboard.md) §6 ingest timers.
 
-1. Weekly or monthly: `fetch_sp500_constituents.py` (optional git pull + commit from CI).
-2. Trading hours / nightly: `alpaca_bars_ingest.py` over a rolling window (e.g. last 2 sessions) for incremental fill.
-
-See also: [`docs/operations/nas-full-dashboard.md`](../operations/nas-full-dashboard.md) (Timescale env, timers).
+1. Weekly or monthly: `fetch_sp500_constituents.py` after index changes.
+2. Ad-hoc backfill: `alpaca_bars_ingest.py` with explicit `--start` / `--end` / `--chunk-days`.

@@ -257,15 +257,24 @@ Ensure **`Node`**/`npm` path matches (`which npm`). Alternatively run **`node`**
 
 ### Ingest timers
 
-**Equity (S&P 500 → Alpaca → `bars_1m`):** refresh the universe CSV and run the Alpaca backfill script — see [`docs/market-data/sp500-universe.md`](../market-data/sp500-universe.md).
-
-Use **`OnCalendar=`** or cron for crypto/equity scripts; wrap with **`flock`**:
+**Daily crypto + equity (`bars_1m`):** repo scripts under [`scripts/market/`](../../scripts/market/) — `daily_market_bars_ingest.py` runs Coinbase (symbols already in warehouse) then Alpaca (S&P CSV). Example env: [`scripts/market/market-ingest.env.example`](../../scripts/market/market-ingest.env.example). Systemd units: [`scripts/market/systemd/`](../../scripts/market/systemd/). Equity backfill / universe: [`docs/market-data/sp500-universe.md`](../market-data/sp500-universe.md).
 
 ```bash
-flock -n /tmp/market-crypto-realtime.lock /path/to/venv/bin/python /srv/market-data/ingest/realtime_crypto.py
+sudo cp scripts/market/market-ingest.env.example /etc/block70/market-ingest.env
+sudo chmod 600 /etc/block70/market-ingest.env
+# edit REPO_ROOT, MARKET_DATA_DATABASE_URL, APCA_* keys
+
+sudo cp scripts/market/systemd/block70-market-bars-daily.{service,timer} /etc/systemd/system/
+# fix WorkingDirectory= in the .service if REPO_ROOT differs
+sudo systemctl daemon-reload
+sudo systemctl enable --now block70-market-bars-daily.timer
+sudo systemctl start block70-market-bars-daily.service   # manual test
+tail -f /var/log/block70/market-bars-daily.log
 ```
 
-One timer per job class; separate logs under e.g. `/srv/market-data/logs/`.
+Manual run (no systemd): `bash scripts/market/run_daily_bars_ingest.sh` with `ENV_FILE` / `REPO_ROOT` set.
+
+Use **`flock`** (included in `run_daily_bars_ingest.sh`) so overlapping timer runs do not stack.
 
 Enable and start:
 

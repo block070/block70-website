@@ -33,10 +33,15 @@ import time
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
-from urllib.parse import quote, urlparse, urlunparse
+from urllib.parse import quote
 
-import psycopg2
 import requests
+
+_SCRIPT_DIR = Path(__file__).resolve().parent
+if str(_SCRIPT_DIR) not in sys.path:
+    sys.path.insert(0, str(_SCRIPT_DIR))
+
+from warehouse_bars import connect_market_db, insert_bars
 
 ALPACA_DATA_BASE = "https://data.alpaca.markets"
 
@@ -128,56 +133,18 @@ def _bar_ts(bar: dict[str, Any]) -> datetime:
     raise ValueError(f"unknown bar timestamp type: {type(t)} {t!r}")
 
 
-def upsert_bars(
-    conn,
-    symbol: str,
-    bars: list[dict[str, Any]],
-    *,
-    asset_class: str,
-    exchange: str,
-    source: str,
-    use_on_conflict: bool,
-) -> int:
-    if not bars:
-        return 0
-    if use_on_conflict:
-        sql = """
-            INSERT INTO bars_1m (ts, asset_class, exchange, symbol, open, high, low, close, volume, source)
-            VALUES (%(ts)s, %(asset_class)s, %(exchange)s, %(symbol)s, %(open)s, %(high)s, %(low)s, %(close)s, %(volume)s, %(source)s)
-            ON CONFLICT (ts, asset_class, exchange, symbol) DO NOTHING
-        """
-    else:
-        # Works on compressed hypertables where CREATE UNIQUE INDEX is not allowed.
-        sql = """
-            INSERT INTO bars_1m (ts, asset_class, exchange, symbol, open, high, low, close, volume, source)
-            SELECT %(ts)s, %(asset_class)s, %(exchange)s, %(symbol)s, %(open)s, %(high)s, %(low)s, %(close)s, %(volume)s, %(source)s
-            WHERE NOT EXISTS (
-                SELECT 1 FROM bars_1m b
-                WHERE b.asset_class = %(asset_class)s
-                  AND b.exchange = %(exchange)s
-                  AND b.symbol = %(symbol)s
-                  AND b.ts = %(ts)s
-            )
-        """
-    inserted = 0
-    with conn.cursor() as cur:
-        for b in bars:
-            row = {
-                "ts": _bar_ts(b),
-                "asset_class": asset_class,
-                "exchange": exchange,
-                "symbol": symbol,
-                "open": float(b["o"]),
-                "high": float(b["h"]),
-                "low": float(b["l"]),
-                "close": float(b["c"]),
-                "volume": float(b.get("v") or 0),
-                "source": source,
-            }
-            cur.execute(sql, row)
-            inserted += cur.rowcount
-    conn.commit()
-    return inserted
+def _alpaca_rows(bars: list[dict[str, Any]]) -> list[dict]:
+    return [
+        {
+            "ts": _bar_ts(b),
+            "open": float(b["o"]),
+            "high": float(b["h"]),
+            "low": float(b["l"]),
+            "close": float(b["c"]),
+            "volume": float(b.get("v") or 0),
+        }
+        for b in bars
+    ]
 
 
 def main() -> int:
@@ -293,10 +260,10 @@ def main() -> int:
                     print(f"{sym}: would insert {len(sym_bars)} bars")
                 else:
                     assert conn is not None
-                    n = upsert_bars(
+                    n = insert_bars(
                         conn,
                         sym,
-                        sym_bars,
+                        _alpaca_rows(sym_bars),
                         asset_class=args.asset_class,
                         exchange=args.exchange,
                         source=args.source,

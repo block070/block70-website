@@ -1,0 +1,11 @@
+[Unit]
+Description=Block70 daily market bars ingest (crypto + equity)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+EnvironmentFile=-/etc/block70/market-ingest.env
+Environment=ENV_FILE=/etc/block70/market-ingest.env
+WorkingDirectory=/home/jmiller/block70-repo
+ExecStart=/bin/bash scripts/market/run_daily_bars_ingest.sh
