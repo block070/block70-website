@@ -226,10 +226,7 @@ def main() -> int:
 
     conn = None
     if not args.dry_run:
-        # SQLAlchemy URLs may use postgresql+psycopg2 — normalize for psycopg2.connect
-        parsed = urlparse(db_url.replace("postgresql+psycopg2://", "postgresql://"))
-        conn_dsn = urlunparse(parsed)
-        conn = psycopg2.connect(conn_dsn)
+        conn = connect_market_db()
 
     total_rows = 0
     try:

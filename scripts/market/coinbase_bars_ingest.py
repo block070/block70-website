@@ -92,15 +92,19 @@ def fetch_candles_window(
     end: datetime,
     granularity_sec: int,
 ) -> list[dict]:
+    if start >= end:
+        return []
     r = session.get(
         f"{COINBASE_EXCHANGE_BASE}/products/{product_id}/candles",
         params={
             "granularity": granularity_sec,
-            "start": start.isoformat(),
-            "end": end.isoformat(),
+            "start": int(start.timestamp()),
+            "end": int(end.timestamp()),
         },
         timeout=60,
     )
+    if r.status_code in (400, 404):
+        return []
     r.raise_for_status()
     data = r.json()
     if not isinstance(data, list):
@@ -223,13 +227,17 @@ def main() -> int:
     try:
         for i, product_id in enumerate(products):
             wh_symbol = product_to_warehouse_symbol(product_id)
-            bars = fetch_all_candles(
-                session,
-                product_id,
-                range_start=range_start,
-                range_end=range_end,
-                granularity_sec=args.granularity_sec,
-            )
+            try:
+                bars = fetch_all_candles(
+                    session,
+                    product_id,
+                    range_start=range_start,
+                    range_end=range_end,
+                    granularity_sec=args.granularity_sec,
+                )
+            except requests.HTTPError as exc:
+                print(f"{wh_symbol}: skip ({exc})", file=sys.stderr)
+                continue
             if args.dry_run:
                 print(f"{wh_symbol}: would insert {len(bars)} bars")
             else:
